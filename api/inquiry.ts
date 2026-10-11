@@ -11,6 +11,15 @@
  * so this function's validation, honeypot and rate limit cannot be bypassed by
  * talking to Supabase directly.
  *
+ * ── Who may send ─────────────────────────────────────────────────────────────
+ * Only a signed-in patient. The browser sends its Supabase access token as
+ * `Authorization: Bearer <token>`; this function asks Supabase Auth who it
+ * belongs to (the signature is never trusted locally) and refuses anonymous,
+ * email-less and unconfirmed accounts with 401. The account is recorded on the
+ * row (`user_id`, migration 0026) and its verified email goes to the team, so a
+ * message can always be traced to a real, reachable person. Hiding the Send
+ * button is only manners; this is the actual gate.
+ *
  * ── Env (server-only, Vercel → Settings → Environment Variables) ─────────────
  *   VITE_SUPABASE_URL (or SUPABASE_URL)   already set
  *   SUPABASE_SERVICE_ROLE_KEY             must be set in Vercel (was scripts-only)
@@ -71,6 +80,50 @@ function esc(value: unknown): string {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/** The account behind a request, as far as this function needs to know. */
+export interface AuthUser {
+    id: string;
+    email: string;
+}
+
+/** `Authorization: Bearer <token>` → the token, or null for anything else. */
+export function bearerToken(header: string | string[] | undefined): string | null {
+    const raw = Array.isArray(header) ? header[0] : header;
+    const m = /^Bearer\s+([A-Za-z0-9._~+/-]+=*)$/.exec((raw ?? '').trim());
+    return m ? m[1] : null;
+}
+
+/**
+ * Who a token belongs to, asked of Supabase Auth itself (GET /auth/v1/user) so a
+ * forged, expired or revoked token fails here. Null means "not a usable
+ * account": no such user, an anonymous sign-in, or no confirmed email.
+ */
+export async function getAuthUser(
+    token: string,
+    url: string,
+    apikey: string,
+    doFetch: typeof fetch = fetch,
+): Promise<AuthUser | null> {
+    try {
+        const r = await doFetch(`${url.replace(/\/$/, '')}/auth/v1/user`, {
+            headers: { apikey, Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return null;
+        const u = (await r.json()) as {
+            id?: unknown;
+            email?: unknown;
+            email_confirmed_at?: unknown;
+            is_anonymous?: unknown;
+        };
+        if (typeof u.id !== 'string' || !UUID.test(u.id)) return null;
+        if (typeof u.email !== 'string' || !EMAIL.test(u.email)) return null;
+        if (u.is_anonymous === true || !u.email_confirmed_at) return null;
+        return { id: u.id, email: u.email };
+    } catch {
+        return null;
+    }
 }
 
 export interface InquiryRow {
@@ -137,7 +190,9 @@ export function parseInquiry(body: unknown): Parsed {
     };
 }
 
-async function insertRow(row: InquiryRow, url: string, key: string): Promise<boolean> {
+type StoredRow = InquiryRow & { user_id: string };
+
+async function insertRow(row: StoredRow, url: string, key: string): Promise<boolean> {
     const r = await fetch(`${url.replace(/\/$/, '')}/rest/v1/patient_inquiries`, {
         method: 'POST',
         headers: {
@@ -152,7 +207,7 @@ async function insertRow(row: InquiryRow, url: string, key: string): Promise<boo
     return r.ok;
 }
 
-async function sendEmail(row: InquiryRow): Promise<void> {
+async function sendEmail(row: InquiryRow, account: AuthUser): Promise<void> {
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.LEAD_NOTIFY_FROM;
     const to = (process.env.LEAD_NOTIFY_TO ?? '').split(',').map((a) => a.trim()).filter(Boolean);
@@ -168,6 +223,8 @@ async function sendEmail(row: InquiryRow): Promise<void> {
         ['Provider id', row.provider_id],
         ['Patient', row.patient_name],
         [row.contact_kind === 'email' ? 'Email' : 'Phone', row.contact],
+        // The verified sign-in, which can differ from the contact they chose to be answered at.
+        ['Account', account.email],
         ['Preferred time', row.preferred_time],
         ['Language', row.language],
     ];
@@ -199,7 +256,7 @@ async function sendEmail(row: InquiryRow): Promise<void> {
             subject,
             html,
             text,
-            ...(row.contact_kind === 'email' ? { reply_to: row.contact } : {}),
+            reply_to: row.contact_kind === 'email' ? row.contact : account.email,
         }),
     });
     if (!r.ok) console.error('[inquiry] resend failed:', r.status, (await r.text().catch(() => '')).slice(0, 300));
@@ -215,6 +272,10 @@ export default async function handler(req: Req, res: Res) {
     const fwdValue = Array.isArray(fwd) ? fwd[0] : fwd;
     const ip = (fwdValue ?? '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
     if (rateLimited(ip)) return res.status(429).json({ ok: false, error: 'too_many' });
+
+    // No token, no message. Checked before the body is even read.
+    const token = bearerToken(req.headers.authorization);
+    if (!token) return res.status(401).json({ ok: false, error: 'auth_required' });
 
     let body = req.body;
     if (typeof body === 'string') {
@@ -247,8 +308,19 @@ export default async function handler(req: Req, res: Res) {
         return res.status(500).json({ ok: false, error: 'server_error' });
     }
 
+    // Verified only now, after the cheap checks, so malformed requests cost no
+    // round trip. The anon key is enough for /auth/v1/user; the service key
+    // is the fallback so a missing anon var cannot lock every patient out.
+    const apikey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? key;
+    const user = await getAuthUser(token, url, apikey);
+    if (!user) return res.status(401).json({ ok: false, error: 'auth_required' });
+
+    // One account, not just one IP: signing up again from a new address does
+    // not reset the count for the account that is already sending.
+    if (rateLimited(`user:${user.id}`)) return res.status(429).json({ ok: false, error: 'too_many' });
+
     try {
-        if (!(await insertRow(parsed.row, url, key))) {
+        if (!(await insertRow({ ...parsed.row, user_id: user.id }, url, key))) {
             return res.status(500).json({ ok: false, error: 'server_error' });
         }
     } catch (e) {
@@ -257,7 +329,7 @@ export default async function handler(req: Req, res: Res) {
     }
 
     try {
-        await sendEmail(parsed.row);
+        await sendEmail(parsed.row, user);
     } catch (e) {
         console.error('[inquiry] email threw:', String(e).slice(0, 200));
     }

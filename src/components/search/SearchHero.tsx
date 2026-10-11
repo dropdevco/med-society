@@ -4,11 +4,12 @@ import type { ProviderFilters, Specialty, Country } from '../../types/provider';
 import { parseCityValue, suggest, type Suggestion, type SuggestVocabulary } from '../../utils/facets';
 import { fold } from '../../utils/search';
 import { isPostalQuery, normalizePostal } from '../../utils/geo';
-import { REGIONS, REGION_IDS, type RegionId } from '../../utils/region';
+import { REGIONS, type RegionId } from '../../utils/region';
 import { whereLabel as whereLabelOf } from '../../utils/place';
+import { PlacePicker } from './PlacePicker';
 import {
     IconSearch, IconClose, IconMapPin, IconStar, IconShield,
-    IconCheck, IconBorder, IconMX, IconUS, SpecialtyIcon,
+    IconCheck, SpecialtyIcon,
 } from '../icons/Icons';
 
 /** What the hero is holding before the user commits it. */
@@ -113,6 +114,18 @@ export function SearchHero({
             }
         },
     });
+
+    // WHERE and Insurance hang from a field that can sit low on a phone, so
+    // their last rows (and the ZIP box) used to open below the screen with no
+    // hint to scroll. Bring the popover fully into view when it opens; a
+    // popover that already fits scrolls nothing.
+    useEffect(() => {
+        if (open !== 'where' && open !== 'cover') return;
+        const pop = wrapRef.current?.querySelector('.ms-pop-where, .ms-pop-cover');
+        if (!pop) return;
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        pop.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;
@@ -317,7 +330,6 @@ export function SearchHero({
                     {open === 'where' && (
                         <WherePopover
                             draft={draft}
-                            onRegion={(region) => patch({ region, country: '', postalCode: '' })}
                             onPick={(p) => { patch(p); setOpen(null); }}
                         />
                     )}
@@ -363,77 +375,26 @@ export function SearchHero({
 }
 
 /**
- * Two levels: which border region, then which side of it. Choosing a region
- * keeps the popover open, because the side is the question that follows; the
- * side (or a ZIP) closes it.
+ * One list of places (see PlacePicker), then an optional ZIP. A row is a whole
+ * crossing or one of its cities; either way it sets the region and the side in
+ * one tap and closes the popover, and drops any ZIP the old place had. A ZIP
+ * narrows within the region the draft already holds.
  */
-function WherePopover({ draft, onRegion, onPick }: {
+function WherePopover({ draft, onPick }: {
     draft: Draft;
-    onRegion: (region: RegionId) => void;
     onPick: (p: Partial<Draft>) => void;
 }) {
-    const { t, i18n } = useTranslation();
-    const lang = i18n.language?.startsWith('es') ? 'es' : 'en';
+    const { t } = useTranslation();
     const [zip, setZip] = useState(draft.postalCode);
     const region = REGIONS[draft.region];
-    /** "Texas, United States" → "Texas": the state is what tells regions apart. */
-    const stateOf = (hint: string) => hint.split(',')[0];
-
-    const sides: { value: Country | ''; label: string; hint: string; icon: React.ReactNode }[] = [
-        {
-            value: '',
-            label: t('regions.bothSides'),
-            hint: t('regions.bothHint', { us: region.us.city, mx: region.mx.city }),
-            icon: <IconMapPin size={16} />,
-        },
-        { value: 'US', label: region.us.city, hint: region.us.hint[lang], icon: <IconUS size={16} /> },
-        { value: 'MX', label: region.mx.city, hint: region.mx.hint[lang], icon: <IconMX size={16} /> },
-    ];
 
     return (
         <div className="ms-pop ms-pop-where" onClick={(e) => e.stopPropagation()}>
-            <p style={POP_HEADING}>{t('regions.label')}</p>
-            {REGION_IDS.map((id) => {
-                const r = REGIONS[id];
-                const chosen = draft.region === id;
-                return (
-                    <button
-                        key={id}
-                        onClick={() => onRegion(id)}
-                        aria-pressed={chosen}
-                        className={`ms-pop-row${chosen ? ' is-chosen' : ''}`}
-                    >
-                        <span className="ms-pop-ico"><IconBorder size={16} /></span>
-                        <span className="ms-pop-label">
-                            <strong>{r.name}</strong>
-                            <em>{stateOf(r.us.hint[lang])} · {stateOf(r.mx.hint[lang])}</em>
-                        </span>
-                        {chosen && (
-                            <span className="ms-pop-meta"><IconCheck size={15} weight={2.4} /></span>
-                        )}
-                    </button>
-                );
-            })}
-
-            <div className="ms-pop-sep" />
-            <p style={POP_HEADING}>{t('regions.sideLabel')}</p>
-
-            {sides.map((o) => (
-                <button
-                    key={o.value || 'any'}
-                    onClick={() => onPick({ country: o.value, postalCode: '' })}
-                    className={`ms-pop-row${draft.country === o.value && !draft.postalCode ? ' is-chosen' : ''}`}
-                >
-                    <span className="ms-pop-ico">{o.icon}</span>
-                    <span className="ms-pop-label">
-                        <strong>{o.label}</strong>
-                        <em>{o.hint}</em>
-                    </span>
-                    {draft.country === o.value && !draft.postalCode && (
-                        <span className="ms-pop-meta"><IconCheck size={15} weight={2.4} /></span>
-                    )}
-                </button>
-            ))}
+            <PlacePicker
+                value={draft}
+                active={!draft.postalCode}
+                onPick={(place) => onPick({ region: place.region, country: place.country, postalCode: '' })}
+            />
 
             <div className="ms-pop-sep" />
 
@@ -460,16 +421,6 @@ function WherePopover({ draft, onRegion, onPick }: {
         </div>
     );
 }
-
-/** Matches the ZIP label's small caps, so the popover reads as one panel. */
-const POP_HEADING: React.CSSProperties = {
-    margin: '0.3rem 0.6rem 0.2rem',
-    fontSize: '0.72rem',
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'var(--gray-500)',
-};
 
 /** How many insurers fit before the list stops being a list. */
 const COVER_SHOWN = 8;

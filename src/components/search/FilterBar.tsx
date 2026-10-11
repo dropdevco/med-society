@@ -5,12 +5,12 @@ import { SpecialtyLabels } from '../../types/provider';
 import type { FacetCounts } from '../../utils/facets';
 import { topInsurers } from '../../utils/facets';
 import { fold } from '../../utils/search';
-import { REGIONS, REGION_IDS } from '../../utils/region';
 import { regionPatch } from '../../utils/filters';
+import { PlacePicker } from './PlacePicker';
 import { languageName } from '../../utils/languages';
 import { formatPrice, isEnglish, MXN_PER_USD } from '../../utils/currency';
 import {
-    SpecialtyIcon, IconBorder, IconUS, IconMX,
+    SpecialtyIcon,
     IconStar, IconChevronDown, IconSearch,
 } from '../icons/Icons';
 
@@ -93,54 +93,21 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {/* The region is a scope rather than a filter: switching loads the
-                other region's directory and releases the side, the postal
-                code and the map box, which all belonged to the old one. */}
-            <Section title={t('regions.label')} defaultOpen>
-                <div role="group" aria-label={t('regions.label')} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                    {REGION_IDS.map((id) => (
-                        <Chip
-                            key={id}
-                            icon={<IconBorder size={14} />}
-                            label={REGIONS[id].name}
-                            active={filters.region === id}
-                            onClick={() => { if (filters.region !== id) patchFilters(regionPatch(id)); }}
-                        />
-                    ))}
-                </div>
-            </Section>
-
-            <Section title={t('filters.countryGroup')} defaultOpen>
-                <div
-                    role="group"
-                    aria-label={t('filters.countryGroup')}
-                    style={{
-                        display: 'flex',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-pill)',
-                        padding: '3px', gap: '3px',
+            {/* One place, not a region and then a side. Changing crossing loads
+                the other region's directory and releases the postal code and
+                the map box, which all belonged to the old one; staying in the
+                crossing only moves the side. */}
+            <Section title={t('search.whereLabel')} defaultOpen>
+                <PlacePicker
+                    value={filters}
+                    onPick={(place) => {
+                        if (place.region !== filters.region) {
+                            patchFilters({ ...regionPatch(place.region), country: place.country });
+                        } else {
+                            updateFilter('country', place.country);
+                        }
                     }}
-                >
-                    <SegItem
-                        icon={<IconBorder size={14} />}
-                        label={t('filters.bothSides')}
-                        active={filters.country === ''}
-                        onClick={() => updateFilter('country', '')}
-                    />
-                    <SegItem
-                        icon={<IconMX size={14} />}
-                        label={REGIONS[filters.region].mx.city}
-                        active={filters.country === 'MX'}
-                        onClick={() => updateFilter('country', 'MX')}
-                    />
-                    <SegItem
-                        icon={<IconUS size={14} />}
-                        label={REGIONS[filters.region].us.city}
-                        active={filters.country === 'US'}
-                        onClick={() => updateFilter('country', 'US')}
-                    />
-                </div>
+                />
             </Section>
 
             <Section title={t('filters.specialtyGroup', { defaultValue: 'Specialty' })} defaultOpen>
@@ -384,32 +351,6 @@ function MoreButton({ expanded, onClick, label }: {
             }}>
                 <IconChevronDown size={13} weight={2.2} />
             </span>
-        </button>
-    );
-}
-
-function SegItem({ icon, label, active, onClick }: {
-    icon: React.ReactNode; label: string; active: boolean; onClick: () => void;
-}) {
-    return (
-        <button
-            onClick={onClick}
-            aria-pressed={active}
-            style={{
-                flex: 1,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem',
-                padding: '0.42rem 0.35rem',
-                borderRadius: 'var(--radius-pill)',
-                fontSize: '0.76rem',
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                background: active ? 'var(--navy-800)' : 'transparent',
-                color: active ? 'var(--white)' : 'var(--gray-400)',
-                border: active ? '1px solid var(--border-strong)' : '1px solid transparent',
-            }}
-        >
-            {icon}
-            {label}
         </button>
     );
 }
