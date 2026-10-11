@@ -37,6 +37,7 @@ scripts/.cache
 # Doctoralia scrape artefacts (large, regenerable)
 scripts/doctoralia/.cache
 scripts/doctoralia/out
+scripts/doctoralia/.cache-web
 
 # Supabase CLI local state
 supabase/.temp

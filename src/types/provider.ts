@@ -1,3 +1,5 @@
+import type { RegionId } from '../utils/region';
+
 export type Country = 'MX' | 'US';
 export type ProviderSource = 'google' | 'manual' | 'doctoralia';
 export type ProviderTier = 'basic' | 'promoted' | 'featured';
@@ -139,6 +141,19 @@ export interface Provider {
   services?: ProviderService[];
   /** Cheapest priced service, denormalised so sorting never walks `services`. */
   priceFromMxn?: number;
+  /**
+   * Which border region the provider belongs to. Generated in the database
+   * from `lng` (migration 0021); absent on mock data, where `regionOf(lng)`
+   * gives the same answer.
+   */
+  region?: RegionId;
+  /**
+   * Service names, Spanish and English, as the lean `provider_list` view
+   * returns them in place of the full `services` menu. The directory only
+   * searches and suggests service names; prices and the menu itself load with
+   * the provider's own page. See `serviceNamesOf` in utils/search.ts.
+   */
+  serviceNames?: string[];
 }
 
 export type SortMode = 'relevance' | 'rating' | 'reviews' | 'distance' | 'price';
@@ -158,6 +173,19 @@ export interface MapBox {
 }
 
 export interface ProviderFilters {
+  /**
+   * The border region being browsed. Not a filter so much as a scope: only
+   * this region's providers are loaded at all, and `country` below means
+   * "which side of *this* region's border".
+   */
+  region: RegionId;
+  /**
+   * Show the results list even with nothing narrowing it (`list=1`). Set by
+   * the Filters dialog: "Show 4,067 results" after picking only a region has
+   * to show those results, not fall back to the browse rows because no
+   * filter is active.
+   */
+  browse: boolean;
   search: string;
   /**
    * `search` came from the smart search bar: it is a description of a problem
@@ -167,14 +195,13 @@ export interface ProviderFilters {
   smart: boolean;
   /** Multi-select: a provider matches if it holds *any* of these. */
   specialty: Specialty[];
+  /** Side of the selected region's border: '' both, 'US' or 'MX'. */
   country: Country | '';
   minRating: number;
   /** Insurer names, verbatim. A provider matches if it accepts any of them. */
   insurances: string[];
   /** ISO-ish language codes as stored on the provider, e.g. 'en', 'es'. */
   languages: string[];
-  /** Only providers with a bookable calendar. */
-  bookableOnly: boolean;
   /** Only providers whose credentials we verified. */
   verifiedOnly: boolean;
   /**

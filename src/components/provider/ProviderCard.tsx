@@ -10,6 +10,7 @@ import {
     IconStar, IconMapPin, IconChevronRight, IconPromoted,
     IconVerified, IconViews, SpecialtyIcon, CountryIcon,
 } from '../icons/Icons';
+import { placeLabel } from '../../utils/place';
 
 interface ProviderCardProps {
     provider: Provider;
@@ -73,7 +74,7 @@ export function ProviderCard({
 
     const accent = provider.country === 'MX' ? 'var(--mx)' : 'var(--us)';
     const accentSoft = provider.country === 'MX' ? 'var(--mx-soft)' : 'var(--us-soft)';
-    const sideLabel = provider.country === 'MX' ? t('drawer.ciudadJuarez') : t('drawer.elPaso');
+    const sideLabel = placeLabel(provider);
 
     const insurances = provider.insurances ?? [];
     const extraInsurers = Math.max(0, insurances.length - INSURANCE_CHIPS);

@@ -1,30 +1,34 @@
 import * as cheerio from 'cheerio';
-import { BASE, CITY_SLUG, FACILITY_SPEC_CITY_SITEMAP, SPEC_CITY_SITEMAP } from './config';
+import { AREA_SLUGS, BASE, CITY_LABEL, CITY_SLUG, FACILITY_SPEC_CITY_SITEMAP, SPEC_CITY_SITEMAP } from './config';
 import { politeGet } from './http';
 import type { EntityType, IndexEntry } from './types';
 
-/** Every landing page in a sitemap whose path ends in the Ciudad Juárez slug. */
+/** Every landing page in a sitemap whose path ends in one of the city's location slugs. */
 export async function listCityLandingPages(): Promise<string[]> {
   const urls = new Set<string>();
 
   for (const sitemap of [SPEC_CITY_SITEMAP, FACILITY_SPEC_CITY_SITEMAP]) {
-    const xml = await politeGet(sitemap);
+    // Always live: a cached sitemap from an earlier city's run would hide landing
+    // pages added since. Two requests, so cost is nothing.
+    const xml = await politeGet(sitemap, { useCache: false });
     if (!xml) {
       console.warn(`  ! could not read ${sitemap}`);
       continue;
     }
     for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
       const url = m[1].trim();
-      // Anchored: excludes benito-juarez, oaxaca-de-juarez, naucalpan-de-juarez2, juarez (N.L.)
-      if (url.endsWith(`/${CITY_SLUG}`)) urls.add(url);
+      // Anchored, so e.g. benito-juarez never matches ciudad-juarez (see config.ts)
+      if (AREA_SLUGS.some((a) => url.endsWith(`/${a}`))) urls.add(url);
     }
   }
 
   return [...urls].sort();
 }
 
+/** Specialty slug of a landing page, e.g. 'medico-general' or 'clinicas/odontologia'. */
 export function slugFromLandingPage(url: string): string {
-  return url.replace(`${BASE}/`, '').replace(`/${CITY_SLUG}`, '');
+  const rest = url.replace(`${BASE}/`, '');
+  return rest.slice(0, rest.lastIndexOf('/'));
 }
 
 function num(v: string | undefined): number | null {
@@ -49,8 +53,18 @@ export function parseListingPage(html: string, slug: string): IndexEntry[] {
       .map((s) => s.trim())
       .filter(Boolean);
 
+    // The card's first address line: "<street>, <City>" followed by a Google
+    // Maps link carrying the coordinates. Used to keep borough pages honest.
+    const $addr = $el.find('[data-test-id="address-map-link"]').first().closest('p');
+    const cardAddress = $addr.find('.text-truncate').first().text().replace(/\s+/g, ' ').trim() || null;
+    const cardCoords = ($addr.find('[data-test-id="address-map-link"]').attr('href') ?? '').match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/);
+
     entries.push({
       doctoraliaId: id,
+      cardAddress,
+      cardCity: cardAddress?.includes(',') ? cardAddress.slice(cardAddress.lastIndexOf(',') + 1).trim() || null : null,
+      cardLat: cardCoords ? Number(cardCoords[1]) : null,
+      cardLng: cardCoords ? Number(cardCoords[2]) : null,
       entityType: (($el.attr('data-test-entity-type') as EntityType) ?? 'doctor'),
       name: $el.attr('data-doctor-name') ?? $el.find('[itemprop="name"]').first().text().trim(),
       url,
@@ -74,6 +88,20 @@ export function parseListingPage(html: string, slug: string): IndexEntry[] {
  * or repeats what we already have (Doctoralia clamps out-of-range pages to the
  * last real page rather than 404ing, so a repeat means we're done).
  */
+const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+/**
+ * Borough pages (e.g. /medico-general/playas-de-tijuana) are padded with the
+ * rest of the state once the borough's own results run out — page 80 of that
+ * one is Ensenada and Mexicali. On those pages keep only cards whose address
+ * line names the city. The city's own pages are kept whole, as before.
+ */
+function belongsToCity(landingUrl: string, e: IndexEntry): boolean {
+  if (landingUrl.endsWith(`/${CITY_SLUG}`)) return true;
+  // Contains, not equals: cards also say 'Playas de Tijuana', 'Zona Urbana Rio Tijuana'.
+  return fold(e.cardCity ?? '').includes(fold(CITY_LABEL));
+}
+
 export async function crawlLandingPage(landingUrl: string, maxPages = 200): Promise<IndexEntry[]> {
   const slug = slugFromLandingPage(landingUrl);
   const collected: IndexEntry[] = [];
@@ -92,7 +120,7 @@ export async function crawlLandingPage(landingUrl: string, maxPages = 200): Prom
 
     for (const e of fresh) {
       seenOnThisSlug.add(e.doctoraliaId);
-      collected.push(e);
+      if (belongsToCity(landingUrl, e)) collected.push(e);
     }
 
     process.stdout.write(`\r    ${slug}: page ${page}, ${collected.length} entities`);

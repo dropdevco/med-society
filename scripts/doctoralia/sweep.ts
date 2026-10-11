@@ -18,21 +18,69 @@
  * `link` to see who is still without a phone; those are the candidates for the
  * targeted (and pricier) enrich.ts pass.
  *
- * Flags:  --limit=N     only run the first N queries
- *         --refetch     ignore the cached Places responses
+ * Flags:  --limit=N           only run the first N queries
+ *         --refetch           ignore the cached Places responses
+ *         --target=san-diego  sweep the US side of San Diego–Tijuana instead
+ *                             (default: juarez — unchanged). See sweep-targets.ts.
+ *         --estimate          print the query count and cost estimate with the
+ *                             network disabled: no Google, no Supabase, no keys
+ *                             needed. Needs a target with a static query list
+ *                             (san-diego); Juárez builds its queries from the
+ *                             database, so use its plain dry run.
+ *         --list              with --estimate, also print every query
+ *
+ * San Diego:
+ *   npx tsx scripts/doctoralia/sweep.ts collect --target=san-diego --estimate
+ *   npx tsx scripts/doctoralia/sweep.ts collect --target=san-diego --commit
+ * (link/report are Doctoralia matching — Juárez only.)
  */
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_DIR } from './config';
-import { distanceMeters, nameSimilarity } from './load';
+import {
+  JUAREZ_CENTER,
+  JUAREZ_RADIUS_M,
+  buildStaticQueries,
+  inBox,
+  looksLikeUsAddress,
+  resolveTarget,
+  usAddressParts,
+  usSideOfBorder,
+  type SweepQuery,
+} from './sweep-targets';
 
 const argv = process.argv.slice(2);
 const phase = argv.find((a) => !a.startsWith('--')) ?? 'collect';
 const commit = argv.includes('--commit');
 const refetch = argv.includes('--refetch');
 const limit = Number(argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? Infinity);
+const target = resolveTarget(argv);
+
+/**
+ * --estimate, and the plain dry run of a static-query target, run with fetch
+ * replaced by a stub that throws. Any network call — Google or Supabase —
+ * would abort the run loudly, so a clean exit is proof none was made.
+ * (Juárez without flags is unaffected: offline stays false.)
+ */
+const offline = argv.includes('--estimate') || (target.querySource === 'static' && !commit);
+let networkAttempts = 0;
+if (offline) {
+  if (commit) {
+    console.error('✖ --estimate and --commit are mutually exclusive.');
+    process.exit(1);
+  }
+  if (target.querySource !== 'static') {
+    console.error(`✖ --estimate needs a static query list; ${target.id} reads its queries from the database. ` +
+      'Run its plain dry run instead (no flags) — that makes no Google calls either.');
+    process.exit(1);
+  }
+  globalThis.fetch = (async (input: unknown) => {
+    networkAttempts++;
+    throw new Error(`network disabled in estimate mode (attempted: ${String(input).split('?')[0]})`);
+  }) as typeof fetch;
+}
 
 /**
  * IMPORTANT: these are Google's LIST prices, not what you will actually be
@@ -49,10 +97,11 @@ const limit = Number(argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?
  */
 const COST_PER_1K = { textSearch: 32, details: 20 /* basic + contact data */ };
 
-/** Ciudad Juárez bounding box — drops results Google returns from other cities. */
-const BBOX = { minLat: 31.58, maxLat: 31.83, minLng: -106.61, maxLng: -106.28 };
-const CENTER = { lat: 31.7, lng: -106.45 };
-const RADIUS_M = 20_000;
+/**
+ * Bounding box of the target — drops results Google returns from other cities.
+ * Juárez: 31.58–31.83 N, -106.61 – -106.28 (unchanged). San Diego: sweep-targets.ts.
+ */
+const BBOX = target.bbox;
 
 /** A Google result must be this close to a Doctoralia address to be the same place. */
 const MAX_LINK_DISTANCE_M = 200;
@@ -76,11 +125,15 @@ const env = loadEnv();
 const GOOGLE_KEY = env.VITE_GOOGLE_MAPS_API_KEY;
 const SUPABASE_URL = env.VITE_SUPABASE_URL;
 const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
-if (!GOOGLE_KEY || !SUPABASE_URL || !SERVICE_KEY) {
-  console.error('✖ VITE_GOOGLE_MAPS_API_KEY, VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
-  process.exit(1);
+// Offline runs need no credentials and never create a client.
+let supabase!: SupabaseClient;
+if (!offline) {
+  if (!GOOGLE_KEY || !SUPABASE_URL || !SERVICE_KEY) {
+    console.error('✖ VITE_GOOGLE_MAPS_API_KEY, VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
+    process.exit(1);
+  }
+  supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 }
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls = { textSearch: 0, details: 0, cached: 0 };
@@ -122,8 +175,7 @@ async function places(url: string, kind: 'textSearch' | 'details'): Promise<any>
   return json;
 }
 
-const inJuarez = (lat: number, lng: number) =>
-  lat >= BBOX.minLat && lat <= BBOX.maxLat && lng >= BBOX.minLng && lng <= BBOX.maxLng;
+const inTargetBox = (lat: number, lng: number) => inBox(BBOX, lat, lng);
 
 // ── query set, derived from what the scrape actually found ───────────────────
 
@@ -132,7 +184,7 @@ const inJuarez = (lat: number, lng: number) =>
  * doctoralia_doctors, so the sweep covers exactly the specialties present in
  * Juárez rather than a hand-written guess.
  */
-async function buildQueries(): Promise<string[]> {
+async function buildDoctoraliaQueries(): Promise<string[]> {
   const { data, error } = await supabase.from('doctoralia_doctors').select('specializations');
   if (error) throw new Error(`could not read specializations: ${error.message}`);
 
@@ -154,6 +206,17 @@ async function buildQueries(): Promise<string[]> {
   return [...new Set([...labels, ...generic])].map((q) => `${q} en Ciudad Juárez, Chihuahua`);
 }
 
+/** Juárez: Doctoralia labels, one shared location bias. Static targets: per-area bias. */
+async function buildQueries(): Promise<SweepQuery[]> {
+  if (target.querySource === 'static') return buildStaticQueries(target);
+  return (await buildDoctoraliaQueries()).map((text) => ({
+    text,
+    lat: JUAREZ_CENTER.lat,
+    lng: JUAREZ_CENTER.lng,
+    radiusM: JUAREZ_RADIUS_M,
+  }));
+}
+
 // ── phase: collect ───────────────────────────────────────────────────────────
 
 interface PlaceRow {
@@ -171,7 +234,14 @@ interface PlaceRow {
   found_via: string[];
 }
 
-async function textSearchAll(query: string): Promise<any[]> {
+/** US-only extras for google_places_san_diego; never sent to google_places_juarez. */
+interface UsExtras {
+  country_code: string | null;
+  locality: string | null;
+  postal_code: string | null;
+}
+
+async function textSearchAll(query: SweepQuery): Promise<any[]> {
   const results: any[] = [];
   let token: string | undefined;
 
@@ -180,7 +250,8 @@ async function textSearchAll(query: string): Promise<any[]> {
     const url = token
       ? `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${token}&key=${GOOGLE_KEY}`
       : 'https://maps.googleapis.com/maps/api/place/textsearch/json' +
-        `?query=${encodeURIComponent(query)}&location=${CENTER.lat},${CENTER.lng}&radius=${RADIUS_M}&key=${GOOGLE_KEY}`;
+        `?query=${encodeURIComponent(query.text)}&location=${query.lat},${query.lng}&radius=${query.radiusM}` +
+        `${target.textSearchExtra}&key=${GOOGLE_KEY}`;
 
     const json = await places(url, 'textSearch');
     results.push(...(json.results ?? []));
@@ -195,8 +266,7 @@ async function textSearchAll(query: string): Promise<any[]> {
 }
 
 async function detailsFor(placeId: string) {
-  const fields =
-    'place_id,name,formatted_address,geometry,international_phone_number,website,rating,user_ratings_total,types,business_status';
+  const fields = target.detailsFields;
   const url =
     'https://maps.googleapis.com/maps/api/place/details/json' +
     `?place_id=${placeId}&fields=${fields}&key=${GOOGLE_KEY}`;
@@ -207,21 +277,33 @@ async function detailsFor(placeId: string) {
 async function collect() {
   const queries = (await buildQueries()).slice(0, limit);
 
-  console.log('\n🗺  Google Places sweep — Ciudad Juárez\n');
+  console.log(`\n🗺  Google Places sweep — ${target.label}\n`);
   console.log(`  queries               ${queries.length}`);
 
   // Text search: ~2 pages average. Details: one per unique place, and sweeps
   // overlap heavily, so unique places land well below queries x 60.
-  const estSearches = Math.round(queries.length * 2);
-  const estDetails = 1_800;
+  // (The real Juárez run used 1.4 searches/query and found 6.4 new places/query.)
+  const estSearches = Math.round(queries.length * target.estimate.searchesPerQuery);
+  const estDetails =
+    target.estimate.fixedDetails ?? Math.round(queries.length * (target.estimate.newPlacesPerQuery ?? 0));
   const estUsd =
     (estSearches / 1000) * COST_PER_1K.textSearch + (estDetails / 1000) * COST_PER_1K.details;
   console.log(`  estimated             ~${estSearches} searches + ~${estDetails} details ≈ US$${estUsd.toFixed(2)}`);
-  console.log(`  (vs ~US$135 for asking about all 2,794 entities one at a time)`);
+  if (target.estimate.comparison) console.log(`  ${target.estimate.comparison}`);
   console.log('');
   console.log('  That is LIST price with no free allowance left. Google includes a free');
   console.log('  monthly quota per SKU (1,000-10,000 calls depending on tier), so the real');
   console.log('  bill is usually far lower or zero. Check Cloud Console > Billing > Reports.');
+
+  if (offline) {
+    console.log(`\n  target ${target.id} -> table ${target.table}`);
+    console.log(`  box ${BBOX.minLat} to ${BBOX.maxLat} N, ${BBOX.minLng} to ${BBOX.maxLng} E`);
+    if (target.requireUs) console.log('  US only: CA/USA address, Details country = US, north of the border line');
+    if (argv.includes('--list')) for (const q of queries) console.log(`    ${q.text}`);
+    console.log(`\n  Estimate only — network disabled; ${networkAttempts} network calls attempted; nothing written.`);
+    console.log(`  Re-run with --target=${target.id} --commit to sweep.\n`);
+    return;
+  }
 
   if (!commit) {
     console.log('\n  Dry run — no API calls made, nothing written.');
@@ -230,6 +312,8 @@ async function collect() {
   }
 
   const found = new Map<string, PlaceRow>();
+  const usExtras = new Map<string, UsExtras>();
+  let droppedNotUs = 0;
   const started = Date.now();
 
   for (const [i, query] of queries.entries()) {
@@ -246,11 +330,16 @@ async function collect() {
       const lat = r?.geometry?.location?.lat;
       const lng = r?.geometry?.location?.lng;
       if (typeof lat !== 'number' || typeof lng !== 'number' || !r.place_id) continue;
-      if (!inJuarez(lat, lng)) continue; // Google drifts to other cities on thin queries
+      if (!inTargetBox(lat, lng)) continue; // Google drifts to other cities on thin queries
+      // San Diego: Google happily answers "dentist in San Ysidro" with Tijuana.
+      if (target.requireUs && (!usSideOfBorder(lat, lng) || !looksLikeUsAddress(r.formatted_address))) {
+        droppedNotUs++;
+        continue;
+      }
 
       const existing = found.get(r.place_id);
       if (existing) {
-        existing.found_via.push(query);
+        existing.found_via.push(query.text);
         continue;
       }
       found.set(r.place_id, {
@@ -265,7 +354,7 @@ async function collect() {
         review_count: typeof r.user_ratings_total === 'number' ? r.user_ratings_total : null,
         types: Array.isArray(r.types) ? r.types : [],
         business_status: r.business_status ?? null,
-        found_via: [query],
+        found_via: [query.text],
       });
       kept++;
     }
@@ -276,7 +365,8 @@ async function collect() {
     );
   }
 
-  console.log(`\n\n  ${found.size} unique places in the Juárez bounding box`);
+  console.log(`\n\n  ${found.size} unique places in the ${target.boxLabel} bounding box`);
+  if (target.requireUs) console.log(`  (${droppedNotUs} search results dropped as not US-side)`);
   console.log('  fetching contact details…');
 
   const rows = [...found.values()];
@@ -290,6 +380,10 @@ async function collect() {
         row.rating = typeof d.rating === 'number' ? d.rating : row.rating;
         row.review_count = typeof d.user_ratings_total === 'number' ? d.user_ratings_total : row.review_count;
         row.business_status = d.business_status ?? row.business_status;
+        if (target.requireUs) {
+          const p = usAddressParts(d.address_components, row.formatted_address);
+          usExtras.set(row.place_id, { country_code: p.countryCode, locality: p.locality, postal_code: p.postalCode });
+        }
       }
     } catch (err) {
       console.error(`\n✖ stopping: ${err instanceof Error ? err.message : err}`);
@@ -300,10 +394,32 @@ async function collect() {
     }
   }
 
+  if (target.requireUs) {
+    // Details is authoritative: drop anything whose country component is not
+    // US. Rows Details never answered for fall back to the formatted address.
+    const before = rows.length;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      let x = usExtras.get(r.place_id);
+      if (!x) {
+        const p = usAddressParts(null, r.formatted_address);
+        x = { country_code: p.countryCode, locality: p.locality, postal_code: p.postalCode };
+        usExtras.set(r.place_id, x);
+      }
+      if (x.country_code !== 'US' || r.lat == null || r.lng == null || !usSideOfBorder(r.lat, r.lng)) rows.splice(i, 1);
+    }
+    if (rows.length < before) console.log(`\n  dropped ${before - rows.length} places that Details places outside the US`);
+  }
+
   for (let i = 0; i < rows.length; i += 200) {
-    const chunk = rows.slice(i, i + 200).map((r) => ({ ...r, updated_at: new Date().toISOString() }));
-    const { error } = await supabase.from('google_places_juarez').upsert(chunk, { onConflict: 'place_id' });
-    if (error) throw new Error(`google_places_juarez upsert failed: ${error.message}`);
+    const chunk = rows.slice(i, i + 200).map((r) => ({
+      ...r,
+      // google_places_juarez has no such columns, so they are only added for US targets.
+      ...(target.requireUs ? usExtras.get(r.place_id) : {}),
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase.from(target.table).upsert(chunk, { onConflict: 'place_id' });
+    if (error) throw new Error(`${target.table} upsert failed: ${error.message}`);
   }
 
   const spent =
@@ -316,7 +432,11 @@ async function collect() {
   console.log(`    with a website    ${rows.filter((r) => r.website).length}`);
   console.log(`\n  API: ${calls.textSearch} searches, ${calls.details} details, ${calls.cached} cached`);
   console.log(`  Estimated spend: US$${spent.toFixed(2)}`);
-  console.log('\n  Next: npx tsx scripts/doctoralia/sweep.ts link --commit   (free, no API calls)');
+  if (target.doctoraliaLink) {
+    console.log('\n  Next: npx tsx scripts/doctoralia/sweep.ts link --commit   (free, no API calls)');
+  } else {
+    console.log(`\n  Next: npx tsx scripts/doctoralia/promote-google.ts --target=${target.id}   (dry run, no API calls)`);
+  }
 }
 
 /**
@@ -338,6 +458,9 @@ async function selectAll<T>(table: string, columns: string): Promise<T[]> {
 // ── phase: link (free — pure local matching) ─────────────────────────────────
 
 async function link() {
+  // Imported here, not at the top: load.ts needs Supabase credentials at import
+  // time, and only this phase uses it — so --estimate runs without them.
+  const { distanceMeters, nameSimilarity } = await import('./load');
   const gPlaces = await selectAll<{
     place_id: string; name: string; lat: number | null; lng: number | null;
     phone: string | null; website: string | null;
@@ -521,6 +644,13 @@ async function report() {
   console.log();
 }
 
+if ((phase === 'link' || phase === 'report') && !target.doctoraliaLink) {
+  console.error(
+    `✖ ${phase} matches against Doctoralia, which only exists for Juárez. ` +
+      `For --target=${target.id}, go straight to promote-google.ts --target=${target.id}.`,
+  );
+  process.exit(1);
+}
 const run = phase === 'link' ? link : phase === 'report' ? report : collect;
 run().catch((err) => {
   console.error('\n✖ fatal:', err instanceof Error ? err.message : err);

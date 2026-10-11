@@ -6,6 +6,7 @@ import { usePortraitPhoto } from '../../hooks/usePortraitPhoto';
 import { formatPrice } from '../../utils/currency';
 import { profileViews } from '../../utils/profileViews';
 import { IconStar, IconViews, SpecialtyIcon } from '../icons/Icons';
+import { placeLabel } from '../../utils/place';
 
 interface ProviderTileProps {
     provider: Provider;
@@ -42,7 +43,7 @@ export function ProviderTile({ provider, onClick, priority = false }: ProviderTi
     // Google Places proxy serves for this ~208px-wide slot.
     const { url: photo } = usePortraitPhoto(provider, 'tile');
     const accent = provider.country === 'MX' ? 'var(--mx)' : 'var(--us)';
-    const side = provider.country === 'MX' ? t('drawer.ciudadJuarez') : t('drawer.elPaso');
+    const side = placeLabel(provider);
 
     return (
         <button

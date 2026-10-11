@@ -167,6 +167,8 @@ export function InquiryModal({ onClose, plan }: InquiryModalProps) {
                                     <option value="">{t('sales.formSelect')}</option>
                                     <option value="El Paso">El Paso, TX</option>
                                     <option value="Ciudad Juarez">Ciudad Juárez, CHIH</option>
+                                    <option value="San Diego">San Diego, CA</option>
+                                    <option value="Tijuana">Tijuana, BC</option>
                                     <option value="Other">{t('sales.formOther')}</option>
                                 </select>
                             </label>

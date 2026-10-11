@@ -5,6 +5,9 @@ import { SpecialtyLabels } from '../../types/provider';
 import type { FacetCounts } from '../../utils/facets';
 import { topInsurers } from '../../utils/facets';
 import { fold } from '../../utils/search';
+import { REGIONS, REGION_IDS } from '../../utils/region';
+import { regionPatch } from '../../utils/filters';
+import { languageName } from '../../utils/languages';
 import { formatPrice, isEnglish, MXN_PER_USD } from '../../utils/currency';
 import {
     SpecialtyIcon, IconBorder, IconUS, IconMX,
@@ -90,6 +93,23 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            {/* The region is a scope rather than a filter: switching loads the
+                other region's directory and releases the side, the postal
+                code and the map box, which all belonged to the old one. */}
+            <Section title={t('regions.label')} defaultOpen>
+                <div role="group" aria-label={t('regions.label')} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {REGION_IDS.map((id) => (
+                        <Chip
+                            key={id}
+                            icon={<IconBorder size={14} />}
+                            label={REGIONS[id].name}
+                            active={filters.region === id}
+                            onClick={() => { if (filters.region !== id) patchFilters(regionPatch(id)); }}
+                        />
+                    ))}
+                </div>
+            </Section>
+
             <Section title={t('filters.countryGroup')} defaultOpen>
                 <div
                     role="group"
@@ -110,13 +130,13 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
                     />
                     <SegItem
                         icon={<IconMX size={14} />}
-                        label={t('filters.juarez')}
+                        label={REGIONS[filters.region].mx.city}
                         active={filters.country === 'MX'}
                         onClick={() => updateFilter('country', 'MX')}
                     />
                     <SegItem
                         icon={<IconUS size={14} />}
-                        label={t('filters.elPaso')}
+                        label={REGIONS[filters.region].us.city}
                         active={filters.country === 'US'}
                         onClick={() => updateFilter('country', 'US')}
                     />
@@ -195,7 +215,7 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
                         {languageOptions.map(([code, count]) => (
                             <CheckRow
                                 key={code}
-                                label={t(`languages.${code}`, { defaultValue: code.toUpperCase() })}
+                                label={languageName(code, i18n.language)}
                                 count={count}
                                 checked={filters.languages.includes(code)}
                                 onChange={() => updateFilter('languages', toggle(filters.languages, code))}

@@ -9,11 +9,16 @@
  *
  * Every row is derived from the loaded directory, so a row can never advertise
  * a search that returns nothing — a candidate with too few providers behind it
- * is simply dropped.
+ * is simply dropped. The directory holds one border region at a time, so the
+ * rows are that region's, and the city-named ones name its cities ("Dentists
+ * in Tijuana", "Primary care in El Paso"). A side with no providers yet — San
+ * Diego, before its sweep — drops its row by the same rule.
  */
 
 import type { Provider, ProviderFilters } from '../types/provider';
 import { portraitUrl } from './images';
+import type { RegionId } from './region';
+import { isFocusedOn } from './filters';
 
 export interface DiscoverRow {
     id: string;
@@ -57,6 +62,7 @@ function browseOrder(a: Provider, b: Provider): number {
 
 interface Candidate {
     id: string;
+    /** i18n key; `{region}` is replaced with the selected region's id. */
     titleKey: string;
     filters: Partial<ProviderFilters>;
     match: (p: Provider) => boolean;
@@ -71,15 +77,25 @@ interface Candidate {
 
 /**
  * Ordered by how much of the directory they speak for, so the first screen a
- * new visitor sees is the border's two biggest questions — a dentist in
- * Juárez, a doctor in El Paso — rather than a niche.
+ * new visitor sees is the border's two biggest questions — a dentist on the
+ * Mexican side, a doctor on the US side — rather than a niche.
+ *
+ * The per-side rows filter on `country` alone: within the loaded region that
+ * already means one city.
+ */
+/*
+ * Specialty rows match only providers *focused* on that specialty (their
+ * primary one, or one of a few — see isFocusedOn). A general hospital tagged
+ * with thirteen specialties is a fine result for "dentist", but "Top-rated
+ * dentists in Tijuana" opening on Hospital Angeles, Centro Médico Premier and
+ * Hospital Bethel reads as a wrong answer, not a broad one.
  */
 const CANDIDATES: Candidate[] = [
     {
-        id: 'dentists-juarez',
-        titleKey: 'discover.dentistsJuarez',
+        id: 'dentists-mx',
+        titleKey: 'regions.rows.{region}.dentists',
         filters: { specialty: ['dentist'], country: 'MX' },
-        match: (p) => p.country === 'MX' && p.specialty.includes('dentist'),
+        match: (p) => p.country === 'MX' && isFocusedOn(p, 'dentist'),
         // Picked by hand for their photos; fills a large-monitor row.
         pinnedIds: [
             '7942ede4-af3d-4ca4-9aff-43673c503f00', // Dra. Laura Karina Uribe Fentanes
@@ -91,11 +107,11 @@ const CANDIDATES: Candidate[] = [
         ],
     },
     {
-        id: 'primary-elpaso',
-        titleKey: 'discover.primaryElPaso',
+        id: 'primary-us',
+        titleKey: 'regions.rows.{region}.primary',
         filters: { specialty: ['general'], country: 'US' },
-        match: (p) => p.country === 'US' && p.specialty.includes('general'),
-        // Picked by hand.
+        match: (p) => p.country === 'US' && isFocusedOn(p, 'general'),
+        // Picked by hand (El Paso; ids outside the loaded region never match).
         pinnedIds: [
             '76601617-50bd-4998-8c4b-1f9040c13c09', // Premier Primary Care Clinic (George Dieter Dr)
             'c63d8264-3664-4936-afbf-864b265c14db', // El Paso Primary Care
@@ -115,29 +131,29 @@ const CANDIDATES: Candidate[] = [
         id: 'womens-health',
         titleKey: 'discover.womensHealth',
         filters: { specialty: ['obgyn'] },
-        match: (p) => p.specialty.includes('obgyn'),
+        match: (p) => isFocusedOn(p, 'obgyn'),
     },
     {
         id: 'mental-health',
         titleKey: 'discover.mentalHealth',
         filters: { specialty: ['mental_health'] },
-        match: (p) => p.specialty.includes('mental_health'),
+        match: (p) => isFocusedOn(p, 'mental_health'),
     },
     {
         id: 'pediatrics',
         titleKey: 'discover.pediatrics',
         filters: { specialty: ['pediatrics'] },
-        match: (p) => p.specialty.includes('pediatrics'),
+        match: (p) => isFocusedOn(p, 'pediatrics'),
     },
     {
-        id: 'aesthetic-juarez',
-        titleKey: 'discover.aestheticJuarez',
+        id: 'aesthetic-mx',
+        titleKey: 'regions.rows.{region}.aesthetic',
         filters: { specialty: ['plastic_surgery'], country: 'MX' },
-        match: (p) => p.country === 'MX' && p.specialty.includes('plastic_surgery'),
+        match: (p) => p.country === 'MX' && isFocusedOn(p, 'plastic_surgery'),
     },
 ];
 
-export function buildDiscoverRows(providers: readonly Provider[]): DiscoverRow[] {
+export function buildDiscoverRows(providers: readonly Provider[], region: RegionId): DiscoverRow[] {
     if (providers.length === 0) return [];
 
     const rows: DiscoverRow[] = [];
@@ -153,8 +169,8 @@ export function buildDiscoverRows(providers: readonly Provider[]): DiscoverRow[]
 
         rows.push({
             id: c.id,
-            titleKey: c.titleKey,
-            filters: c.filters,
+            titleKey: c.titleKey.replace('{region}', region),
+            filters: { ...c.filters, region },
             providers: [...pinned, ...rest].slice(0, ROW_SIZE),
         });
     }

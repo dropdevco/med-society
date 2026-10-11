@@ -27,8 +27,8 @@
     "whatPlaceholder": "Dentista, terapia, nombre de clínica",
     "whereLabel": "Dónde",
     "coverLabel": "Seguro",
-    "anywhere": "Ambos lados",
-    "anywhereHint": "El Paso y Ciudad Juárez",
+    "anywhere": "Ambos lados de la frontera",
+    "anywhereHint": "El Paso – Ciudad Juárez · San Diego – Tijuana",
     "juarezHint": "Chihuahua, México",
     "elPasoHint": "Texas, Estados Unidos",
     "anyCover": "Cualquier seguro",
@@ -47,8 +47,8 @@
     "fewerTags": "Menos",
     "countryGroup": "Lado de la frontera",
     "bothSides": "Ambos",
-    "elPaso": "El Paso",
-    "juarez": "Juárez",
+    "elPaso": "Estados Unidos",
+    "juarez": "México",
     "ratingLabel": "Calificación",
     "ratingAny": "Todas",
     "rating3": "3+",
@@ -138,7 +138,6 @@
     },
     "photos": "Fotos",
     "photoAlt": "Foto de la clínica",
-    "bookOnline": "Agendar una cita",
     "photoPrev": "Foto anterior",
     "photoNext": "Foto siguiente",
     "photoCount": "{{index}} de {{total}}",
@@ -168,22 +167,22 @@
     "heroEyebrow": "Para clínicas y consultorios",
     "heroTitle": "Pon tu consultorio",
     "heroTitleHighlight": "en el mapa",
-    "heroSubtitle": "MedSociety es el directorio de salud de la frontera El Paso y Ciudad Juárez. Pacientes de ambos lados lo usan para encontrar atención, comparar calificaciones y llamar directo a la clínica.",
+    "heroSubtitle": "MedSociety es un directorio bilingüe de atención médica en la frontera entre México y Estados Unidos, en El Paso – Ciudad Juárez y San Diego – Tijuana. Pacientes que cruzan en cualquier dirección lo usan para comparar clínicas, calificaciones y precios publicados, y contactar directo a la clínica.",
     "heroCtaPrimary": "Regístrate gratis",
     "heroCtaSecondary": "Ver el mapa",
     "trustVerified": "Listados verificados",
     "trustBilingual": "Inglés y español",
-    "trustBorder": "Los dos lados de la frontera",
+    "trustBorder": "Pacientes de ambos países",
     "statsProviders": "Clínicas listadas",
     "statsViews": "Vistas a perfiles",
-    "statsCities": "Ciudades cubiertas",
+    "statsCities": "Ciudades fronterizas",
     "howEyebrow": "Cómo empezar",
     "howTitle": "Tres pasos para tu primer paciente",
     "howSubtitle": "Sin contratos, sin costo de registro y sin nada que instalar. La mayoría de las clínicas terminan de una sentada.",
     "step1Title": "Mándanos tus datos",
     "step1Body": "Nombre de la clínica, especialidades, dirección y teléfono. Ese es todo el formulario y toma unos cinco minutos.",
     "step2Title": "Aparece en el mapa",
-    "step2Body": "Tu clínica se muestra a quienes buscan tu especialidad en tu ciudad, tanto en inglés como en español.",
+    "step2Body": "Tu clínica se muestra a quienes buscan tu especialidad en tu ciudad, ya sea que vivan cerca o crucen la frontera, en español y en inglés.",
     "step3Title": "Mira quién te encontró",
     "step3Body": "Te reportamos cuántas personas abrieron tu perfil cada mes, para que sepas qué está haciendo tu listado.",
     "cityElPaso": "El Paso",
@@ -192,6 +191,13 @@
     "cityJuarez": "Ciudad Juárez",
     "cityJuarezRegion": "Chihuahua, México",
     "cityJuarezBody": "Clínicas que atienden tanto a pacientes locales como al flujo constante de visitantes de EE.UU. que cruzan por atención dental, visual y estética.",
+    "citySanDiego": "San Diego",
+    "citySanDiegoRegion": "California, Estados Unidos",
+    "citySanDiegoBody": "Pacientes que buscan médicos y especialistas locales, además de pacientes de México que cruzan al norte para atenderse en EE. UU. o pedir una segunda opinión.",
+    "cityTijuana": "Tijuana",
+    "cityTijuanaRegion": "Baja California, México",
+    "cityTijuanaBody": "Dentistas, cirujanos plásticos y especialistas que atienden a pacientes locales y a quienes cruzan desde el sur de California y otras partes para atenderse.",
+    "mapArtLabel": "Mapa ilustrado de clínicas en ambos lados de la frontera México–Estados Unidos, en El Paso – Ciudad Juárez y San Diego – Tijuana",
     "pricingEyebrow": "Precios",
     "pricingTitle": "Registrarte es gratis. Solo pagas por destacar.",
     "pricingSubtitle": "Toda clínica recibe un listado completo sin costo. Destacar es opcional y mes a mes.",
@@ -238,7 +244,7 @@
     "ctaBannerTitle": "¿Listo para que te encuentren?",
     "ctaBannerSubtitle": "Ya hay pacientes buscando tu especialidad en tu ciudad. Asegúrate de que tu clínica sea lo que encuentren.",
     "ctaBannerBtn": "Registrarme gratis",
-    "footer": "© {{year}} MedSociety · Salud en la frontera de El Paso y Juárez"
+    "footer": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos"
   },
   "languages": {
     "en": "Inglés",
@@ -256,8 +262,8 @@
     }
   },
   "discover": {
-    "heroTitle": "Encuentra una clínica en El Paso o Ciudad Juárez",
-    "heroSubtitle": "Busca entre 4,000 clínicas y especialistas en El Paso y Ciudad Juárez. Compara calificaciones, precios publicados y seguros antes de llamar.",
+    "heroTitle": "Atención médica de confianza en ambos lados de la frontera",
+    "heroSubtitle": "Dentistas, cirujanos y especialistas en El Paso – Ciudad Juárez y San Diego – Tijuana. Compara calificaciones, precios publicados, cédulas profesionales y seguros, en español o inglés, antes de cruzar.",
     "scrollBack": "Ver anteriores",
     "scrollOn": "Ver más",
     "dentistsJuarez": "Dentistas mejor calificados en Ciudad Juárez",
@@ -268,12 +274,30 @@
     "pediatrics": "Pediatras para toda la familia",
     "aestheticJuarez": "Cirugía plástica en Ciudad Juárez"
   },
+  "regions": {
+    "label": "Región fronteriza",
+    "sideLabel": "Lado de la frontera",
+    "bothSides": "Ambos lados",
+    "bothHint": "{{us}} y {{mx}}",
+    "rows": {
+      "elpaso-juarez": {
+        "dentists": "Dentistas mejor calificados en Ciudad Juárez",
+        "primary": "Medicina general en El Paso",
+        "aesthetic": "Cirugía plástica en Ciudad Juárez"
+      },
+      "sandiego-tijuana": {
+        "dentists": "Dentistas mejor calificados en Tijuana",
+        "primary": "Medicina general en San Diego",
+        "aesthetic": "Cirugía plástica en Tijuana"
+      }
+    }
+  },
   "pricing": {
     "basicTier": "Básico",
     "basicPeriod": "gratis, siempre",
     "basicF1": "Perfil en el directorio y en el mapa",
     "basicF2": "Reclama y administra tu propio perfil",
-    "basicF3": "Te encuentran pacientes de ambos lados de la frontera",
+    "basicF3": "Te encuentran pacientes locales y del otro lado de la frontera",
     "basicF4": "Botón de WhatsApp en tu perfil",
     "basicCta": "Empieza gratis",
     "perMonth": "/mes",
@@ -331,7 +355,7 @@
     }
   },
   "account": {
-    "communityBody": "Haz tu pregunta gratis y recibe respuestas de doctores y clínicas verificados de la frontera.",
+    "communityBody": "Haz tu pregunta gratis y recibe respuestas de doctores y clínicas verificados de El Paso – Ciudad Juárez y San Diego – Tijuana.",
     "loading": "Cargando…",
     "working": "Procesando…",
     "email": "Correo",
@@ -653,7 +677,7 @@
     "ask": {
       "eyebrow": "Pregunta al Doctor",
       "title": "Preguntas reales, respondidas por doctores verificados",
-      "lede": "Pregunta lo que quieras sobre tu salud, un tratamiento o un procedimiento de cualquier lado de la frontera. Responden doctores y clínicas con perfil verificado en MedSociety, gratis.",
+      "lede": "Pregunta lo que quieras sobre tu salud, un tratamiento o cómo atenderte del otro lado de la frontera. Responden doctores y clínicas con perfil verificado en MedSociety, gratis.",
       "cta": "Hacer una pregunta",
       "search": "Buscar preguntas",
       "areYouDoctor": "¿Eres doctor? Responde preguntas",
@@ -670,7 +694,7 @@
     "society": {
       "eyebrow": "Med Society · Solo miembros",
       "title": "The Med Society",
-      "lede": "Un espacio privado para los profesionales de la salud de la frontera. Responde las preguntas que enviamos, comparte lo que funciona en tu práctica y conoce a colegas de ambos lados.",
+      "lede": "Un espacio privado para profesionales de la salud de El Paso – Ciudad Juárez y San Diego – Tijuana. Responde las preguntas que enviamos, comparte lo que funciona en tu práctica y conoce a colegas de ambos lados.",
       "cta": "Iniciar conversación",
       "search": "Buscar conversaciones",
       "answerPatients": "Responder a pacientes",

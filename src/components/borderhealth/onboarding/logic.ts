@@ -89,13 +89,42 @@ export function mapSpecialties(practiceType: string, specialty: string): Special
     return out.slice(0, 3);
 }
 
-/** elpaso → US, and an "other" city that plainly names the US side; else MX. */
+// ── City → country ───────────────────────────────────────────────────────────
+
+/**
+ * The survey's city option keys for the two border regions, with the city name
+ * the directory stores (`providers.city`) and its country. Survey answers keep
+ * their keys (existing bh_responses rows hold 'juarez' / 'elpaso').
+ */
+export const SURVEY_CITIES: Record<string, { city?: string; country: Country }> = {
+    juarez:   { city: 'Juárez',    country: 'MX' },
+    elpaso:   { city: 'El Paso',   country: 'US' },
+    tijuana:  { city: 'Tijuana',   country: 'MX' },
+    sandiego: { city: 'San Diego', country: 'US' },
+    // Outside both regions: the answer's own label stays the city.
+    chihuahua_city: { country: 'MX' },
+};
+
+/** City name to prefill the listing form with: the directory's spelling for a known key, else the answer as given. */
+export function listingCityFor(cityKey: string, answered: string): string {
+    return SURVEY_CITIES[cityKey]?.city ?? answered;
+}
+
+// Mexican side first: "Baja California" must not read as California.
+const MX_TEXT = /\b(juarez|tijuana|chihuahua|rosarito|tecate|ensenada|mexicali|baja california)\b/;
+const US_TEXT = /\b(el paso|san diego|chula vista|national city|san ysidro|otay mesa|el cajon|la mesa|escondido|oceanside|carlsbad|las cruces|texas|tx|california|ca|new mexico|nm|usa|us|eeuu|ee uu|estados unidos)\b/;
+
+/**
+ * Country of the listing's city. The city typed in the listing form wins when
+ * it plainly names a place (the person may have corrected it); otherwise the
+ * survey's city key decides (El Paso, San Diego → US; Juárez, Tijuana,
+ * Chihuahua → MX). Only an unrecognisable "other" city defaults to MX.
+ */
 export function countryFor(cityKey: string, city: string): Country {
-    if (cityKey === 'elpaso') return 'US';
-    if (cityKey === 'other' && /\b(el paso|texas|tx|las cruces|new mexico|nm|usa|us|eeuu|ee uu|estados unidos)\b/.test(fold(city))) {
-        return 'US';
-    }
-    return 'MX';
+    const t = fold(city);
+    if (MX_TEXT.test(t)) return 'MX';
+    if (US_TEXT.test(t)) return 'US';
+    return SURVEY_CITIES[cityKey]?.country ?? 'MX';
 }
 
 // ── Errors ───────────────────────────────────────────────────────────────────
@@ -211,7 +240,8 @@ async function geocodeAddress(d: ListingDraft): Promise<{ lat: number; lng: numb
         if (!loc) return null;
         const lat = loc.lat();
         const lng = loc.lng();
-        if (lat < 25 || lat > 35 || lng < -110 || lng > -100) return null;
+        // Both border regions: El Paso–Juárez (~-106.5) and San Diego–Tijuana (~-117).
+        if (lat < 25 || lat > 35 || lng < -118 || lng > -100) return null;
         return { lat, lng };
     })().catch(() => null);
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000));

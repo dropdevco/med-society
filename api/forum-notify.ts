@@ -132,8 +132,8 @@ async function notifyThread(id: string, row?: ThreadRow): Promise<number> {
             const es = r.lang === 'es';
             const heading = thread.title;
             const intro = es
-                ? 'El equipo de MedSociety tiene una pregunta para los profesionales de la frontera:'
-                : 'The MedSociety team has a question for the border’s clinicians:';
+                ? 'El equipo de MedSociety tiene una pregunta para los profesionales de la salud de El Paso – Ciudad Juárez y San Diego – Tijuana:'
+                : 'The MedSociety team has a question for clinicians in El Paso – Ciudad Juárez and San Diego – Tijuana:';
             const nudge = es
                 ? 'Tu respuesta queda en Med Society con tu clínica, para que tus colegas te conozcan.'
                 : 'Your answer goes up in Med Society under your clinic, so colleagues get to know you.';

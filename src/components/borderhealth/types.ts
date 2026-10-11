@@ -33,7 +33,7 @@ export interface BhSubmission {
     contact: BhContact;
     /** Human-readable city label as answered ("Ciudad Juárez", or the Other text). */
     city: string;
-    /** Stable option key for the city question: juarez | elpaso | chihuahua_city | other. */
+    /** Stable option key for the city question: juarez | elpaso | tijuana | sandiego | chihuahua_city | other. */
     cityKey: string;
     /** practice_type option key: gp | specialist | dental | vision | imaging_lab | hospital | pharmacy | other. */
     practiceType: string;

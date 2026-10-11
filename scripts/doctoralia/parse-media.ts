@@ -10,8 +10,9 @@
  *            visible `img.gallery-image` tags if the Vue prop is absent.
  *   website  <a data-avo-track="doctor-website-link"> (doctors) or
  *            "clinic-website-link" (clinics).
- *   socials  <a data-avo-track="clinic-social-media-link"> (clinic pages only),
- *            plus the profile link of an embedded Instagram post on a doctor page.
+ *   socials  <a data-avo-track="clinic-social-media-link"> (clinic pages), the
+ *            "Redes sociales" list in a doctor's about-details modal, plus the
+ *            profile link of an embedded Instagram post on a doctor page.
  *
  * Doctoralia's own og:image banner, its own social accounts and share buttons
  * are excluded.
@@ -122,6 +123,8 @@ export function normalizeWebsite(raw: string | undefined | null): string | null 
   if (!u) return null;
   const h = host(u);
   if (!h.includes('.') || OWN_HOST.test(h) || NOT_A_WEBSITE.test(h + u.pathname)) return null;
+  // "http://citas@clinica.com" is an email typed into the website field, not a site.
+  if (u.username) return null;
   if (normalizeSocial(u.href)) return null; // a Facebook page is not a website; it goes to socials
   for (const k of [...u.searchParams.keys()]) if (TRACKING.test(k)) u.searchParams.delete(k);
   u.hash = '';
@@ -176,6 +179,9 @@ export function normalizeSocial(raw: string | undefined | null): [SocialKey, str
     // facebook.com/share/<code>/ is a redirecting page link (new-style share of a page); /share/p|v|r are posts.
     if (first === 'share') return seg[1] && !['p', 'v', 'r'].includes(seg[1]) ? ['facebook', `https://www.facebook.com/share/${seg[1]}`] : null;
     if (first === 'people' && seg[1] && seg[2]) return ['facebook', `https://www.facebook.com/people/${seg[1]}/${seg[2]}`];
+    // New-style pages without a vanity name: facebook.com/p/<Name>-<numeric id>/.
+    // The slug is the page; "/p" alone is nothing.
+    if (first === 'p') return seg[1] ? ['facebook', `https://www.facebook.com/p/${seg[1]}`] : null;
     if (FB_RESERVED.has(first) || OWN_HANDLE.test(seg[0])) return null;
     return ['facebook', `https://www.facebook.com/${seg[0]}`];
   }
@@ -235,6 +241,13 @@ function extractSocials($: cheerio.CheerioAPI): Socials {
   };
   // Clinic pages: an explicit "Enlaces" list of the clinic's own profiles.
   $('a[data-avo-track="clinic-social-media-link"]').each((_i, el) => add($(el).attr('href')));
+  // Doctor pages: the "Redes sociales" block inside the about-details modal
+  // ([data-id="about-details-modal"]) — <div><h3>Redes sociales</h3></div><ul><li><a href="//www.facebook.com/…">.
+  $('h3')
+    .filter((_i, el) => /^\s*redes sociales\s*$/i.test($(el).text()))
+    .each((_i, el) => {
+      $(el).parent().nextAll('ul').first().find('a[href]').each((_j, a) => add($(a).attr('href')));
+    });
   // Doctor pages: a doctor may embed one of their own Instagram posts; its header links their profile.
   $('blockquote.instagram-media a[href*="instagram.com"]').each((_i, el) => add($(el).attr('href')));
   return socials;

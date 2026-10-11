@@ -2,7 +2,7 @@ import type { Specialty } from '../../src/types/provider';
 
 /**
  * Every Doctoralia specialty slug that has a Ciudad Juárez landing page (86 as
- * of the sitemap read on 2026-08-25), mapped onto the `Specialty` union in
+ * of the sitemap read on 2026-08-25) or a Tijuana one (15 more, 2026-10-08), mapped onto the `Specialty` union in
  * src/types/provider.ts. Neurology, ENT and orthopedics were added later
  * (they used to fall into 'general'); the rows already loaded were re-tagged
  * by supabase/migrations/0019_new_specialties.sql.
@@ -26,6 +26,7 @@ export const SPECIALTY_MAP: Record<string, Specialty[]> = {
 
   // Aesthetic & plastic
   'cirujano-plastico': ['plastic_surgery'],
+  'cirujano-estetico-y-cosmetico': ['plastic_surgery'],
   'medico-estetico': ['aesthetician'],
   dermatologo: ['aesthetician', 'general'],
 
@@ -41,6 +42,8 @@ export const SPECIALTY_MAP: Record<string, Specialty[]> = {
   'especialista-en-medicina-del-deporte': ['physical_therapy'],
   acupuntor: ['massage'],
   'terapeuta-complementario': ['massage'],
+  naturista: ['massage'],
+  'terapeuta-ocupacional': ['physical_therapy'],
 
   // Vision
   oftalmologo: ['optometry'],
@@ -57,6 +60,11 @@ export const SPECIALTY_MAP: Record<string, Specialty[]> = {
   'nefrologo-pediatra': ['pediatrics'],
   'neurologo-infantil': ['neurology', 'pediatrics'],
   'cardiologo-pediatrico': ['cardiology', 'pediatrics'],
+  'dermatologo-pediatrico': ['aesthetician', 'general', 'pediatrics'],
+  'infectologo-pediatra': ['general', 'pediatrics'],
+  'neumologo-pediatra': ['general', 'pediatrics'],
+  'oncologo-pediatrico': ['general', 'pediatrics'],
+  'ortopedista-infantil': ['orthopedics', 'pediatrics'],
 
   // Cardiology & vascular
   cardiologo: ['cardiology'],
@@ -107,7 +115,12 @@ export const SPECIALTY_MAP: Record<string, Specialty[]> = {
   proctologo: ['general'],
   traumatologo: ['orthopedics'],
   ortopedista: ['orthopedics'],
+  'cirujano-de-la-mano': ['orthopedics'],
+  podiatra: ['orthopedics'],
+  podologo: ['orthopedics'],
   'cirujano-general': ['general'],
+  'cirujano-toracico': ['general'],
+  'analista-clinico': ['general'],
   'cirujano-bariatra': ['general'],
   'cirujano-oncologo': ['general'],
   'oncologo-medico': ['general'],
@@ -116,8 +129,10 @@ export const SPECIALTY_MAP: Record<string, Specialty[]> = {
   radiologo: ['general'],
   anestesiologo: ['general'],
   anatomopatologo: ['general'],
+  patologo: ['general'],
   audiologo: ['otolaryngology'],
   foniatra: ['otolaryngology'],
+  logopeda: ['otolaryngology'],
   genetista: ['general'],
   endoscopista: ['general'],
 
@@ -146,17 +161,25 @@ export const SPECIALTY_MAP: Record<string, Specialty[]> = {
   'clinicas/gastroenterologia': ['general'],
   'clinicas/nefrologia': ['general'],
   'clinicas/neumologia': ['general'],
-  'clinicas/neurocirugia': ['general'],
+  'clinicas/neurocirugia': ['neurology'],
   'clinicas/nutriologia-clinica': ['general'],
   'clinicas/nutrologia': ['general'],
   'clinicas/oncologia-medica': ['general'],
-  'clinicas/ortopedia': ['general'],
-  'clinicas/otorrinolaringologia': ['general'],
+  'clinicas/ortopedia': ['orthopedics'],
+  'clinicas/otorrinolaringologia': ['otolaryngology'],
   'clinicas/reumatologia': ['general'],
   'clinicas/urologia': ['general'],
+  'clinicas/cirugia-estetica-y-cosmetica': ['plastic_surgery'],
+  'clinicas/medicina-estetica': ['aesthetician'],
+  'clinicas/dermatologia': ['aesthetician', 'general'],
+  'clinicas/traumatologia': ['orthopedics'],
+  'clinicas/cirugia-oncologica': ['general'],
+  'clinicas/geriatria': ['general'],
+  'clinicas/hematologia': ['general'],
+  'clinicas/radiologia': ['general'],
 };
 
-/** Slugs whose Ciudad Juárez page exists but which we have not classified yet. */
+/** Slugs whose landing page exists in the scraped city but which we have not classified yet. */
 export function unmappedSlugs(slugs: string[]): string[] {
   return slugs.filter((s) => !SPECIALTY_MAP[s]);
 }

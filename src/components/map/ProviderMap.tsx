@@ -32,7 +32,7 @@ export function ProviderMap({ lat, lng, name, address, directionsUrl }: Provider
     /**
      * The coordinates as of first mount, read once into a ref so the init
      * effect below can depend on nothing but `mapInstance` — exactly the
-     * pattern MapView's own init effect uses with its fixed `BORDER_CENTER`.
+     * pattern MapView's own init effect uses for its region's initial frame.
      * A coordinate change after mount (navigating from one provider straight
      * to another) is handled by the sync effect further down, which
      * re-centres the already-created map instance instead of tearing it down.

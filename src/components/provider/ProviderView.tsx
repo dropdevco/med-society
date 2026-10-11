@@ -21,6 +21,8 @@ import {
     SpecialtyIcon, CountryIcon,
 } from '../icons/Icons';
 import { SOCIAL_ICONS, SOCIAL_ORDER } from '../icons/socialMap';
+import { placeLabel } from '../../utils/place';
+import { languageName } from '../../utils/languages';
 
 /** The map is the heaviest thing on a provider profile — never pay for it before it scrolls into view. */
 const ProviderMap = lazy(() =>
@@ -68,7 +70,7 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             ) : null}
                             <Badge
                                 icon={<CountryIcon country={provider.country} size={11} weight={2} />}
-                                label={provider.country === 'MX' ? t('drawer.ciudadJuarez') : t('drawer.elPaso')}
+                                label={placeLabel(provider)}
                                 bg={accentSoft}
                                 fg={accent}
                             />
@@ -140,7 +142,7 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             icon={<IconLanguage size={17} />}
                             text={provider.languagesConfirmed && provider.languages.length > 0
                                 ? provider.languages
-                                    .map((l) => (l === 'en' ? t('drawer.languageEN') : t('drawer.languageES')))
+                                    .map((l) => languageName(l, i18n.language))
                                     .join(' · ')
                                 : t('drawer.languageUnknown')}
                             muted={!provider.languagesConfirmed || provider.languages.length === 0}

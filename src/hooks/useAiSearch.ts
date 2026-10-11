@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Specialty } from '../types/provider';
+import type { RegionId } from '../utils/region';
 
 export interface AiQuote {
     reviewId: string;
@@ -19,7 +20,7 @@ export interface AiSearchResult {
     doctors: { providerId: string; quotes: AiQuote[] }[];
 }
 
-/** Session cache: re-running the same search (back button, a chip toggled and untoggled) is free. */
+/** Session cache, keyed by region too (one region's answer is never shown in another). Re-running the same search (back button, a chip toggled and untoggled) is free. */
 const cache = new Map<string, AiSearchResult>();
 
 /**
@@ -27,10 +28,11 @@ const cache = new Map<string, AiSearchResult>();
  *
  * Pass `null` to stay idle. The request takes a few seconds (two model calls),
  * so a superseded query is aborted rather than left to land late and overwrite
- * the answer to the newer one.
+ * the answer to the newer one. Only reviews of doctors in `region` are searched
+ * (migration 0022), so switching region re-runs the search.
  */
-export function useAiSearch(query: string | null, lang: 'en' | 'es') {
-    const key = query ? `${lang}:${query.trim().toLowerCase()}` : '';
+export function useAiSearch(query: string | null, lang: 'en' | 'es', region: RegionId) {
+    const key = query ? `${region}:${lang}:${query.trim().toLowerCase()}` : '';
     // Only the outcome of a finished request lives in state; "loading" and
     // "cached" are read off the key during render, so the effect never has to
     // set state synchronously.
@@ -42,7 +44,7 @@ export function useAiSearch(query: string | null, lang: 'en' | 'es') {
         fetch('/api/ai-search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, lang }),
+            body: JSON.stringify({ query, lang, region }),
             signal: ctrl.signal,
         })
             .then((r) => r.json())
@@ -57,7 +59,7 @@ export function useAiSearch(query: string | null, lang: 'en' | 'es') {
                 if (err?.name !== 'AbortError') setSettled({ key, result: null });
             });
         return () => ctrl.abort();
-    }, [key, query, lang]);
+    }, [key, query, lang, region]);
 
     if (!query) return { result: null, loading: false };
     const cached = cache.get(key);
