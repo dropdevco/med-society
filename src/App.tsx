@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { SearchPage } from './pages/SearchPage';
@@ -7,6 +8,7 @@ import { ClaimPage } from './pages/ClaimPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProviderPage } from './pages/ProviderPage';
 import { BorderhealthPage } from './pages/BorderhealthPage';
+const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 import { ForumPage } from './pages/ForumPage';
 import { ForumThreadPage } from './pages/ForumThreadPage';
 import { FORUM_PATH } from './lib/forumRoutes';
@@ -59,6 +61,8 @@ function AppRoutes() {
             Providers who finish it go straight into claiming or listing. */}
         <Route path="/borderhealth" element={<BorderhealthPage />} />
         <Route path="/research" element={<BorderhealthPage research />} />
+        {/* Internal analytics. Admin-only, enforced in the database. */}
+        <Route path="/admin" element={<Suspense fallback={null}><AdminPage /></Suspense>} />
         {/*
           /sales was the clinic-facing page and is now /pricing. The old path
           is in sent emails and in the lead rows, so it redirects rather than
