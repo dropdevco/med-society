@@ -1,21 +1,21 @@
 /**
- * Backfill `providers.insurances` and `providers.bookingUrl` from the scrape.
+ * Backfill `providers.insurances` from the scrape.
  *
  *   npx tsx scripts/doctoralia/backfill-extras.ts            # dry run
  *   npx tsx scripts/doctoralia/backfill-extras.ts --commit
  *
- * Both fields come from our own Doctoralia data, so they can live in the
+ * Insurers come from our own Doctoralia data, so they can live in the
  * database permanently. (Google Places content cannot — only place_id may be
  * stored indefinitely, which is why photos and reviews are fetched at render
  * time instead.)
  *
- * `bookingUrl` is set only where the listing actually had a calendar with
- * bookable slots; a profile link with no calendar is a dead end for a patient.
+ * Patients no longer book through Doctoralia; they message us via /api/inquiry,
+ * so no booking link is stored.
  */
 import * as fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { INDEX_FILE, PROFILES_FILE } from './config';
-import type { DoctoraliaProfile, IndexEntry } from './types';
+import { PROFILES_FILE } from './config';
+import type { DoctoraliaProfile } from './types';
 
 const commit = process.argv.includes('--commit');
 
@@ -52,7 +52,6 @@ function readJsonl<T>(file: string, key: (row: T) => string): Map<string, T> {
 
 async function run() {
   const profiles = readJsonl<DoctoraliaProfile>(PROFILES_FILE, (p) => p.doctoraliaId);
-  const index = readJsonl<IndexEntry>(INDEX_FILE, (e) => e.doctoraliaId);
 
   const providers: { id: string; name: string; doctoraliaId: string | null }[] = [];
   for (let from = 0; ; from += 1000) {
@@ -69,27 +68,20 @@ async function run() {
   console.log(`\n📋 Backfilling extras for ${providers.length} Doctoralia-sourced providers${commit ? '' : ' (dry run)'}\n`);
 
   let withInsurers = 0;
-  let withBooking = 0;
   let updated = 0;
   const samples: string[] = [];
 
   for (const p of providers) {
     const profile = p.doctoraliaId ? profiles.get(p.doctoraliaId) : undefined;
-    const entry = p.doctoraliaId ? index.get(p.doctoraliaId) : undefined;
     if (!profile) continue;
 
     const insurances = profile.insurances ?? [];
-    // Only a profile with a real calendar gets a booking link.
-    const bookingUrl = entry?.hasCalendar ? profile.url : null;
-
     if (insurances.length) withInsurers++;
-    if (bookingUrl) withBooking++;
-    if (!insurances.length && !bookingUrl) continue;
+    if (!insurances.length) continue;
 
     if (samples.length < 5) {
       samples.push(
-        `    ${p.name} · ${insurances.length ? insurances.slice(0, 3).join(', ') : 'no insurers'}` +
-          `${bookingUrl ? ' · bookable' : ''}`,
+        `    ${p.name} · ${insurances.slice(0, 3).join(', ')}`,
       );
     }
 
@@ -100,7 +92,7 @@ async function run() {
 
     const { error } = await supabase
       .from('providers')
-      .update({ insurances, bookingUrl })
+      .update({ insurances })
       .eq('id', p.id);
     if (error) {
       console.error(`  ✖ ${p.name}: ${error.message}`);
@@ -111,7 +103,6 @@ async function run() {
   }
 
   console.log(`\n  providers with insurers listed: ${withInsurers}`);
-  console.log(`  providers with a booking link:  ${withBooking}`);
   console.log(`  ${commit ? 'rows updated' : 'rows that would update'}: ${updated}`);
   if (samples.length) console.log(`\n  sample:\n${samples.join('\n')}`);
   if (!commit) console.log('\n  Dry run — re-run with --commit.\n');

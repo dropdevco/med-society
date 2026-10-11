@@ -39,7 +39,7 @@ function hash(id: string): number {
 export interface ViewEstimate {
     /** Estimated profile views in the last 30 days. */
     views: number;
-    /** Estimated taps on a phone number or booking link in the same window. */
+    /** Estimated taps on a phone number or message in the same window. */
     contacts: number;
 }
 

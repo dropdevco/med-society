@@ -294,7 +294,7 @@ allowance per SKU usually makes the real bill far lower. Try
 | `schema-enrichment.sql` | `google_*` columns on `doctoralia_doctors` |
 | `schema-002-address-phone.sql` | adds `doctoralia_addresses.phone` |
 | `schema-003-google-sweep.sql` | `google_places_juarez` table |
-| `schema-004-provider-extras.sql` | `providers.insurances` + `providers.bookingUrl` |
+| `schema-004-provider-extras.sql` | `providers.insurances` (the `bookingUrl` column is dropped by migration 0016) |
 | `backfill-extras.ts` | fills those two from the scrape |
 | `parse-media.ts` | Pure gallery / website / socials extractor |
 | `media-selftest.ts` | Fixtures for `parse-media.ts` |

@@ -23,7 +23,6 @@ export function normalizeProvider(row: any): Provider {
         doctoraliaId:  row.doctoraliaId  ?? row.doctoraliaid  ?? undefined,
         reviewCount:   row.reviewCount   ?? row.reviewcount   ?? 0,
         imageUrl:      row.imageUrl      ?? row.imageurl      ?? undefined,
-        bookingUrl:    row.bookingUrl    ?? row.bookingurl    ?? undefined,
         postalCode:    row.postalCode    ?? row.postalcode    ?? undefined,
         socials:       row.socials       ?? {},
         galleryUrls:   row.galleryUrls   ?? row.galleryurls   ?? [],

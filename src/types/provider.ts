@@ -128,8 +128,6 @@ export interface Provider {
   doctoraliaId?: string;
   /** Insurers accepted, verbatim as published (e.g. 'GNP Seguros'). */
   insurances?: string[];
-  /** Doctoralia profile with a bookable calendar. Null when there is none. */
-  bookingUrl?: string;
   /** MX postal code or US ZIP, extracted from `address` by backfill-postal.ts. */
   postalCode?: string;
   imageUrl?: string;
