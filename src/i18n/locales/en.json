@@ -549,6 +549,13 @@
       "whatsapp": "Message {{name}} on WhatsApp"
     }
   },
+  "reviews": {
+    "patient": "Patient",
+    "translated": "Translated",
+    "sourceDoctoralia": "From Doctoralia",
+    "sourceDoctoraliaOf": "From Doctoralia · latest {{shown}} of {{total}}",
+    "sourceGoogle": "From Google · 4 stars and up"
+  },
   "inquiry": {
     "nameLabel": "Your name",
     "messageTitle": "Message {{clinic}}",

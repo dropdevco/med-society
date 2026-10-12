@@ -549,6 +549,13 @@
       "whatsapp": "Escribe a {{name}} por WhatsApp"
     }
   },
+  "reviews": {
+    "patient": "Paciente",
+    "translated": "Traducida",
+    "sourceDoctoralia": "De Doctoralia",
+    "sourceDoctoraliaOf": "De Doctoralia · las {{shown}} más recientes de {{total}}",
+    "sourceGoogle": "De Google · 4 estrellas o más"
+  },
   "inquiry": {
     "nameLabel": "Tu nombre",
     "messageTitle": "Escribe a {{clinic}}",

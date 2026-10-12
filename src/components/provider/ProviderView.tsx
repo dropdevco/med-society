@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { useGoogleReviews } from '../../hooks/useGoogleReviews';
+import { useStoredReviews } from '../../hooks/useStoredReviews';
 import { usePortraitPhoto } from '../../hooks/usePortraitPhoto';
 import { ratingOf, ratingSource } from '../../utils/rating';
 import { formatPrice } from '../../utils/currency';
@@ -39,6 +40,11 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
     const { t, i18n } = useTranslation();
     const ownerPhotos = useOwnerPhotos(provider.id);
     const { reviews, loading: reviewsLoading } = useGoogleReviews(provider.googlePlaceId);
+    // The reviews we hold ourselves (Doctoralia's). Only listings that came from
+    // Doctoralia have any, so a Google-only clinic fetches nothing.
+    const { reviews: storedReviews, loading: storedLoading } = useStoredReviews(
+        provider.doctoraliaId ? provider.id : undefined,
+    );
     const { url: portrait } = usePortraitPhoto(provider);
 
     const rating = ratingOf(provider);
@@ -154,7 +160,26 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
 
                         <ServiceList services={provider.services ?? []} collapsible={false} />
 
-                        <ReviewCarousel reviews={reviews} loading={reviewsLoading} />
+                        {/* Latest first, whatever the rating: a sample picked by stars would flatter the clinic. */}
+                        <ReviewCarousel
+                            reviews={storedReviews}
+                            loading={storedLoading}
+                            note={
+                                provider.reviewCount > storedReviews.length
+                                    ? t('reviews.sourceDoctoraliaOf', {
+                                        shown: storedReviews.length,
+                                        // Same formatting as the stats box above it.
+                                        total: provider.reviewCount.toLocaleString(),
+                                    })
+                                    : t('reviews.sourceDoctoralia')
+                            }
+                        />
+
+                        <ReviewCarousel
+                            reviews={reviews}
+                            loading={reviewsLoading}
+                            note={t('reviews.sourceGoogle')}
+                        />
 
                         {FORUMS_LISTED && <DoctorAnswers providerId={provider.id} />}
 
