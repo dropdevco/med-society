@@ -41,7 +41,7 @@ export function ProviderTile({ provider, onClick, priority = false }: ProviderTi
     // rows showed the specialty monogram for a clinic whose own drawer
     // already had a real photo. 'tile' picks the size bucket the resized
     // Google Places proxy serves for this ~208px-wide slot.
-    const { url: photo } = usePortraitPhoto(provider, 'tile');
+    const { url: photo, srcSet } = usePortraitPhoto(provider, 'tile');
     const accent = provider.country === 'MX' ? 'var(--mx)' : 'var(--us)';
     const side = placeLabel(provider);
 
@@ -67,6 +67,7 @@ export function ProviderTile({ provider, onClick, priority = false }: ProviderTi
                 {photo ? (
                     <img
                         src={photo}
+                        srcSet={srcSet}
                         alt=""
                         loading={priority ? 'eager' : 'lazy'}
                         fetchPriority={priority ? 'high' : 'auto'}

@@ -59,7 +59,7 @@ export function ProviderCard({
      * size bucket for this card's 74px avatar rather than the full-size
      * image the drawer's gallery needs.
      */
-    const { url: resolvedUrl } = usePortraitPhoto(provider, 'thumb');
+    const { url: resolvedUrl, srcSet } = usePortraitPhoto(provider, 'thumb');
     const [broken, setBroken] = useState(false);
     const photo = broken ? undefined : resolvedUrl;
 
@@ -140,6 +140,7 @@ export function ProviderCard({
                 {photo ? (
                     <img
                         src={photo}
+                        srcSet={srcSet}
                         alt=""
                         loading={priority ? 'eager' : 'lazy'}
                         fetchPriority={priority ? 'high' : 'auto'}

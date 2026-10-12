@@ -5,6 +5,7 @@ import { parseCityValue, suggest, type Suggestion, type SuggestVocabulary } from
 import { fold } from '../../utils/search';
 import { isPostalQuery, normalizePostal } from '../../utils/geo';
 import { REGIONS, type RegionId } from '../../utils/region';
+import { regionPatch } from '../../utils/filters';
 import { whereLabel as whereLabelOf } from '../../utils/place';
 import { PlacePicker } from './PlacePicker';
 import {
@@ -39,6 +40,13 @@ interface SearchHeroProps {
      * when the box unmounts.
      */
     onWhereChange?: (where: HeroWhere | null) => void;
+    /**
+     * The visitor picked a place in another border region. The region is what
+     * the page is *about* (its rows, its map, its counts), not a filter waiting
+     * for the Search button, so it is applied the moment it is picked — see
+     * WherePopover. The typed query and any chosen specialties stay in the box.
+     */
+    onRegionChange?: (patch: Partial<ProviderFilters>) => void;
 }
 
 /** The WHERE segment's draft: region, side and postal code. */
@@ -67,7 +75,7 @@ function draftFrom(f: ProviderFilters): Draft {
  * a moment where the user had finished saying what they wanted.
  */
 export function SearchHero({
-    filters, vocabulary, insurers, onSubmit, onProvider, autoFocus, onWhereChange,
+    filters, vocabulary, insurers, onSubmit, onProvider, autoFocus, onWhereChange, onRegionChange,
 }: SearchHeroProps) {
     const { t } = useTranslation();
     const [draft, setDraft] = useState<Draft>(() => draftFrom(filters));
@@ -82,7 +90,15 @@ export function SearchHero({
     const [seen, setSeen] = useState(filters);
     if (filters !== seen) {
         setSeen(filters);
-        setDraft(draftFrom(filters));
+        const same = <T,>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+        const untouched = seen.search === filters.search
+            && same(seen.specialty, filters.specialty)
+            && same(seen.insurances, filters.insurances);
+        // Only the place changed (a region switch made from this very box, or
+        // from the Filters dialog): take the new place, keep the words being typed.
+        setDraft((d) => (untouched
+            ? { ...d, region: filters.region, country: filters.country, postalCode: filters.postalCode }
+            : draftFrom(filters)));
     }
 
     useEffect(() => {
@@ -330,7 +346,14 @@ export function SearchHero({
                     {open === 'where' && (
                         <WherePopover
                             draft={draft}
-                            onPick={(p) => { patch(p); setOpen(null); }}
+                            onPick={(p) => {
+                                patch(p);
+                                setOpen(null);
+                                // Another region: switch the page now, not on Search.
+                                if (p.region && p.region !== filters.region) {
+                                    onRegionChange?.({ ...regionPatch(p.region), country: p.country ?? '' });
+                                }
+                            }}
                         />
                     )}
                 </div>

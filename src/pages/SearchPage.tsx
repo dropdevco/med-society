@@ -453,6 +453,8 @@ export function SearchPage() {
             onProvider={handleProviderSuggestion}
             autoFocus={heroOpen}
             onWhereChange={handleHeroWhere}
+            // The region is the page's scope; switching it must not wait for Search.
+            onRegionChange={patchFilters}
         />
     );
 
