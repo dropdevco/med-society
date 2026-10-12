@@ -15,9 +15,17 @@ export interface AiQuote {
 export interface AiSearchResult {
     isConcern: boolean;
     emergency: boolean;
+    /** Kinds of doctor worth seeing, best first. Absent on answers cached before the list existed. */
+    specialties?: Specialty[];
     specialty: Specialty | null;
     guidance: string;
     doctors: { providerId: string; quotes: AiQuote[] }[];
+}
+
+/** The specialties an answer points to, whichever shape it arrived in. */
+export function specialtiesOf(result: AiSearchResult | null | undefined): Specialty[] {
+    if (!result) return [];
+    return result.specialties ?? (result.specialty ? [result.specialty] : []);
 }
 
 /** Session cache, keyed by region too (one region's answer is never shown in another). Re-running the same search (back button, a chip toggled and untoggled) is free. */

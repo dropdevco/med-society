@@ -22,7 +22,8 @@ export type Specialty =
   | 'telehealth'
   | 'neurology'
   | 'otolaryngology'
-  | 'orthopedics';
+  | 'orthopedics'
+  | 'gastroenterology';
 
 export const SpecialtyLabels: Record<Specialty, string> = {
   dentist: 'Dentist',
@@ -43,6 +44,7 @@ export const SpecialtyLabels: Record<Specialty, string> = {
   neurology: 'Neurology',
   otolaryngology: 'Ear, Nose & Throat',
   orthopedics: 'Orthopedics',
+  gastroenterology: 'Gastroenterology',
 };
 
 /** One published service, as scraped from a Doctoralia profile. */

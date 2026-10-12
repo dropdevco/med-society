@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import { useProviders } from '../hooks/useProviders';
-import { useAiSearch } from '../hooks/useAiSearch';
+import { useAiSearch, specialtiesOf } from '../hooks/useAiSearch';
 import { SearchHero, type HeroWhere } from '../components/search/SearchHero';
 import { SearchPill } from '../components/search/SearchPill';
 import { CategoryRail } from '../components/search/CategoryRail';
@@ -99,17 +99,20 @@ export function SearchPage() {
     // returns are providers this page actually holds.
     const ai = useAiSearch(aiQuery, i18n.language?.slice(0, 2) === 'es' ? 'es' : 'en', region);
     const aiHasAnswer = ai.loading || !!ai.result?.isConcern;
-    const aiSpecialty = ai.result?.specialty ?? null;
+    const aiSpecialties = useMemo(() => specialtiesOf(ai.result), [ai.result]);
 
     /**
      * What the list and the map show. A smart search ignores the text (see
      * useProviders), so on its own it would list the whole directory; it lists
-     * the specialty the answer pointed to instead, and nothing until it has one.
+     * the specialties the answer pointed to instead (any of them), and nothing
+     * until it has some.
      */
     const providers = useMemo(() => {
         if (!filters.smart) return matched;
-        return aiSpecialty ? matched.filter((p) => p.specialty.includes(aiSpecialty)) : [];
-    }, [filters.smart, matched, aiSpecialty]);
+        return aiSpecialties.length
+            ? matched.filter((p) => p.specialty.some((s) => aiSpecialties.includes(s)))
+            : [];
+    }, [filters.smart, matched, aiSpecialties]);
 
     const providerById = useMemo(() => new Map(allProviders.map((p) => [p.id, p])), [allProviders]);
 
@@ -542,10 +545,12 @@ export function SearchPage() {
                                 distanceOf={distanceOf}
                             />
 
-                            {filters.smart && aiSpecialty && providers.length > 0 && (
+                            {filters.smart && aiSpecialties.length > 0 && providers.length > 0 && (
                                 <p style={{ margin: '1.25rem 0 0', fontSize: '0.95rem', fontWeight: 700, color: 'var(--white)' }}>
                                     {t('ai.moreIn', {
-                                        specialty: t(`specialties.${aiSpecialty}`, { defaultValue: aiSpecialty }),
+                                        specialty: aiSpecialties
+                                            .map((s) => t(`specialties.${s}`, { defaultValue: s }))
+                                            .join(' · '),
                                         formatted: providers.length.toLocaleString(),
                                     })}
                                 </p>

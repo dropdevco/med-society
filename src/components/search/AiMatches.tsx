@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { Provider, Specialty } from '../../types/provider';
-import type { AiSearchResult } from '../../hooks/useAiSearch';
+import { specialtiesOf, type AiSearchResult } from '../../hooks/useAiSearch';
 import { regionOf, type RegionId } from '../../utils/region';
 import { ProviderCard } from '../provider/ProviderCard';
 import { IconPhone, IconReviews, IconArrowRight } from '../icons/Icons';
@@ -56,6 +56,8 @@ export function AiMatches({ result, loading, providerById, region, onSelect, onS
         );
     }
 
+    const specialties = specialtiesOf(result);
+
     // Safety net behind the server's region filter: a doctor missing from the
     // loaded list (another region, or no longer live) is dropped silently, and
     // so is one whose region or coordinates place it elsewhere.
@@ -74,11 +76,17 @@ export function AiMatches({ result, loading, providerById, region, onSelect, onS
                     {result.guidance}
                 </p>
             )}
-            {result.specialty && (
-                <button type="button" className="press" style={button} onClick={() => onSpecialty(result.specialty!)}>
-                    {t('ai.seeAll', { specialty: t(`specialties.${result.specialty}`, { defaultValue: result.specialty }) })}
-                    <IconArrowRight size={14} />
-                </button>
+            {specialties.length > 0 && (
+                // One pill per kind of doctor the guidance names, so the text and
+                // the buttons under it can never disagree.
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {specialties.map((s) => (
+                        <button key={s} type="button" className="press" style={button} onClick={() => onSpecialty(s)}>
+                            {t('ai.seeAll', { specialty: t(`specialties.${s}`, { defaultValue: s }) })}
+                            <IconArrowRight size={14} />
+                        </button>
+                    ))}
+                </div>
             )}
 
             {doctors.length > 0 ? (

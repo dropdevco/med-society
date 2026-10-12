@@ -570,4 +570,5 @@ const SPECIALTY: Record<string, Record<Lang, string>> = {
     neurology: { en: 'Neurology', es: 'Neurología' },
     otolaryngology: { en: 'ENT', es: 'Otorrinolaringología' },
     orthopedics: { en: 'Orthopedics', es: 'Ortopedia y Traumatología' },
+    gastroenterology: { en: 'Gastroenterology', es: 'Gastroenterología' },
 };

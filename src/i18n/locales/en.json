@@ -159,7 +159,8 @@
     "telehealth": "Telehealth",
     "neurology": "Neurology",
     "otolaryngology": "Ear, Nose & Throat",
-    "orthopedics": "Orthopedics & Trauma"
+    "orthopedics": "Orthopedics & Trauma",
+    "gastroenterology": "Gastroenterology"
   },
   "sales": {
     "heroEyebrow": "For clinics and practices",

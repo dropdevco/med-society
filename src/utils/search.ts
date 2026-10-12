@@ -97,6 +97,8 @@ const SYNONYM_GROUPS: readonly (readonly string[])[] = [
         'nariz', 'sinusitis', 'amigdalas', 'tonsils', 'audiolog', 'hearing', 'sordera'],
     ['orthopedics', 'ortoped', 'orthoped', 'traumatolog', 'hueso', 'huesos', 'bone', 'fractura',
         'fracture', 'rodilla', 'knee', 'columna', 'spine', 'cadera'],
+    ['gastroenterology', 'gastroenterolog', 'gastro', 'estomago', 'stomach', 'digestivo',
+        'digestive', 'reflujo', 'reflux', 'gastritis', 'colitis', 'intestino', 'intestinal'],
 ];
 
 const SYNONYM_LOOKUP = new Map<string, readonly string[]>();

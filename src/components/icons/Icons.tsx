@@ -466,6 +466,16 @@ export function IconOtolaryngology(p: IconProps) {
     );
 }
 
+/** Gastroenterology: a stomach, oesophagus entering at the top and the duodenum leaving at the side. */
+export function IconGastroenterology(p: IconProps) {
+    return (
+        <Svg {...p}>
+            <path d="M8.5 2.8V6.2C8.5 7.6 5.6 7.4 4.6 10.8C3.4 15 5.8 19.6 10.6 20C14.4 20.3 17.2 18.6 17.8 15.6C18.1 14 17.6 13 17 12.2C14.4 11.2 11.5 10.6 11.5 7.4V2.8" />
+            <path d="M17.7 16.2C19.5 16 20.7 14.8 20.7 13.2" />
+        </Svg>
+    );
+}
+
 /** Orthopedics: a long bone. */
 export function IconOrthopedics(p: IconProps) {
     return (
@@ -545,6 +555,7 @@ const SPECIALTY_ICONS: Record<string, IconComponent> = {
     neurology: IconNeurology,
     otolaryngology: IconOtolaryngology,
     orthopedics: IconOrthopedics,
+    gastroenterology: IconGastroenterology,
 };
 
 /** Renders the icon for a specialty key, falling back to the clinic mark. */
