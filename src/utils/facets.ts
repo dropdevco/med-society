@@ -8,8 +8,9 @@
  * because dentist isn't currently selected.
  */
 
-import type { Provider, ProviderFilters, Specialty } from '../types/provider';
-import { fold, synonymsOf } from './search';
+import type { Country, Provider, ProviderFilters, Specialty } from '../types/provider';
+import { fold, serviceNamesOf, synonymsOf } from './search';
+import { REGIONS, REGION_IDS, isRegionId, type RegionId } from './region';
 import type { FilterContext } from './filters';
 import { matchesFilters } from './filters';
 
@@ -78,9 +79,13 @@ export interface Suggestion {
 export interface SuggestVocabulary {
     specialties: { key: Specialty; label: string; folded: string; count: number }[];
     services: { label: string; folded: string; count: number }[];
-    /** `country` is the side of the border the city sits on — a city
-     *  suggestion narrows by country, since that is the axis we filter on. */
-    cities: { label: string; folded: string; count: number; country: 'MX' | 'US' }[];
+    /**
+     * A city resolves to a region and a side of its border, the two axes the
+     * directory is scoped by. Both regions' cities are always offered, so
+     * typing "Tijuana" while browsing El Paso switches region rather than
+     * narrowing to "Mexico" — which used to mean Ciudad Juárez.
+     */
+    cities: { label: string; folded: string; count: number; country: Country; region: RegionId }[];
     postals: { label: string; count: number }[];
     insurers: { label: string; folded: string; count: number }[];
     providers: { id: string; label: string; folded: string }[];
@@ -89,28 +94,74 @@ export interface SuggestVocabulary {
 /** How many distinct service names to keep. The long tail is one-offs. */
 const MAX_SERVICE_TERMS = 400;
 
+/** `sandiego-tijuana:MX` — what a city suggestion's `value` carries. */
+export function cityValue(region: RegionId, country: Country): string {
+    return `${region}:${country}`;
+}
+
+export function parseCityValue(value: string): { region: RegionId; country: Country } | null {
+    const [region, country] = value.split(':');
+    if (!isRegionId(region) || (country !== 'MX' && country !== 'US')) return null;
+    return { region, country };
+}
+
+/**
+ * @param region The region `providers` belongs to. Its cities get counts;
+ * the other region's main cities are still offered, without one.
+ */
 export function buildVocabulary(
     providers: readonly Provider[],
     labelOf: (s: Specialty) => string,
+    region: RegionId,
 ): SuggestVocabulary {
     const specialtyCounts = new Map<Specialty, number>();
     const serviceCounts = new Map<string, number>();
     const cityCounts = new Map<string, number>();
-    const cityCountry = new Map<string, 'MX' | 'US'>();
+    const cityCountry = new Map<string, Country>();
+    const sideCounts = new Map<Country, number>();
     const postalCounts = new Map<string, number>();
     const insurerCounts = new Map<string, number>();
     const bump = <K>(m: Map<K, number>, k: K) => m.set(k, (m.get(k) ?? 0) + 1);
 
     for (const p of providers) {
         for (const s of p.specialty) bump(specialtyCounts, s);
-        for (const s of p.services ?? []) if (s.name) bump(serviceCounts, s.name.trim());
+        for (const name of serviceNamesOf(p)) {
+            const trimmed = name.trim();
+            if (trimmed) bump(serviceCounts, trimmed);
+        }
         for (const i of p.insurances ?? []) bump(insurerCounts, i);
+        bump(sideCounts, p.country);
         if (p.city) {
             bump(cityCounts, p.city);
             if (!cityCountry.has(p.city)) cityCountry.set(p.city, p.country);
         }
         if (p.postalCode) bump(postalCounts, p.postalCode);
     }
+
+    // The four border cities, always. A stored city string that is a spelling
+    // of one of them ("Juárez", "Ciudad Juárez") folds into that entry; any
+    // other town in the loaded region (a suburb) is offered on its own and
+    // resolves to its side.
+    const cities: SuggestVocabulary['cities'] = [];
+    const mainFolded = new Set<string>();
+    for (const id of REGION_IDS) {
+        for (const side of [REGIONS[id].us, REGIONS[id].mx]) {
+            const f = fold(side.city);
+            mainFolded.add(f);
+            cities.push({
+                label: side.city,
+                folded: f,
+                count: id === region ? sideCounts.get(side.country) ?? 0 : 0,
+                country: side.country,
+                region: id,
+            });
+        }
+    }
+    const isMainSpelling = (city: string) => {
+        const f = fold(city);
+        for (const m of mainFolded) if (m.includes(f) || f.includes(m)) return true;
+        return false;
+    };
 
     const ranked = <T>(m: Map<T, number>) =>
         [...m.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
@@ -127,9 +178,14 @@ export function buildVocabulary(
         services: ranked(serviceCounts)
             .slice(0, MAX_SERVICE_TERMS)
             .map(([label, count]) => ({ label, folded: fold(label), count })),
-        cities: ranked(cityCounts).map(([label, count]) => ({
-            label, folded: fold(label), count, country: cityCountry.get(label) ?? 'MX',
-        })),
+        cities: [
+            ...cities,
+            ...ranked(cityCounts)
+                .filter(([label]) => !isMainSpelling(label))
+                .map(([label, count]) => ({
+                    label, folded: fold(label), count, country: cityCountry.get(label) ?? 'MX', region,
+                })),
+        ],
         postals: ranked(postalCounts).map(([label, count]) => ({ label, count })),
         insurers: ranked(insurerCounts).map(([label, count]) => ({ label, folded: fold(label), count })),
         providers: providers.map((p) => ({ id: p.id, label: p.name, folded: fold(p.name ?? '') })),
@@ -185,7 +241,11 @@ export function suggest(vocab: SuggestVocabulary, query: string, max = 8): Sugge
         consider(s.folded, { kind: 'service', label: s.label, value: s.label, count: s.count }, s.count);
     }
     for (const c of vocab.cities) {
-        consider(c.folded, { kind: 'city', label: c.label, value: c.country, count: c.count }, c.count);
+        consider(
+            c.folded,
+            { kind: 'city', label: c.label, value: cityValue(c.region, c.country), count: c.count || undefined },
+            c.count,
+        );
     }
     for (const i of vocab.insurers) {
         consider(i.folded, { kind: 'insurance', label: i.label, value: i.label, count: i.count }, i.count);

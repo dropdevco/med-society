@@ -112,7 +112,11 @@ check(
 // Unit checks on the normalisers.
 check('fb share code', normalizeSocial('https://www.facebook.com/share/15rEARQGg4/?mibextid=wwXIfr'), ['facebook', 'https://www.facebook.com/share/15rEARQGg4']);
 check('fb people', normalizeSocial('https://www.facebook.com/people/Odonto-White/100036393132606/'), ['facebook', 'https://www.facebook.com/people/Odonto-White/100036393132606']);
-check('fb profile.php', normalizeSocial('https://facebook.com/profile.php?id=1000123&ref=x'), ['facebook', 'https://www.facebook.com/profile.php?id=1000123']);
+// facebook.com/p/<Name-ID>/ — perfil/armando-zuniga-dominguez; used to collapse to ".../p".
+check('fb /p/<slug>', normalizeSocial('https://www.facebook.com/p/DrArmando-zuñiga-100090845602098/'), ['facebook', 'https://www.facebook.com/p/DrArmando-zuñiga-100090845602098']);
+check('fb /p/<slug> percent-encoded', normalizeSocial('https://facebook.com/p/DrArmando-zu%C3%B1iga-100090845602098/?ref=x'), ['facebook', 'https://www.facebook.com/p/DrArmando-zuñiga-100090845602098']);
+check('fb bare /p rejected', normalizeSocial('https://www.facebook.com/p/'), null);
+check('fb profile.php',normalizeSocial('https://facebook.com/profile.php?id=1000123&ref=x'), ['facebook', 'https://www.facebook.com/profile.php?id=1000123']);
 check('tiktok', normalizeSocial('https://www.tiktok.com/@clinica.x?lang=es'), ['tiktok', 'https://www.tiktok.com/@clinica.x']);
 check('twitter -> x', normalizeSocial('http://twitter.com/DrX_mx?s=20'), ['x', 'https://x.com/DrX_mx']);
 check('x intent rejected', normalizeSocial('https://x.com/intent/tweet?text=hi'), null);

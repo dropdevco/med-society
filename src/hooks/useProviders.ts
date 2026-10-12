@@ -7,15 +7,19 @@ import { supabase } from '../lib/supabase';
 import { mockProviders } from '../data/providers';
 import { normalizeProvider } from '../utils/normalizeProvider';
 import { readProviderCache, writeProviderCache } from '../utils/providerCache';
-import { DEFAULT_RADIUS_KM } from '../utils/geo';
+import { DEFAULT_RADIUS_KM, distanceKm } from '../utils/geo';
 import { buildSearchIndex, tokenize } from '../utils/search';
 import { buildVocabulary, buildFacets } from '../utils/facets';
 import { applyFilters, defaultFilters, type FilterContext } from '../utils/filters';
 import { priorMean } from '../utils/rating';
 import { resolvePostal, type PostalHit } from '../utils/postalGeocode';
+import {
+    inRegion, isRegionId, postalFitsRegion, readLastRegion, regionOf, writeLastRegion, type RegionId,
+} from '../utils/region';
 
 const SPECIALTY_KEYS = new Set(Object.keys(SpecialtyLabels));
 const SORT_MODES = new Set<SortMode>(['relevance', 'rating', 'reviews', 'distance', 'price']);
+const EMPTY: Provider[] = [];
 
 // ── Provider fetch ──────────────────────────────────────────────────────────
 
@@ -27,32 +31,42 @@ class NoSupabaseClientError extends Error {}
 const PAGE_SIZE = 1000;
 
 /**
- * The full directory, paged from Supabase.
+ * The lean directory view (migration 0021): only what cards, the map, search
+ * and facet counts read, with `services` reduced to `service_names`. The full
+ * row still loads for a provider's own page (useProvider).
+ */
+const LIST_VIEW = 'provider_list';
+
+/**
+ * One border region of the directory, paged from Supabase.
  *
  * Page 0 asks for an exact count (`{ count: 'exact' }`), which lets every
  * remaining page be requested concurrently with `Promise.all` instead of one
- * after another — each `select=*` page measured ~0.9s TTFB, and five of them
- * sequentially was most of the ~3s it took the old code to get the last byte
- * of the directory. `.order('id')` is added to every page (page 0 included)
+ * after another. `.order('id')` is added to every page (page 0 included)
  * so the ranges stay stable across concurrent requests: without a stable
  * order Postgres is free to return a different row order per request, and
  * parallel `.range()` calls would then silently overlap or skip rows.
  *
+ * Only the selected region is fetched. Loading every live provider used to
+ * cost ~17 MB of `select=*` per visit; one region of the view is 3–6 MB.
+ *
  * If Supabase ever declines to report a count (some proxies/mocks omit it),
- * this falls back to the original sequential loop rather than guess a total.
+ * this falls back to a sequential loop rather than guess a total.
  */
-async function loadProvidersFromNetwork(): Promise<RawProviderRow[]> {
+async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]> {
     if (!supabase) {
         throw new NoSupabaseClientError('Supabase client not initialized');
     }
-
-    const first = await supabase
-        .from('providers')
-        .select('*', { count: 'exact' })
-        .eq('status', 'live')
+    const client = supabase;
+    // The view only exposes live rows, so there is no status filter here.
+    const page = (from: number, count?: 'exact') => client
+        .from(LIST_VIEW)
+        .select('*', count ? { count } : undefined)
+        .eq('region', region)
         .order('id')
-        .range(0, PAGE_SIZE - 1);
+        .range(from, from + PAGE_SIZE - 1);
 
+    const first = await page(0, 'exact');
     if (first.error) throw first.error;
 
     const data: RawProviderRow[] = [...(first.data ?? [])];
@@ -60,36 +74,21 @@ async function loadProvidersFromNetwork(): Promise<RawProviderRow[]> {
     const firstLen = first.data?.length ?? 0;
 
     if (count == null) {
-        // No count back from the server — page sequentially, as before.
-        for (let from = PAGE_SIZE; ; from += PAGE_SIZE) {
-            const page = await supabase
-                .from('providers')
-                .select('*')
-                .eq('status', 'live')
-                .order('id')
-                .range(from, from + PAGE_SIZE - 1);
-            if (page.error) throw page.error;
-            data.push(...(page.data ?? []));
-            if (!page.data || page.data.length < PAGE_SIZE) break;
+        // No count back from the server: page sequentially.
+        for (let from = PAGE_SIZE; firstLen === PAGE_SIZE; from += PAGE_SIZE) {
+            const next = await page(from);
+            if (next.error) throw next.error;
+            data.push(...(next.data ?? []));
+            if (!next.data || next.data.length < PAGE_SIZE) break;
         }
     } else if (firstLen === PAGE_SIZE && count > PAGE_SIZE) {
         const starts: number[] = [];
         for (let from = PAGE_SIZE; from < count; from += PAGE_SIZE) starts.push(from);
 
-        const pages = await Promise.all(
-            starts.map((from) =>
-                supabase!
-                    .from('providers')
-                    .select('*')
-                    .eq('status', 'live')
-                    .order('id')
-                    .range(from, from + PAGE_SIZE - 1),
-            ),
-        );
-
-        for (const page of pages) {
-            if (page.error) throw page.error;
-            data.push(...(page.data ?? []));
+        const pages = await Promise.all(starts.map((from) => page(from)));
+        for (const next of pages) {
+            if (next.error) throw next.error;
+            data.push(...(next.data ?? []));
         }
     }
 
@@ -97,22 +96,36 @@ async function loadProvidersFromNetwork(): Promise<RawProviderRow[]> {
 }
 
 /**
- * Memoized at module scope so React StrictMode's dev-only double-mount
- * awaits one in-flight request instead of firing the whole paginated fetch
- * twice. A failed fetch clears the memo so a later mount (or a manual
- * retry) can try again rather than replay the same rejection forever.
+ * Memoized per region at module scope, so React StrictMode's dev-only double
+ * mount awaits one in-flight request instead of firing the paged fetch twice,
+ * and switching back to a region already visited costs nothing. A failed
+ * fetch clears its entry so a later mount can try again rather than replay
+ * the same rejection forever.
  */
-let providersPromise: Promise<RawProviderRow[]> | null = null;
+const regionPromises = new Map<RegionId, Promise<RawProviderRow[]>>();
 
-function fetchProvidersOnce(): Promise<RawProviderRow[]> {
-    if (!providersPromise) {
-        providersPromise = loadProvidersFromNetwork().catch((err) => {
-            providersPromise = null;
+function fetchRegionOnce(region: RegionId): Promise<RawProviderRow[]> {
+    let promise = regionPromises.get(region);
+    if (!promise) {
+        promise = loadRegionFromNetwork(region).catch((err) => {
+            regionPromises.delete(region);
             throw err;
         });
+        regionPromises.set(region, promise);
     }
-    return providersPromise;
+    return promise;
 }
+
+/**
+ * Normalised rows of every region fetched from the network this session.
+ * Lets a switch back to a region paint synchronously, with no loading flash
+ * and no second request.
+ */
+const loadedRegions = new Map<RegionId, Provider[]>();
+
+/** Mock data is not split by region; keep the requested one. */
+const mockFor = (region: RegionId) =>
+    mockProviders.filter((p) => (p.region ?? regionOf(p.lng)) === region);
 
 // ── URL ⇄ filters ───────────────────────────────────────────────────────────
 //
@@ -127,7 +140,15 @@ function parseFilters(params: URLSearchParams): ProviderFilters {
     };
     const sort = params.get('sort') as SortMode | null;
 
+    const region = params.get('region');
+
     return {
+        // No region in the URL means "wherever this visitor was last" — but
+        // only for the first paint: useProviders immediately rewrites such a
+        // URL to carry the region it resolved to, so no history entry is ever
+        // left meaning "whatever localStorage says by the time you come back".
+        region: isRegionId(region) ? region : readLastRegion(),
+        browse: params.get('list') === '1',
         search: params.get('q') ?? '',
         smart: params.get('smart') === '1',
         specialty: params.getAll('spec').filter((s) => SPECIALTY_KEYS.has(s)) as Specialty[],
@@ -137,7 +158,6 @@ function parseFilters(params: URLSearchParams): ProviderFilters {
         minRating: num('rating', 0),
         insurances: params.getAll('ins'),
         languages: params.getAll('lang'),
-        bookableOnly: false, // legacy ?book=1 links are ignored: online booking is no longer offered
         verifiedOnly: params.get('verified') === '1',
         withPricing: params.get('priced') === '1',
         maxPriceMxn: params.has('max') ? num('max', 0) : null,
@@ -185,7 +205,13 @@ function serializeArea(b: MapBox): string {
 }
 
 function serializeFilters(f: ProviderFilters): URLSearchParams {
-    const p = new URLSearchParams();
+    // The region always leads, even when it is the visitor's last one. A URL
+    // that omits it means "whatever localStorage says", which changes under a
+    // history entry (Back to `/` opened the region you left, not the one that
+    // entry showed) and differs per person (a shared `/?spec=dentist` opened
+    // El Paso for whoever received it).
+    const p = new URLSearchParams({ region: f.region });
+    if (f.browse) p.set('list', '1');
     if (f.search) p.set('q', f.search);
     if (f.search && f.smart) p.set('smart', '1');
     for (const s of f.specialty) p.append('spec', s);
@@ -205,42 +231,119 @@ function serializeFilters(f: ProviderFilters): URLSearchParams {
     return p;
 }
 
+/** Postal rows further than this from their code's median are typos, not neighbours. */
+const POSTAL_OUTLIER_KM = 25;
+
+function median(xs: number[]): number {
+    const sorted = [...xs].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Centre point of each postal code, averaged from the providers that sit in
+ * it — but only from rows that can be trusted to.
+ *
+ * A row's postal code is copied from its source profile, and some are wrong:
+ * a Juárez clinic carrying Tijuana's 22000, a Tijuana one carrying Juárez's
+ * 32300. Their coordinates are right (they sit in the loaded region), so a
+ * naive average put "22000" in the middle of Juárez and `near=22000` while
+ * browsing El Paso listed 387 clinics. So a row counts only if
+ *  - its code is in one of the region's own ranges (postalFitsRegion),
+ *  - its coordinates are inside the region,
+ *  - it lies within POSTAL_OUTLIER_KM of the code's median point (one
+ *    mistyped row must not drag a real code's centre across town),
+ * and the resulting centre must itself be inside the region. A code that
+ * fails falls through to the geocoder, which answers region-scoped and
+ * reports "no providers in …" for a code from somewhere else.
+ */
+function postalCentroidsOf(
+    providers: readonly Provider[],
+    region: RegionId,
+): Map<string, { lat: number; lng: number }> {
+    const byCode = new Map<string, Provider[]>();
+    for (const p of providers) {
+        if (!p.postalCode || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+        if (!postalFitsRegion(p.postalCode, region)) continue;
+        if (!inRegion(p.lat, p.lng, region)) continue;
+        const list = byCode.get(p.postalCode);
+        if (list) list.push(p);
+        else byCode.set(p.postalCode, [p]);
+    }
+
+    const centroids = new Map<string, { lat: number; lng: number }>();
+    for (const [code, rows] of byCode) {
+        const mLat = median(rows.map((p) => p.lat));
+        const mLng = median(rows.map((p) => p.lng));
+        const kept = rows.filter((p) => distanceKm(mLat, mLng, p.lat, p.lng) <= POSTAL_OUTLIER_KM);
+        if (kept.length === 0) continue;
+        const lat = kept.reduce((sum, p) => sum + p.lat, 0) / kept.length;
+        const lng = kept.reduce((sum, p) => sum + p.lng, 0) / kept.length;
+        if (!inRegion(lat, lng, region, 0)) continue;
+        centroids.set(code, { lat, lng });
+    }
+    return centroids;
+}
+
 export function useProviders() {
     const { t } = useTranslation();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [allProviders, setAllProviders] = useState<Provider[]>([]);
-    const [loading, setLoading] = useState(true);
+    const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+    const region = filters.region;
+
+    /**
+     * A URL without a (valid) region — a bare `/`, an old link, the logo — is
+     * resolved once, to the visitor's last region, and then rewritten in place
+     * to say so. From then on every history entry names its region, so Back
+     * and Forward restore the region each entry showed, and a copied link
+     * opens the same region for whoever receives it.
+     */
+    const urlHasRegion = isRegionId(searchParams.get('region'));
+    useEffect(() => {
+        if (urlHasRegion) return;
+        setSearchParams(serializeFilters(filters), { replace: true });
+    }, [urlHasRegion, filters, setSearchParams]);
+
+    /**
+     * Rows for one region, tagged with it, so a region switch never shows the
+     * previous region's rows (or their settled state) as the new one's.
+     */
+    const [loaded, setLoaded] = useState<{ region: RegionId; providers: Provider[] } | null>(null);
 
     useEffect(() => {
+        writeLastRegion(region);
+    }, [region]);
+
+    useEffect(() => {
+        // Already fetched this session: painted synchronously below.
+        if (loadedRegions.has(region)) return;
+
         let mounted = true;
         // Flips once the network settles (success or failure), so a slower
-        // cache read can't clobber fresh data — or a mock fallback — that
+        // cache read can't clobber fresh data, or a mock fallback, that
         // already landed.
         let networkSettled = false;
 
         // Stale-while-revalidate: an IndexedDB cache read races the network.
-        // If it wins and has usable rows, paint immediately and drop the
-        // loading state; the network response (a few hundred ms to a few
-        // seconds behind it) replaces it for real once it arrives, and never
-        // the other way around.
-        readProviderCache().then((cached) => {
+        // If it wins and has usable rows, paint immediately; the network
+        // response replaces it for real once it arrives, and never the other
+        // way around.
+        readProviderCache(region).then((cached) => {
             if (!mounted || networkSettled || !cached || cached.length === 0) return;
-            setAllProviders(cached.map(normalizeProvider));
-            setLoading(false);
+            setLoaded({ region, providers: cached.map(normalizeProvider) });
         });
 
-        fetchProvidersOnce()
+        fetchRegionOnce(region)
             .then((data) => {
                 networkSettled = true;
-                if (!mounted) return;
-                if (data.length > 0) {
-                    setAllProviders(data.map(normalizeProvider));
-                    // Cache the raw rows (pre-normalize), never mock data.
-                    void writeProviderCache(data);
-                } else {
-                    console.warn('[Supabase] No providers found in DB, using mock data.');
-                    setAllProviders(mockProviders);
-                }
+                const providers = data.map(normalizeProvider);
+                // An empty region is a real answer (a region with no sweep
+                // yet); mock data only stands in when the directory itself
+                // is unreachable.
+                loadedRegions.set(region, providers);
+                // Cache the raw rows (pre-normalize), never mock data.
+                if (data.length > 0) void writeProviderCache(region, data);
+                if (mounted) setLoaded({ region, providers });
             })
             .catch((err) => {
                 networkSettled = true;
@@ -249,18 +352,22 @@ export function useProviders() {
                 } else {
                     console.error('[Supabase] Error fetching providers:', err);
                 }
-                if (mounted) setAllProviders(mockProviders);
-            })
-            .finally(() => {
-                if (mounted) setLoading(false);
+                if (mounted) setLoaded({ region, providers: mockFor(region) });
             });
 
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [region]);
 
-    const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+    const allProviders = useMemo(
+        () => loadedRegions.get(region)
+            ?? (loaded?.region === region ? loaded.providers : EMPTY),
+        // `loaded` is the trigger: loadedRegions is filled in the same tick
+        // that sets it.
+        [region, loaded],
+    );
+    const loading = !loadedRegions.has(region) && loaded?.region !== region;
 
     const setFilters = useCallback(
         (next: ProviderFilters, replace: boolean) => {
@@ -286,12 +393,17 @@ export function useProviders() {
         [filters, setFilters],
     );
 
-    const resetFilters = useCallback(() => setFilters(defaultFilters, false), [setFilters]);
+    // Clearing filters keeps the region: it is where the visitor is browsing,
+    // not one of the things narrowing the list.
+    const resetFilters = useCallback(
+        () => setFilters({ ...defaultFilters, region: filters.region }, false),
+        [filters.region, setFilters],
+    );
 
     /**
      * The folded haystack. Rebuilt only when the directory or the UI language
-     * changes — not per keystroke, which is what makes scoring 4k rows on every
-     * character viable.
+     * changes — not per keystroke, which is what makes scoring a region's
+     * 4–7k rows on every character viable.
      */
     const labelOf = useCallback(
         (s: Specialty) => t(`specialties.${s}`, { defaultValue: s }),
@@ -303,9 +415,9 @@ export function useProviders() {
         [allProviders, labelOf],
     );
 
-    const vocabulary = useMemo(
-        () => buildVocabulary(allProviders, labelOf),
-        [allProviders, labelOf],
+    const rawVocabulary = useMemo(
+        () => buildVocabulary(allProviders, labelOf, region),
+        [allProviders, labelOf, region],
     );
 
     /**
@@ -313,23 +425,10 @@ export function useProviders() {
      * it. Derived from data we already hold, so "near this ZIP" costs no
      * geocoding call and stays correct as the directory grows.
      */
-    const postalCentroids = useMemo(() => {
-        const sums = new Map<string, { lat: number; lng: number; n: number }>();
-        for (const p of allProviders) {
-            if (!p.postalCode || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
-            const acc = sums.get(p.postalCode) ?? { lat: 0, lng: 0, n: 0 };
-            acc.lat += p.lat;
-            acc.lng += p.lng;
-            acc.n += 1;
-            sums.set(p.postalCode, acc);
-        }
-
-        const centroids = new Map<string, { lat: number; lng: number }>();
-        for (const [code, acc] of sums) {
-            centroids.set(code, { lat: acc.lat / acc.n, lng: acc.lng / acc.n });
-        }
-        return centroids;
-    }, [allProviders]);
+    const postalCentroids = useMemo(
+        () => postalCentroidsOf(allProviders, region),
+        [allProviders, region],
+    );
 
     /**
      * A code we hold resolves instantly from our own rows; anything else goes
@@ -349,8 +448,23 @@ export function useProviders() {
     const [resolvedPostal, setResolvedPostal] = useState<{
         code: string;
         country: ProviderFilters['country'];
+        region: RegionId;
         hits: PostalHit[];
     } | null>(null);
+
+    /**
+     * The suggester offers only postal codes with a trusted in-region centre:
+     * suggesting a code the region does not contain (a mislabelled row's
+     * 22000 while browsing El Paso) invites a search that cannot mean
+     * anything here.
+     */
+    const vocabulary = useMemo(
+        () => ({
+            ...rawVocabulary,
+            postals: rawVocabulary.postals.filter((p) => postalCentroids.has(p.label)),
+        }),
+        [rawVocabulary, postalCentroids],
+    );
 
     const localCentre = useMemo(
         () => (filters.postalCode ? postalCentroids.get(filters.postalCode) ?? null : null),
@@ -365,11 +479,11 @@ export function useProviders() {
         const country = filters.country;
 
         let live = true;
-        resolvePostal(code, country).then((hits) => {
-            if (live) setResolvedPostal({ code, country, hits });
+        resolvePostal(code, country, region).then((hits) => {
+            if (live) setResolvedPostal({ code, country, region, hits });
         });
         return () => { live = false; };
-    }, [filters.postalCode, filters.country, needsRemote]);
+    }, [filters.postalCode, filters.country, region, needsRemote]);
 
     const remote = useMemo((): {
         code: string;
@@ -378,11 +492,14 @@ export function useProviders() {
     } | null => {
         if (!needsRemote) return null;
         const code = filters.postalCode;
-        if (resolvedPostal && resolvedPostal.code === code && resolvedPostal.country === filters.country) {
+        if (
+            resolvedPostal && resolvedPostal.code === code
+            && resolvedPostal.country === filters.country && resolvedPostal.region === region
+        ) {
             return { code, state: 'resolved', hits: resolvedPostal.hits };
         }
         return { code, state: 'resolving', hits: [] };
-    }, [needsRemote, filters.postalCode, filters.country, resolvedPostal]);
+    }, [needsRemote, filters.postalCode, filters.country, region, resolvedPostal]);
 
     /**
      * The code means two places and the user has not said which side they are
@@ -432,7 +549,7 @@ export function useProviders() {
      * Facet counts describe the *filters*, not the text query — they answer
      * "how many would I get if I ticked this box", which is a question about
      * the other axes. Excluding the query from the dependency list also keeps
-     * this 4k-row pass off the per-keystroke path.
+     * this region-wide pass off the per-keystroke path.
      */
     const facetCtx: FilterContext = useMemo(
         () => ({ index: searchIndex, terms: [], centre, prior }),
@@ -461,8 +578,10 @@ export function useProviders() {
 
     return {
         providers: filtered,
+        /** The selected region's providers: everything the directory holds right now. */
         allProviders,
         filters,
+        region,
         updateFilter,
         patchFilters,
         resetFilters,

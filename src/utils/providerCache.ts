@@ -1,7 +1,9 @@
 /**
  * Stale-while-revalidate cache for the provider directory, in IndexedDB.
  *
- * The payload is several MB (4,000+ rows of `select=*`), which rules out
+ * The payload is several MB (one border region of the `provider_list` view:
+ * ~4,000 rows / ~3 MB for El Paso–Juárez, ~7,000 / ~6 MB for San Diego–
+ * Tijuana), and each region is cached under its own key. That rules out
  * localStorage — it's synchronous, has a ~5MB ceiling shared with everything
  * else on the origin, and would block the main thread on every read/write.
  * IndexedDB has none of those problems, at the cost of being async and a
@@ -11,6 +13,8 @@
  * corrupt DB) resolves to `null` / no-ops rather than throwing — a cache is
  * an optimization, never a dependency the page can fail on.
  */
+
+import type { RegionId } from './region';
 
 const DB_NAME = 'medsociety';
 const STORE_NAME = 'kv';
@@ -22,8 +26,11 @@ const STORE_NAME = 'kv';
  * mismatch is treated as a miss, so a new deploy never paints rows cached by
  * an older one, even if nobody remembered to bump the schema.
  */
-const CACHE_SCHEMA = 1;
-const CACHE_KEY = `providers:v${CACHE_SCHEMA}`;
+// 2: per-region entries of the lean `provider_list` view (was one `select *`).
+const CACHE_SCHEMA = 2;
+const cacheKey = (region: RegionId) => `providers:v${CACHE_SCHEMA}:${region}`;
+/** Keys written by older schemas; deleted on the next write so they stop occupying quota. */
+const LEGACY_KEYS = ['providers:v1'];
 const BUILD_ID: string = String(import.meta.env.VITE_APP_BUILD_ID ?? 'dev');
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 
@@ -56,7 +63,7 @@ function openDb(): Promise<IDBDatabase | null> {
     });
 }
 
-export async function readProviderCache(): Promise<Record<string, unknown>[] | null> {
+export async function readProviderCache(region: RegionId): Promise<Record<string, unknown>[] | null> {
     try {
         const db = await openDb();
         if (!db) return null;
@@ -65,7 +72,7 @@ export async function readProviderCache(): Promise<Record<string, unknown>[] | n
             try {
                 const tx = db.transaction(STORE_NAME, 'readonly');
                 const store = tx.objectStore(STORE_NAME);
-                const req = store.get(CACHE_KEY);
+                const req = store.get(cacheKey(region));
                 req.onsuccess = () => {
                     const entry = req.result as CacheEntry | undefined;
                     db.close();
@@ -97,7 +104,7 @@ export async function readProviderCache(): Promise<Record<string, unknown>[] | n
     }
 }
 
-export async function writeProviderCache(rows: Record<string, unknown>[]): Promise<void> {
+export async function writeProviderCache(region: RegionId, rows: Record<string, unknown>[]): Promise<void> {
     try {
         const db = await openDb();
         if (!db) return;
@@ -107,7 +114,8 @@ export async function writeProviderCache(rows: Record<string, unknown>[]): Promi
                 const tx = db.transaction(STORE_NAME, 'readwrite');
                 const store = tx.objectStore(STORE_NAME);
                 const entry: CacheEntry = { savedAt: Date.now(), schema: CACHE_SCHEMA, buildId: BUILD_ID, rows };
-                const req = store.put(entry, CACHE_KEY);
+                for (const key of LEGACY_KEYS) store.delete(key);
+                const req = store.put(entry, cacheKey(region));
                 req.onsuccess = () => {
                     db.close();
                     resolve();

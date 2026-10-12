@@ -4,6 +4,8 @@ import { IconClose, IconMapPin } from '../icons/Icons';
 import { RADIUS_OPTIONS } from '../../utils/geo';
 import { formatPrice } from '../../utils/currency';
 import type { PostalHit } from '../../utils/postalGeocode';
+import { REGIONS, sideOf } from '../../utils/region';
+import { languageName } from '../../utils/languages';
 
 const SORTS: SortMode[] = ['relevance', 'rating', 'reviews', 'distance', 'price'];
 
@@ -64,6 +66,11 @@ export function FilterSummary({
                 {countLabel ? (
                     <span style={{ fontSize: '0.95rem', color: 'var(--white)', fontWeight: 700 }}>
                         {countLabel}
+                        {/* A smart search answers from one region's reviews;
+                            say which, as the plain count does. */}
+                        <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>
+                            {' · '}{REGIONS[filters.region].name}
+                        </span>
                     </span>
                 ) : (
                     <span style={{ fontSize: '0.88rem', color: 'var(--gray-400)' }}>
@@ -71,6 +78,8 @@ export function FilterSummary({
                             {count.toLocaleString()}
                         </strong>
                         {' '}{t('filters.providersFoundSuffix', { count })}
+                        {/* Which region the count is of: only one is loaded. */}
+                        {' · '}{REGIONS[filters.region].name}
                     </span>
                 )}
 
@@ -136,7 +145,7 @@ export function FilterSummary({
 
                     {filters.country && (
                         <FilterChip
-                            label={filters.country === 'MX' ? t('filters.juarez') : t('filters.elPaso')}
+                            label={sideOf(filters.region, filters.country).city}
                             onRemove={drop('country', '')}
                         />
                     )}
@@ -160,7 +169,7 @@ export function FilterSummary({
                     {filters.languages.map((l) => (
                         <FilterChip
                             key={l}
-                            label={t(`languages.${l}`, { defaultValue: l.toUpperCase() })}
+                            label={languageName(l, i18n.language)}
                             onRemove={() => updateFilter('languages', remove(filters.languages, l))}
                         />
                     ))}

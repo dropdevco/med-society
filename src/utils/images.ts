@@ -6,9 +6,12 @@
  * source site serves when a profile has no photo at all. Treating it as a
  * portrait would wallpaper the whole browse view with one logo, which is worse
  * than showing no photo, so it is filtered out here rather than in each card.
+ * The same goes for Doctoralia's generic grey "default doctor" silhouette
+ * (`doctor-default_large.jpg`, 44 listings), which is a placeholder wearing a
+ * portrait's clothes.
  */
 
-const PLACEHOLDER = /open-graph|\/og\.png/i;
+const PLACEHOLDER = /open-graph|\/og\.png|(?:doctor|facility)-default/i;
 
 /** A usable portrait URL, or undefined when there is nothing worth showing. */
 export function portraitUrl(raw?: string): string | undefined {
@@ -37,28 +40,75 @@ export const PORTRAIT_WIDTHS: Record<PortraitSize, number> = {
     large: 800,
 };
 
-// Doctoralia serves the same S3 asset at a few fixed suffixes; matching this
-// exactly (not just "contains _large") avoids rewriting an unrelated file
-// that merely has "_large" somewhere else in its name.
-const S3_LARGE_SUFFIX = /_large\.(jpe?g|png|webp)$/i;
+/**
+ * The size ladders of Doctoralia's two image families, measured on the files
+ * themselves (the suffix names mean different things in each):
+ *
+ *   modern  pixel-p3.s3…/(doctor|facility)/avatar/<uuid>_<v>.jpg
+ *           small 320px · medium 640px · large ~850px
+ *   legacy  s3…/doctoralia.com.mx/(doctor|facility)/<hex>/<hash>_<v>.jpg
+ *           small 68px · medium 120px · 220_square 220px · large ≤530px
+ *           (a facility's original can be as small as 200px, so large == 220_square)
+ *
+ * The old rule — "swap `_large` for `_small`" — was right for the modern
+ * family and a 68px thumbnail for the legacy one, which is why those listings
+ * looked soft next to their sharp profile page: 2,566 of the 5,400 photos.
+ * Only variants confirmed to exist for both families are used (34 of 34 sampled
+ * images carried every one): an <img> whose chosen candidate 404s does not fall
+ * back to another, it just breaks.
+ */
+type Family = 'modern' | 'legacy';
+
+const MODERN = /pixel-p3\.s3[^/]*\.amazonaws\.com\/(?:doctor|facility)\/avatar\//i;
+const LEGACY = /\/doctoralia\.com\.mx\/(?:doctor|facility)\/[0-9a-f]{6}\//i;
+// Every size suffix either family uses; matching it exactly (not just "contains
+// _large") avoids rewriting an unrelated file that merely has it in its name.
+const SIZE_SUFFIX = /_(?:small_square|medium_square|\d+_square|large|medium|small|thumb)(\.(?:jpe?g|png|webp))$/i;
+
+/** Variant to use at 1x and at 2x-and-up, per family and slot. */
+const PICK: Record<Family, Record<Exclude<PortraitSize, 'large'>, { x1: string; x2: string }>> = {
+    // Card avatar (~72px CSS) and discover tile (~208px CSS).
+    modern: { thumb: { x1: 'small', x2: 'small' }, tile: { x1: 'small', x2: 'medium' } },
+    legacy: { thumb: { x1: 'medium', x2: '220_square' }, tile: { x1: '220_square', x2: 'large' } },
+};
+
+/** The Google photo proxy's next width up (it snaps to 160 / 400 / 800). */
+const PORTRAIT_WIDTHS_2X: Record<PortraitSize, number> = { thumb: 400, tile: 800, large: 800 };
+export const portraitWidth2x = (size: PortraitSize): number => PORTRAIT_WIDTHS_2X[size];
+
+export interface PortraitImage {
+    src: string;
+    /** `<img srcset>`: the sharper file for high-density screens; absent when one file serves all. */
+    srcSet?: string;
+}
 
 /**
- * A portrait URL sized for where it'll actually be shown.
+ * A portrait sized for where it will be shown, and for the screen showing it.
  *
- * Doctoralia's S3-hosted photos (`pixel-p3.s3...amazonaws.com/.../*_large.jpg`)
- * come in a `_large` (full size) and `_small` (320px, ~13KB vs ~38KB)
- * variant of the same asset — swapping the suffix costs nothing and a tile
- * or thumb never needs the full-size image. Doctoralia's own
- * `..._220_square.jpg` URLs are already a fixed 220px and are left alone.
- * Any other host (including Google's proxy, which isn't handled here) is
- * left unchanged.
+ * The 1x file is `src`; screens at 2x and above are offered the next rung of the
+ * ladder through `srcSet`, so a laptop pays for 120px and a phone gets 220px
+ * instead of every visitor downloading the largest file. Anything that is not a
+ * Doctoralia S3 asset (or is a size we have not measured) is returned as it is.
  */
-export function portraitUrlSized(raw: string | undefined, size: PortraitSize): string | undefined {
+export function portraitImage(raw: string | undefined, size: PortraitSize): PortraitImage | undefined {
     const url = portraitUrl(raw);
     if (!url) return undefined;
-    if (size === 'large') return url;
-    if (!S3_LARGE_SUFFIX.test(url)) return url;
-    return url.replace(S3_LARGE_SUFFIX, (_match, ext: string) => `_small.${ext}`);
+    if (size === 'large') return { src: url };
+
+    const family: Family | null = MODERN.test(url) ? 'modern' : LEGACY.test(url) ? 'legacy' : null;
+    const m = family ? SIZE_SUFFIX.exec(url) : null;
+    if (!family || !m) return { src: url };
+
+    const base = url.slice(0, m.index);
+    const ext = m[1];
+    const { x1, x2 } = PICK[family][size];
+    const at = (variant: string) => `${base}_${variant}${ext}`;
+    return x1 === x2 ? { src: at(x1) } : { src: at(x1), srcSet: `${at(x2)} 2x` };
+}
+
+/** Just the URL, for callers with no use for a `srcset` (a 34px avatar, say). */
+export function portraitUrlSized(raw: string | undefined, size: PortraitSize): string | undefined {
+    return portraitImage(raw, size)?.src;
 }
 
 /**

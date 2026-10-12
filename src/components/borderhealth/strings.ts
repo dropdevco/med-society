@@ -56,7 +56,7 @@ export const T: Record<BhLang, BhStrings> = {
         listSub: 'Publique su consultorio gratis · unos 4 minutos',
         title: '¿Cómo consigue atención médica la gente en la frontera?',
         lede: 'Unos 4 minutos. No hay respuestas correctas. Lo que nos cuente orienta un estudio, no una venta.',
-        about: 'Quiénes somos: MedSociety es un directorio médico de la frontera entre Ciudad Juárez y El Paso. Por qué preguntamos: queremos entender cómo consigue atención médica la gente de los dos lados, y en qué parte del proceso se complica.',
+        about: 'Quiénes somos: MedSociety es un directorio médico de la frontera entre México y Estados Unidos, en Ciudad Juárez y El Paso, y en Tijuana y San Diego. Por qué preguntamos: queremos entender cómo consigue atención médica la gente de los dos lados, y en qué parte del proceso se complica.',
         who: '¿Quién responde?',
         segs: {
             employer: ['Empleador', 'Soy dueño, gerente o de recursos humanos'],
@@ -91,7 +91,7 @@ export const T: Record<BhLang, BhStrings> = {
         listSub: 'Get your practice listed free · about 4 minutes',
         title: 'How do people on the border actually get healthcare?',
         lede: 'About 4 minutes. There are no right answers. What you tell us guides a study, not a sale.',
-        about: 'Who we are: MedSociety is a medical directory for the Ciudad Juárez and El Paso border. Why we ask: we want to understand how people on both sides get healthcare, and where the process gets hard.',
+        about: 'Who we are: MedSociety is a medical directory for the US–Mexico border: El Paso and Ciudad Juárez, and San Diego and Tijuana. Why we ask: we want to understand how people on both sides get healthcare, and where the process gets hard.',
         who: 'Who is answering?',
         segs: {
             employer: ['Employer', 'I own or run a business, or handle HR'],

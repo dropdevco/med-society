@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProviderFilters, Specialty, Country } from '../../types/provider';
-import { suggest, type Suggestion, type SuggestVocabulary } from '../../utils/facets';
+import { parseCityValue, suggest, type Suggestion, type SuggestVocabulary } from '../../utils/facets';
 import { fold } from '../../utils/search';
 import { isPostalQuery, normalizePostal } from '../../utils/geo';
+import { REGIONS, type RegionId } from '../../utils/region';
+import { regionPatch } from '../../utils/filters';
+import { whereLabel as whereLabelOf } from '../../utils/place';
+import { PlacePicker } from './PlacePicker';
 import {
     IconSearch, IconClose, IconMapPin, IconStar, IconShield,
     IconCheck, SpecialtyIcon,
@@ -11,6 +15,7 @@ import {
 
 /** What the hero is holding before the user commits it. */
 interface Draft {
+    region: RegionId;
     text: string;
     specialty: Specialty[];
     country: Country | '';
@@ -29,12 +34,29 @@ interface SearchHeroProps {
     onProvider: (id: string) => void;
     /** Focus the query field on mount — used when the header pill expands. */
     autoFocus?: boolean;
+    /**
+     * The WHERE the box is showing, committed or not, so a search run from
+     * outside it (the smart bar beside it) can search the same place. Null
+     * when the box unmounts.
+     */
+    onWhereChange?: (where: HeroWhere | null) => void;
+    /**
+     * The visitor picked a place in another border region. The region is what
+     * the page is *about* (its rows, its map, its counts), not a filter waiting
+     * for the Search button, so it is applied the moment it is picked — see
+     * WherePopover. The typed query and any chosen specialties stay in the box.
+     */
+    onRegionChange?: (patch: Partial<ProviderFilters>) => void;
 }
+
+/** The WHERE segment's draft: region, side and postal code. */
+export type HeroWhere = Pick<ProviderFilters, 'region' | 'country' | 'postalCode'>;
 
 type Segment = 'what' | 'where' | 'cover' | null;
 
 function draftFrom(f: ProviderFilters): Draft {
     return {
+        region: f.region,
         text: f.search,
         specialty: f.specialty,
         country: f.country,
@@ -53,7 +75,7 @@ function draftFrom(f: ProviderFilters): Draft {
  * a moment where the user had finished saying what they wanted.
  */
 export function SearchHero({
-    filters, vocabulary, insurers, onSubmit, onProvider, autoFocus,
+    filters, vocabulary, insurers, onSubmit, onProvider, autoFocus, onWhereChange, onRegionChange,
 }: SearchHeroProps) {
     const { t } = useTranslation();
     const [draft, setDraft] = useState<Draft>(() => draftFrom(filters));
@@ -68,12 +90,58 @@ export function SearchHero({
     const [seen, setSeen] = useState(filters);
     if (filters !== seen) {
         setSeen(filters);
-        setDraft(draftFrom(filters));
+        const same = <T,>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+        const untouched = seen.search === filters.search
+            && same(seen.specialty, filters.specialty)
+            && same(seen.insurances, filters.insurances);
+        // Only the place changed (a region switch made from this very box, or
+        // from the Filters dialog): take the new place, keep the words being typed.
+        setDraft((d) => (untouched
+            ? { ...d, region: filters.region, country: filters.country, postalCode: filters.postalCode }
+            : draftFrom(filters)));
     }
 
     useEffect(() => {
         if (autoFocus) inputRef.current?.focus();
     }, [autoFocus]);
+
+    useEffect(() => {
+        onWhereChange?.({ region: draft.region, country: draft.country, postalCode: draft.postalCode });
+        return () => onWhereChange?.(null);
+    }, [onWhereChange, draft.region, draft.country, draft.postalCode]);
+
+    /**
+     * WHERE and Insurance open a popover rather than take text, so they are
+     * buttons to the keyboard and to screen readers. Not real <button>s: the
+     * popover (itself full of buttons) renders inside the segment, and buttons
+     * cannot nest. Keys pressed inside the popover are its own business.
+     */
+    const segmentProps = (segment: 'where' | 'cover') => ({
+        role: 'button' as const,
+        tabIndex: 0,
+        'aria-haspopup': 'dialog' as const,
+        'aria-expanded': open === segment,
+        onClick: () => setOpen(open === segment ? null : segment),
+        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setOpen(open === segment ? null : segment);
+            }
+        },
+    });
+
+    // WHERE and Insurance hang from a field that can sit low on a phone, so
+    // their last rows (and the ZIP box) used to open below the screen with no
+    // hint to scroll. Bring the popover fully into view when it opens; a
+    // popover that already fits scrolls nothing.
+    useEffect(() => {
+        if (open !== 'where' && open !== 'cover') return;
+        const pop = wrapRef.current?.querySelector('.ms-pop-where, .ms-pop-cover');
+        if (!pop) return;
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        pop.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;
@@ -104,6 +172,9 @@ export function SearchHero({
         // return nothing.
         const asPostal = isPostalQuery(d.text);
         onSubmit({
+            region: d.region,
+            // A camera box drawn over the old region means nothing in the new one.
+            ...(d.region !== filters.region ? { mapArea: null } : {}),
             search: asPostal ? '' : d.text.trim(),
             specialty: d.specialty,
             country: d.country,
@@ -133,10 +204,15 @@ export function SearchHero({
                 patch({ text: '', specialty: [...new Set([...draft.specialty, s.value as Specialty])] });
                 inputRef.current?.focus();
                 break;
-            case 'city':
-                patch({ text: '', country: s.value as Country });
+            case 'city': {
+                // A city is a region plus a side of its border. Setting only
+                // the side used to turn "Tijuana" into "all of Mexico", which
+                // was mostly Ciudad Juárez.
+                const where = parseCityValue(s.value);
+                if (where) patch({ text: '', region: where.region, country: where.country, postalCode: '' });
                 inputRef.current?.focus();
                 break;
+            }
             case 'postal':
                 patch({ text: '', postalCode: s.value });
                 inputRef.current?.focus();
@@ -174,11 +250,7 @@ export function SearchHero({
         }
     };
 
-    const whereLabel = draft.postalCode
-        ? t('filters.nearPostal', { code: draft.postalCode })
-        : draft.country === 'MX' ? t('filters.juarez')
-            : draft.country === 'US' ? t('filters.elPaso')
-                : t('search.anywhere');
+    const whereLabel = whereLabelOf(draft, t);
 
     const coverLabel = draft.insurances.length === 0
         ? t('search.anyCover')
@@ -240,7 +312,7 @@ export function SearchHero({
                     {open === 'what' && suggestions.length > 0 && (
                         <ul id="ms-hero-suggestions" role="listbox" className="ms-pop ms-pop-what">
                             {suggestions.map((s, i) => (
-                                <li key={`${s.kind}:${s.value}`} role="option" aria-selected={i === active}>
+                                <li key={`${s.kind}:${s.value}:${s.label}`} role="option" aria-selected={i === active}>
                                     <button
                                         onMouseEnter={() => setActive(i)}
                                         onClick={(e) => { e.stopPropagation(); pick(s); }}
@@ -264,17 +336,24 @@ export function SearchHero({
                 {/* ── Where ── */}
                 <div
                     className={`ms-seg ms-seg-where${open === 'where' ? ' is-active' : ''}`}
-                    onClick={() => setOpen(open === 'where' ? null : 'where')}
+                    {...segmentProps('where')}
                 >
                     <span className="ms-seg-label">{t('search.whereLabel')}</span>
-                    <span className={`ms-seg-value${draft.country || draft.postalCode ? '' : ' is-empty'}`}>
+                    <span className="ms-seg-value">
                         {whereLabel}
                     </span>
 
                     {open === 'where' && (
                         <WherePopover
                             draft={draft}
-                            onPick={(p) => { patch(p); setOpen(null); }}
+                            onPick={(p) => {
+                                patch(p);
+                                setOpen(null);
+                                // Another region: switch the page now, not on Search.
+                                if (p.region && p.region !== filters.region) {
+                                    onRegionChange?.({ ...regionPatch(p.region), country: p.country ?? '' });
+                                }
+                            }}
                         />
                     )}
                 </div>
@@ -284,7 +363,7 @@ export function SearchHero({
                 {/* ── Cover ── */}
                 <div
                     className={`ms-seg ms-seg-cover${open === 'cover' ? ' is-active' : ''}`}
-                    onClick={() => setOpen(open === 'cover' ? null : 'cover')}
+                    {...segmentProps('cover')}
                 >
                     <span className="ms-seg-label">{t('search.coverLabel')}</span>
                     <span className={`ms-seg-value${draft.insurances.length ? '' : ' is-empty'}`}>
@@ -318,36 +397,27 @@ export function SearchHero({
     );
 }
 
+/**
+ * One list of places (see PlacePicker), then an optional ZIP. A row is a whole
+ * crossing or one of its cities; either way it sets the region and the side in
+ * one tap and closes the popover, and drops any ZIP the old place had. A ZIP
+ * narrows within the region the draft already holds.
+ */
 function WherePopover({ draft, onPick }: {
-    draft: Draft; onPick: (p: Partial<Draft>) => void;
+    draft: Draft;
+    onPick: (p: Partial<Draft>) => void;
 }) {
     const { t } = useTranslation();
     const [zip, setZip] = useState(draft.postalCode);
-
-    const options: { value: Country | ''; label: string; hint: string }[] = [
-        { value: '', label: t('search.anywhere'), hint: t('search.anywhereHint') },
-        { value: 'MX', label: t('drawer.ciudadJuarez'), hint: t('search.juarezHint') },
-        { value: 'US', label: t('drawer.elPaso'), hint: t('search.elPasoHint') },
-    ];
+    const region = REGIONS[draft.region];
 
     return (
         <div className="ms-pop ms-pop-where" onClick={(e) => e.stopPropagation()}>
-            {options.map((o) => (
-                <button
-                    key={o.value || 'any'}
-                    onClick={() => onPick({ country: o.value, postalCode: '' })}
-                    className={`ms-pop-row${draft.country === o.value && !draft.postalCode ? ' is-chosen' : ''}`}
-                >
-                    <span className="ms-pop-ico"><IconMapPin size={16} /></span>
-                    <span className="ms-pop-label">
-                        <strong>{o.label}</strong>
-                        <em>{o.hint}</em>
-                    </span>
-                    {draft.country === o.value && !draft.postalCode && (
-                        <span className="ms-pop-meta"><IconCheck size={15} weight={2.4} /></span>
-                    )}
-                </button>
-            ))}
+            <PlacePicker
+                value={draft}
+                active={!draft.postalCode}
+                onPick={(place) => onPick({ region: place.region, country: place.country, postalCode: '' })}
+            />
 
             <div className="ms-pop-sep" />
 
@@ -360,7 +430,7 @@ function WherePopover({ draft, onPick }: {
                     id="ms-hero-zip"
                     inputMode="numeric"
                     maxLength={10}
-                    placeholder="32000"
+                    placeholder={region.postalHint}
                     value={zip}
                     // The hyphen survives so a pasted ZIP+4 can be recognised
                     // and truncated, rather than silently becoming nine digits

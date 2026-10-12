@@ -7,22 +7,21 @@ import { specialtyColor } from '../../utils/specialtyColors';
 import { MAPS_API_KEY as API_KEY } from '../../lib/googleMaps';
 import { ratingOf } from '../../utils/rating';
 import { darkMapStyles, lightMapStyles } from './mapStyles';
-
-/** Fallback view if we have no providers at all to derive bounds from. */
-const BORDER_CENTER = { lat: 31.738, lng: -106.455 };
-const FALLBACK_ZOOM = 12;
+import { placeLabel } from '../../utils/place';
+import { REGIONS, DEFAULT_REGION, type RegionId } from '../../utils/region';
 
 /**
- * How far outside the clinic footprint a user may pan, in degrees.
- * The live set spans roughly 0.36° x 0.40°, so ~13km of slack lets someone
- * nudge the view for context without ever reaching the world map.
+ * How far outside the region's frame (and its clinic footprint) a user may
+ * pan, in degrees. Each region spans well under a degree, so ~13km of slack
+ * lets someone nudge the view for context without ever reaching the world
+ * map, or the other border region 1,000 km away.
  */
 const PAN_MARGIN = 0.12;
 /** Padding, in px, between the outermost markers and the viewport edge. */
 const FIT_PADDING = 72;
 
 /**
- * How many pins may be on screen at once. Rendering ~4,000 individual pins is
+ * How many pins may be on screen at once. Rendering a region's 4–7k individual pins is
  * what made the map slow to load and to pan, so the viewport plus this cap is
  * what keeps the marker count down instead.
  *
@@ -50,8 +49,13 @@ const CAMERA_DEBOUNCE_MS = 250;
 
 interface MapViewProps {
     providers: Provider[];
-    /** Unfiltered set — defines the pannable region so filtering can't unlock the globe. */
+    /**
+     * The selected region's unfiltered set: with the region's own frame, it
+     * defines the pannable area, so filtering can't unlock the globe.
+     */
     allProviders: Provider[];
+    /** The border region being browsed: the initial frame and the pan limit. */
+    region?: RegionId;
     onProviderSelect: (p: Provider) => void;
     /**
      * The result card the cursor is currently over. Hovering a card lights up
@@ -113,6 +117,24 @@ function boundsOf(list: Provider[]): MapBox | null {
     return { north, south, east, west };
 }
 
+/**
+ * The box to *frame* a result set with: its bounds, minus the outermost 1% on
+ * each side once there are enough results for that to mean outliers. A region
+ * holds a few clinics far out (Rosarito, Ensenada, Tecate), and fitting the
+ * camera to them shrank a whole city of results into a corner of the map. The
+ * outliers are still drawn and still reachable — the pan limit uses the full
+ * bounds — the camera just doesn't open on them.
+ */
+function framingBoxOf(list: Provider[]): MapBox | null {
+    const pts = list.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+    if (pts.length < 50) return boundsOf(pts);
+    const lats = pts.map((p) => p.lat).sort((a, b) => a - b);
+    const lngs = pts.map((p) => p.lng).sort((a, b) => a - b);
+    const lo = Math.floor(pts.length * 0.01);
+    const hi = pts.length - 1 - lo;
+    return { south: lats[lo], north: lats[hi], west: lngs[lo], east: lngs[hi] };
+}
+
 /** Exact equality, used to keep an unchanged camera from re-rendering. */
 function sameBox(a: MapBox, b: MapBox): boolean {
     return a.north === b.north && a.south === b.south
@@ -140,7 +162,7 @@ function escapeHtml(s: string): string {
 }
 
 export function MapView({
-    providers, allProviders, onProviderSelect, hoveredId = null,
+    providers, allProviders, region: regionId = DEFAULT_REGION, onProviderSelect, hoveredId = null,
     onProviderFocus, onSearchArea, onBoundsChange, autoSearch = false, onAutoSearchChange,
     mapArea = null, fitKey,
     maxPins = DEFAULT_MAX_PINS, onVisibleCountChange, topNote,
@@ -160,7 +182,7 @@ export function MapView({
     /**
      * Marker listeners are attached once, at creation, and read their callbacks
      * through these refs. Re-attaching them on every render meant ~16k listener
-     * operations per click once the directory grew past 4,000 providers.
+     * operations per click once the directory grew past a few thousand providers.
      */
     const providersByIdRef = useRef<Map<string, Provider>>(new Map());
     const onSelectRef = useRef(onProviderSelect);
@@ -186,11 +208,30 @@ export function MapView({
     const hasResults = providers.length > 0;
 
     /**
-     * The pannable region is derived from every clinic we know about — not the
-     * filtered subset — so the world map is never reachable, but filtering down
-     * to one clinic doesn't lock the user into a single block either.
+     * The pannable area is the selected region's frame, widened to every clinic
+     * we hold there — not the filtered subset — so the world map is never
+     * reachable, but filtering down to one clinic doesn't lock the user into a
+     * single block either. Only one region is loaded at a time, so this no
+     * longer spans the 1,000 km between El Paso and Tijuana.
      */
-    const region = useMemo(() => boundsOf(allProviders), [allProviders]);
+    const frame = REGIONS[regionId];
+    const region = useMemo((): MapBox => {
+        const b = frame.bounds;
+        const held = boundsOf(allProviders);
+        if (!held) return { ...b };
+        return {
+            north: Math.max(b.north, held.north),
+            south: Math.min(b.south, held.south),
+            east: Math.max(b.east, held.east),
+            west: Math.min(b.west, held.west),
+        };
+    }, [frame, allProviders]);
+    /**
+     * The camera the map is created with, read once so the init effect can
+     * depend on nothing but `mapInstance`. A region change after mount is
+     * handled by the pan-limit and fit effects, which move the existing map.
+     */
+    const initialFrameRef = useRef(frame);
 
     // ── Marker icon builder ────────────────────────────────────────────────
     const makeIcon = useCallback((
@@ -239,7 +280,7 @@ export function MapView({
         const specialties = p.specialty
             .map((s) => t(`specialties.${s}`, { defaultValue: s }))
             .join(' · ');
-        const side = p.country === 'MX' ? t('drawer.ciudadJuarez') : t('drawer.elPaso');
+        const side = placeLabel(p);
         const accent = p.country === 'MX' ? '#3f6b52' : '#3f5570';
 
         const star =
@@ -317,8 +358,10 @@ export function MapView({
                 const initialTheme = document.documentElement.getAttribute('data-theme') || 'light';
 
                 const map = new Map(containerRef.current!, {
-                    center: BORDER_CENTER,
-                    zoom: FALLBACK_ZOOM,
+                    // The region's own view until the results arrive and the
+                    // fit effect frames them.
+                    center: initialFrameRef.current.center,
+                    zoom: initialFrameRef.current.zoom,
                     // Keep the viewport on the border region. Without this the
                     // map opens on the whole world, which is never useful here.
                     minZoom: 9,
@@ -339,9 +382,9 @@ export function MapView({
         return () => { isMounted = false; };
     }, [mapInstance]);
 
-    // ── Lock panning to the clinic region ──────────────────────────────────
+    // ── Lock panning to the selected region ────────────────────────────────
     useEffect(() => {
-        if (!mapInstance || !region) return;
+        if (!mapInstance) return;
         mapInstance.setOptions({
             restriction: {
                 latLngBounds: {
@@ -382,15 +425,52 @@ export function MapView({
      */
     const framedRef = useRef(false);
 
+    /**
+     * Has the user moved the camera since it was last framed for them?
+     *
+     * The automatic framing trims the outermost 1% of pins (framingBoxOf), so
+     * publishing it as the search area dropped those edge clinics from the
+     * count: Tijuana's side read 6,914 of its 6,917 on first load, before the
+     * user had touched the map. The framing is our choice of camera, not the
+     * user's choice of area, so auto-search publishes only once the user has
+     * moved the map themselves (drag, wheel, pinch, keys, zoom buttons,
+     * "my location").
+     */
+    const userMovedRef = useRef(false);
+    useEffect(() => {
+        const node = containerRef.current;
+        if (!mapInstance || !node) return;
+        const moved = () => { userMovedRef.current = true; };
+        // Capture phase: the map's own handlers stop some of these from
+        // bubbling. 'dragstart' is the SDK's word for a pan, and only a user
+        // fires it.
+        const events = ['pointerdown', 'mousedown', 'click', 'wheel', 'keydown', 'touchstart'] as const;
+        for (const e of events) node.addEventListener(e, moved, { capture: true, passive: true });
+        const drag = mapInstance.addListener('dragstart', moved);
+        return () => {
+            for (const e of events) node.removeEventListener(e, moved, { capture: true });
+            drag.remove();
+        };
+    }, [mapInstance]);
+
     useEffect(() => {
         if (!mapInstance) return;
         // A map-area search means the user chose this camera. Refitting would
         // move it out from under them, and then filter on where it landed.
         if (mapArea) { framedRef.current = true; return; }
 
+        // A new frame is ours again until the user moves it.
+        userMovedRef.current = false;
         const list = providersRef.current;
-        const box = boundsOf(list);
-        if (!box) return;
+        const box = framingBoxOf(list);
+        if (!box) {
+            // Nothing to frame (still loading, or an empty side such as San
+            // Diego before its sweep): show the region rather than leave the
+            // camera wherever the previous region or query put it.
+            mapInstance.setCenter(frame.center);
+            mapInstance.setZoom(frame.zoom);
+            return;
+        }
 
         // A single result would otherwise zoom to max; give it a neighbourhood.
         if (list.length === 1) {
@@ -413,7 +493,7 @@ export function MapView({
         // non-empty lists, but the empty -> non-empty transition is the initial
         // data load, and skipping that left the map parked on its default view
         // for the whole session.
-    }, [mapInstance, fitDep, hasResults, mapArea]);
+    }, [mapInstance, fitDep, hasResults, mapArea, frame]);
 
     // ── Container resize ───────────────────────────────────────────────────
     /**
@@ -451,7 +531,7 @@ export function MapView({
     // -- Render whatever the viewport currently needs -----------------------
     /**
      * Every pin on screen is exactly one provider. Clustering used to stand in
-     * for the ~4,000-pin load cost, but a metro-wide search folds nearly every
+     * for the multi-thousand-pin load cost, but a metro-wide search folds nearly every
      * result into a bubble, and a bubble cannot light up when its card is
      * hovered — the list-to-map bridge silently stopped working for almost
      * every result. The viewport filter plus `maxPins` buys back the same
@@ -659,6 +739,7 @@ export function MapView({
             (position) => {
                 const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
                 setUserLoc(pos);
+                userMovedRef.current = true;
                 if (mapInstance) {
                     mapInstance.panTo(pos);
                     mapInstance.setZoom(14);
@@ -706,7 +787,7 @@ export function MapView({
      *
      * Debounced rather than fired straight from 'idle' because a flick-pan
      * settles several times on the way to where it is going, and each settle
-     * would otherwise be a full re-filter of ~4,000 rows plus a URL write.
+     * would otherwise be a full re-filter of the region's rows plus a URL write.
      *
      * The `sameBox` guard is what keeps this from being a loop: publishing the
      * camera box sets `mapArea` to that same box, which comes back in as a
@@ -721,6 +802,8 @@ export function MapView({
         // which fires no idle — the map then simply does not filter until the
         // user touches it, which is the safe direction to fail in.
         if (!autoSearch || !cameraBox || !onBoundsChange || !framedRef.current) return;
+        // Our own framing is never a search area — see userMovedRef.
+        if (!userMovedRef.current) return;
         if (mapArea && sameBox(cameraBox, mapArea)) return;
 
         const id = window.setTimeout(() => onBoundsChange(cameraBox), CAMERA_DEBOUNCE_MS);

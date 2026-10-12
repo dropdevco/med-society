@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { ProviderFilters } from '../../types/provider';
 import { IconSearch } from '../icons/Icons';
+import { whereLabel } from '../../utils/place';
 
 interface SearchPillProps {
     filters: ProviderFilters;
@@ -21,11 +22,7 @@ export function SearchPill({ filters, onExpand }: SearchPillProps) {
         || filters.specialty.map((s) => t(`specialties.${s}`)).join(', ')
         || t('search.allProviders');
 
-    const where = filters.postalCode
-        ? t('filters.nearPostal', { code: filters.postalCode })
-        : filters.country === 'MX' ? t('drawer.ciudadJuarez')
-            : filters.country === 'US' ? t('drawer.elPaso')
-                : t('search.anywhere');
+    const where = whereLabel(filters, t);
 
     const cover = filters.insurances.length === 0
         ? t('search.anyCover')

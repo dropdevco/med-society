@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { Provider } from '../types/provider';
-import { portraitUrlSized, PORTRAIT_WIDTHS, type PortraitSize } from '../utils/images';
+import { portraitImage, portraitWidth2x, PORTRAIT_WIDTHS, type PortraitSize } from '../utils/images';
 import { placePhotoUrl, placePhotoProxyState, subscribePlacePhotoProxy } from '../utils/placePhoto';
 import { useGooglePhotos } from './useGooglePhotos';
 
@@ -43,8 +43,9 @@ import { useGooglePhotos } from './useGooglePhotos';
 export function usePortraitPhoto(
     provider: Provider,
     size: PortraitSize = 'large',
-): { url?: string; loading: boolean } {
-    const staticUrl = portraitUrlSized(provider.imageUrl, size);
+): { url?: string; srcSet?: string; loading: boolean } {
+    const staticImage = portraitImage(provider.imageUrl, size);
+    const staticUrl = staticImage?.src;
     const proxyReady = useSyncExternalStore(subscribePlacePhotoProxy, placePhotoProxyState, placePhotoProxyState);
 
     const placeId = provider.googlePlaceId;
@@ -52,7 +53,7 @@ export function usePortraitPhoto(
     const { photos, loading: googleLoading } = useGooglePhotos(useClientFallback ? placeId : undefined);
 
     if (staticUrl) {
-        return { url: staticUrl, loading: false };
+        return { url: staticUrl, srcSet: staticImage?.srcSet, loading: false };
     }
     if (!placeId) {
         return { url: undefined, loading: false };
@@ -62,7 +63,12 @@ export function usePortraitPhoto(
         return { url: undefined, loading: true };
     }
     if (proxyReady) {
-        return { url: placePhotoUrl(placeId, PORTRAIT_WIDTHS[size]), loading: false };
+        // Only high-density screens ask for the wider (separately cached) size.
+        return {
+            url: placePhotoUrl(placeId, PORTRAIT_WIDTHS[size]),
+            srcSet: size === 'large' ? undefined : `${placePhotoUrl(placeId, portraitWidth2x(size))} 2x`,
+            loading: false,
+        };
     }
     return { url: photos[0]?.url, loading: googleLoading };
 }

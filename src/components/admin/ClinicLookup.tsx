@@ -23,7 +23,7 @@ function show(v: Val): ReactNode {
 
 const GROUPS: { title: string; keys: [string, string][] }[] = [
     { title: 'Identity', keys: [['name', 'Name'], ['specialty', 'Specialties'], ['description', 'Description'], ['source', 'Data source'], ['doctoraliaId', 'Doctoralia id'], ['googlePlaceId', 'Google place id']] },
-    { title: 'Contact', keys: [['phone', 'Phone'], ['email', 'Email'], ['website', 'Website'], ['socials', 'Social links'], ['bookingUrl', 'Booking link']] },
+    { title: 'Contact', keys: [['phone', 'Phone'], ['email', 'Email'], ['website', 'Website'], ['socials', 'Social links']] },
     { title: 'Location', keys: [['country', 'Country'], ['region', 'Region'], ['city', 'City'], ['address', 'Address'], ['postalCode', 'Postal code'], ['lat', 'Latitude'], ['lng', 'Longitude']] },
     { title: 'Care', keys: [['languages', 'Languages'], ['languages_confirmed', 'Languages confirmed'], ['insurances', 'Insurances'], ['services', 'Services'], ['priceFromMxn', 'Price from (MXN)'], ['hours', 'Hours']] },
     { title: 'Reputation', keys: [['rating', 'Rating'], ['reviewCount', 'Review count'], ['clicks', 'Clicks']] },

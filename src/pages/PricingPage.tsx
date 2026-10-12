@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { mockProviders } from '../data/providers';
-import { useProviders } from '../hooks/useProviders';
-import type { Provider } from '../types/provider';
+import { supabase } from '../lib/supabase';
 import { InquiryModal } from '../components/sales/InquiryModal';
 import { LogoMark } from '../components/brand/Logo';
 import {
@@ -29,14 +27,31 @@ const ADDONS = [
     { key: 'seo', icon: <IconStar size={19} weight={1.8} /> },
 ] as const;
 
-interface Stats { providers: number; clicks: number }
+/**
+ * The four border cities the directory covers, west to east: two crossings,
+ * each with a US and a Mexican side. Copy lives under `sales.city<Key>*`.
+ */
+const CITIES = [
+    { key: 'SanDiego', country: 'us' },
+    { key: 'Tijuana', country: 'mx' },
+    { key: 'ElPaso', country: 'us' },
+    { key: 'Juarez', country: 'mx' },
+] as const;
 
-function computeStats(list: Provider[]): Stats {
-    if (list.length === 0) return { providers: 0, clicks: 0 };
-    return {
-        providers: list.length,
-        clicks: list.reduce((s, p) => s + (p.clicks || 0), 0),
-    };
+/**
+ * Number of live providers, as a head-only count query: the server returns
+ * the count in a header and no rows, so this page never downloads the
+ * directory just to quote its size. `provider_list` is the view of live
+ * providers; if it is not deployed yet, fall back to the base table filtered
+ * to live rows. Resolves to null when Supabase is unreachable or unconfigured,
+ * and the tile then shows a dash rather than a made-up number.
+ */
+async function fetchLiveProviderCount(): Promise<number | null> {
+    if (!supabase) return null;
+    const view = await supabase.from('provider_list').select('id', { count: 'exact', head: true });
+    if (!view.error && view.count != null) return view.count;
+    const base = await supabase.from('providers').select('id', { count: 'exact', head: true }).eq('status', 'live');
+    return !base.error && base.count != null ? base.count : null;
 }
 
 export function PricingPage() {
@@ -48,10 +63,15 @@ export function PricingPage() {
     // deleted — the keys are unchanged) whenever the site language is English.
     const isEnglish = i18n.language.startsWith('en');
 
-    // Quote the real directory, not the 16-row mock fixture. The mock is only
-    // a placeholder while the fetch is in flight or Supabase is unreachable.
-    const { allProviders } = useProviders();
-    const stats = computeStats(allProviders.length > 0 ? allProviders : mockProviders);
+    // Quote the real directory size with a count query (no rows transferred).
+    const [providerCount, setProviderCount] = useState<number | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fetchLiveProviderCount()
+            .then((n) => { if (!cancelled) setProviderCount(n); })
+            .catch(() => { /* leave the dash */ });
+        return () => { cancelled = true; };
+    }, []);
 
     const navigate = useNavigate();
 
@@ -176,7 +196,7 @@ export function PricingPage() {
                         </div>
                     </div>
 
-                    <BorderMapArt />
+                    <BorderMapArt label={t('sales.mapArtLabel')} />
                 </div>
             </section>
 
@@ -279,14 +299,11 @@ export function PricingPage() {
             </section>
 
             {/* ══ Stats ══════════════════════════════════════════════
-                Only providers/cities are always shown; profile views only
-                appear once click tracking actually records something (rather
-                than advertising a zero). With the rating and specialties
-                tiles gone the tile count can be 2 or 3, so this uses a
-                centered flex row instead of a grid — an incomplete row of
-                fixed-width tiles stays centered instead of stranding itself
-                against the left edge. Now follows the (unbordered) add-ons
-                section, so it carries its own top border to delineate it.
+                Providers (from a head-only count query) and cities. The
+                profile-views tile is gone: summing clicks meant downloading
+                every provider row, which this page should never do. A
+                centered flex row keeps the two tiles centered. Follows the
+                (unbordered) add-ons section, so it carries its own top border.
                 ═══════════════════════════════════════════════════════ */}
             <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <Reveal>
@@ -300,11 +317,13 @@ export function PricingPage() {
                             gap: '1.25rem',
                         }}
                     >
-                        <StatTile icon={<IconClinic size={24} />} value={`${stats.providers}+`} label={t('sales.statsProviders')} accent="var(--us)" />
-                        {stats.clicks > 0 && (
-                            <StatTile icon={<IconViews size={24} />} value={stats.clicks.toLocaleString()} label={t('sales.statsViews')} accent="var(--gold)" />
-                        )}
-                        <StatTile icon={<IconBorder size={24} />} value="2" label={t('sales.statsCities')} accent="var(--mx)" />
+                        <StatTile
+                            icon={<IconClinic size={24} />}
+                            value={providerCount != null ? `${providerCount.toLocaleString(i18n.language)}+` : '—'}
+                            label={t('sales.statsProviders')}
+                            accent="var(--us)"
+                        />
+                        <StatTile icon={<IconBorder size={24} />} value={String(CITIES.length)} label={t('sales.statsCities')} accent="var(--mx)" />
                     </div>
                 </Reveal>
             </section>
@@ -329,29 +348,30 @@ export function PricingPage() {
                 </Reveal>
             </section>
 
-            {/* ══ Coverage ═══════════════════════════════════════════ */}
+            {/* ══ Coverage ═══════════════════════════════════════════
+                Two crossings, four cities. A fixed two-column grid so each
+                row is one crossing (US city beside its Mexican neighbour);
+                collapses to one column on phones.
+                ═══════════════════════════════════════════════════════ */}
             <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <Reveal>
                     <div
                         style={{
                             maxWidth: 1080, margin: '0 auto', padding: '5rem 1.5rem',
-                            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.35rem',
+                            display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1.35rem',
                         }}
+                        className="sales-city-grid"
                     >
-                        <CityCard
-                            icon={<IconUS size={22} />}
-                            accent="var(--us)"
-                            city={t('sales.cityElPaso')}
-                            region={t('sales.cityElPasoRegion')}
-                            body={t('sales.cityElPasoBody')}
-                        />
-                        <CityCard
-                            icon={<IconMX size={22} />}
-                            accent="var(--mx)"
-                            city={t('sales.cityJuarez')}
-                            region={t('sales.cityJuarezRegion')}
-                            body={t('sales.cityJuarezBody')}
-                        />
+                        {CITIES.map((c) => (
+                            <CityCard
+                                key={c.key}
+                                icon={c.country === 'us' ? <IconUS size={22} /> : <IconMX size={22} />}
+                                accent={c.country === 'us' ? 'var(--us)' : 'var(--mx)'}
+                                city={t(`sales.city${c.key}`)}
+                                region={t(`sales.city${c.key}Region`)}
+                                body={t(`sales.city${c.key}Body`)}
+                            />
+                        ))}
                     </div>
                 </Reveal>
             </section>
@@ -419,30 +439,46 @@ export function PricingPage() {
                         gap: 2.5rem !important;
                     }
                 }
+                @media (max-width: 640px) {
+                    .sales-city-grid {
+                        grid-template-columns: 1fr !important;
+                        padding: 3.5rem 1rem !important;
+                    }
+                }
             `}</style>
         </div>
     );
 }
 
 /* ── Hero artwork ─────────────────────────────────────────────────────
-   A stylised plan-view of the two cities either side of the Rio Grande,
-   with clinic pins. Vector rather than photography so it stays crisp,
-   themes correctly, and adds no image weight.
+   A stylised plan-view of the two border crossings the directory covers,
+   west to east: San Diego over Tijuana (a straight fence line) and El Paso
+   over Ciudad Juárez (the Rio Grande), each with clinic pins on both sides.
+   Vector rather than photography so it stays crisp, themes correctly, and
+   adds no image weight.
    ─────────────────────────────────────────────────────────────────── */
-function BorderMapArt() {
+function BorderMapArt({ label }: { label: string }) {
     const pins = [
-        { x: 78, y: 96, side: 'us' }, { x: 132, y: 66, side: 'us' },
-        { x: 196, y: 108, side: 'us' }, { x: 246, y: 74, side: 'us' },
-        { x: 104, y: 218, side: 'mx' }, { x: 168, y: 254, side: 'mx' },
-        { x: 232, y: 206, side: 'mx' }, { x: 286, y: 250, side: 'mx' },
+        // San Diego – Tijuana (left panel)
+        { x: 40, y: 92, side: 'us' }, { x: 112, y: 60, side: 'us' }, { x: 146, y: 120, side: 'us' },
+        { x: 38, y: 236, side: 'mx' }, { x: 104, y: 266, side: 'mx' }, { x: 152, y: 214, side: 'mx' },
+        // El Paso – Ciudad Juárez (right panel)
+        { x: 222, y: 70, side: 'us' }, { x: 290, y: 112, side: 'us' }, { x: 334, y: 62, side: 'us' },
+        { x: 214, y: 240, side: 'mx' }, { x: 272, y: 212, side: 'mx' }, { x: 330, y: 260, side: 'mx' },
     ];
+    // Promoted clinics, one per crossing: the product's paid outcome, made visible.
+    const promoted = [{ x: 82, y: 214 }, { x: 262, y: 128 }];
+    const labelStyle = {
+        fill: 'var(--gray-400)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2,
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+    } as const;
 
     return (
         <div className="bezel idle-float" style={{ boxShadow: 'var(--shadow)' }}>
             <div className="bezel-core" style={{ overflow: 'hidden', padding: '1.1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
                     <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>
-                        El Paso · Ciudad Juárez
+                        USA · México
                     </span>
                     <span style={{ display: 'flex', gap: 4 }}>
                         {['var(--us)', 'var(--gold)', 'var(--mx)'].map((c) => (
@@ -451,23 +487,30 @@ function BorderMapArt() {
                     </span>
                 </div>
 
-                <svg viewBox="0 0 360 320" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 10 }} role="img" aria-label="Map of clinics across the El Paso and Ciudad Juarez border">
+                <svg viewBox="0 0 360 320" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 10 }} role="img" aria-label={label}>
                     <rect width="360" height="320" fill="var(--surface)" />
 
-                    {/* Street grid, north side */}
+                    {/* Street grid, north side of both crossings */}
                     <g stroke="var(--border)" strokeWidth="1.5" opacity="0.9">
-                        {[40, 80, 120, 160].map((y) => <line key={y} x1="0" y1={y} x2="360" y2={y} />)}
-                        {[60, 120, 180, 240, 300].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="165" />)}
+                        {[44, 88, 132].map((y) => <line key={y} x1="0" y1={y} x2="360" y2={y} />)}
+                        {[44, 88, 132, 228, 272, 316].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="160" />)}
                     </g>
                     {/* Street grid, south side (rotated feel via offset) */}
                     <g stroke="var(--border)" strokeWidth="1.5" opacity="0.9">
-                        {[210, 250, 290].map((y) => <line key={y} x1="0" y1={y} x2="360" y2={y} />)}
-                        {[45, 105, 165, 225, 285].map((x) => <line key={x} x1={x} y1="188" x2={x} y2="320" />)}
+                        {[208, 252, 290].map((y) => <line key={y} x1="0" y1={y} x2="360" y2={y} />)}
+                        {[30, 74, 118, 162, 210, 254, 298, 342].map((x) => <line key={x} x1={x} y1="190" x2={x} y2="320" />)}
                     </g>
 
-                    {/* The river / the border */}
-                    <path d="M0 182 C 70 168, 120 196, 185 176 S 300 168, 360 178" stroke="var(--us)" strokeWidth="7" fill="none" opacity="0.28" strokeLinecap="round" />
-                    <path d="M0 182 C 70 168, 120 196, 185 176 S 300 168, 360 178" stroke="var(--gold)" strokeWidth="2" fill="none" strokeDasharray="7 6" strokeLinecap="round" />
+                    {/* Gap between the two crossings, ~1,000 km apart in reality */}
+                    <rect x="174" y="0" width="12" height="320" fill="var(--surface)" />
+                    <line x1="180" y1="8" x2="180" y2="312" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="2 6" strokeLinecap="round" />
+
+                    {/* West: San Diego – Tijuana, a straight fence line */}
+                    <path d="M0 178 L 172 170" stroke="var(--us)" strokeWidth="7" fill="none" opacity="0.28" strokeLinecap="round" />
+                    <path d="M0 178 L 172 170" stroke="var(--gold)" strokeWidth="2" fill="none" strokeDasharray="7 6" strokeLinecap="round" />
+                    {/* East: El Paso – Ciudad Juárez, the Rio Grande */}
+                    <path d="M188 180 C 228 164, 262 196, 298 176 S 340 166, 360 178" stroke="var(--us)" strokeWidth="7" fill="none" opacity="0.28" strokeLinecap="round" />
+                    <path d="M188 180 C 228 164, 262 196, 298 176 S 340 166, 360 178" stroke="var(--gold)" strokeWidth="2" fill="none" strokeDasharray="7 6" strokeLinecap="round" />
 
                     {/* Clinic pins */}
                     {pins.map((p, i) => (
@@ -485,15 +528,19 @@ function BorderMapArt() {
                         </g>
                     ))}
 
-                    {/* Promoted clinic — the product's paid outcome, made visible */}
-                    <g>
-                        <circle cx="168" cy="130" r="16" fill="var(--gold)" opacity="0.16" />
-                        <circle cx="168" cy="130" r="9" fill="var(--gold)" stroke="var(--navy-800)" strokeWidth="2.5" />
-                    </g>
+                    {/* Promoted clinics */}
+                    {promoted.map((p) => (
+                        <g key={`${p.x}-${p.y}`}>
+                            <circle cx={p.x} cy={p.y} r="16" fill="var(--gold)" opacity="0.16" />
+                            <circle cx={p.x} cy={p.y} r="9" fill="var(--gold)" stroke="var(--navy-800)" strokeWidth="2.5" />
+                        </g>
+                    ))}
 
-                    {/* City labels */}
-                    <text x="18" y="30" fill="var(--gray-400)" fontSize="12" fontWeight="700" letterSpacing="1.6" fontFamily="Plus Jakarta Sans, sans-serif">EL PASO, TX</text>
-                    <text x="18" y="312" fill="var(--gray-400)" fontSize="12" fontWeight="700" letterSpacing="1.6" fontFamily="Plus Jakarta Sans, sans-serif">CD. JUÁREZ, CHIH</text>
+                    {/* City labels: US cities on top, Mexican cities below */}
+                    <text x="12" y="26" {...labelStyle}>SAN DIEGO, CA</text>
+                    <text x="12" y="310" {...labelStyle}>TIJUANA, BC</text>
+                    <text x="194" y="26" {...labelStyle}>EL PASO, TX</text>
+                    <text x="194" y="310" {...labelStyle}>CD. JUÁREZ, CHIH</text>
                 </svg>
             </div>
         </div>

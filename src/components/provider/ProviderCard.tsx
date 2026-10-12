@@ -10,6 +10,7 @@ import {
     IconStar, IconMapPin, IconChevronRight, IconPromoted,
     IconVerified, IconViews, SpecialtyIcon, CountryIcon,
 } from '../icons/Icons';
+import { placeLabel } from '../../utils/place';
 
 interface ProviderCardProps {
     provider: Provider;
@@ -58,7 +59,7 @@ export function ProviderCard({
      * size bucket for this card's 74px avatar rather than the full-size
      * image the drawer's gallery needs.
      */
-    const { url: resolvedUrl } = usePortraitPhoto(provider, 'thumb');
+    const { url: resolvedUrl, srcSet } = usePortraitPhoto(provider, 'thumb');
     const [broken, setBroken] = useState(false);
     const photo = broken ? undefined : resolvedUrl;
 
@@ -73,7 +74,7 @@ export function ProviderCard({
 
     const accent = provider.country === 'MX' ? 'var(--mx)' : 'var(--us)';
     const accentSoft = provider.country === 'MX' ? 'var(--mx-soft)' : 'var(--us-soft)';
-    const sideLabel = provider.country === 'MX' ? t('drawer.ciudadJuarez') : t('drawer.elPaso');
+    const sideLabel = placeLabel(provider);
 
     const insurances = provider.insurances ?? [];
     const extraInsurers = Math.max(0, insurances.length - INSURANCE_CHIPS);
@@ -139,6 +140,7 @@ export function ProviderCard({
                 {photo ? (
                     <img
                         src={photo}
+                        srcSet={srcSet}
                         alt=""
                         loading={priority ? 'eager' : 'lazy'}
                         fetchPriority={priority ? 'high' : 'auto'}

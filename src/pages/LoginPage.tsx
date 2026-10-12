@@ -83,7 +83,10 @@ export function LoginPage() {
             title={mode === 'in' ? t('account.signInTitle') : t('account.signUpTitle')}
             subtitle={next.startsWith(FORUM_PATH.patients)
                 ? t('account.communityBody')
-                : mode === 'in' ? t('account.signInBody') : t('account.signUpBody')}
+                // Sent here from a clinic page to message it: say why, and that the draft is safe.
+                : next.startsWith('/providers/')
+                    ? t('account.messageBody')
+                    : mode === 'in' ? t('account.signInBody') : t('account.signUpBody')}
         >
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <Field label={t('account.email')}>

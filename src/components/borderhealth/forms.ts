@@ -259,6 +259,7 @@ export const FORMS: Record<BhSegment, Screen[]> = {
       q('specialty', 'text', '¿Cuál especialidad?', 'Which specialty?', null, { showIf: ['practice_type', 'specialist'], ph_es: 'Por ejemplo: ortopedia', ph_en: 'For example: orthopedics' }),
       q('city', 'single', '¿Dónde está ubicado principalmente su consultorio?', 'Where is your practice mainly located?', [
         o('juarez', 'Ciudad Juárez', 'Ciudad Juárez'), o('elpaso', 'El Paso', 'El Paso'),
+        o('tijuana', 'Tijuana', 'Tijuana'), o('sandiego', 'San Diego', 'San Diego'),
         o('chihuahua_city', 'Ciudad de Chihuahua', 'Chihuahua City')
       ], { required: true, other: true }),
       q('size', 'single', '¿Cuántos médicos o profesionales atienden ahí?', 'How many doctors or clinicians see patients there?', [

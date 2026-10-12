@@ -1,13 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import type { Provider, Specialty } from '../../types/provider';
 import type { AiSearchResult } from '../../hooks/useAiSearch';
+import { regionOf, type RegionId } from '../../utils/region';
 import { ProviderCard } from '../provider/ProviderCard';
 import { IconPhone, IconReviews, IconArrowRight } from '../icons/Icons';
 
 interface AiMatchesProps {
     result: AiSearchResult | null;
     loading: boolean;
+    /** Providers of the current region (the directory loads one region at a time). */
     providerById: Map<string, Provider>;
+    /** The region the search ran in; doctors outside it are never shown. */
+    region: RegionId;
     onSelect: (p: Provider) => void;
     onSpecialty: (s: Specialty) => void;
     distanceOf: (p: Provider) => number | undefined;
@@ -22,7 +26,7 @@ const QUOTE_MAX = 240;
  * by id; nothing here is model-written except the one-line guidance, which is
  * labelled as such. Renders nothing for a query that is not a health concern.
  */
-export function AiMatches({ result, loading, providerById, onSelect, onSpecialty, distanceOf }: AiMatchesProps) {
+export function AiMatches({ result, loading, providerById, region, onSelect, onSpecialty, distanceOf }: AiMatchesProps) {
     const { t } = useTranslation();
 
     if (loading) {
@@ -52,9 +56,13 @@ export function AiMatches({ result, loading, providerById, onSelect, onSpecialty
         );
     }
 
+    // Safety net behind the server's region filter: a doctor missing from the
+    // loaded list (another region, or no longer live) is dropped silently, and
+    // so is one whose region or coordinates place it elsewhere.
     const doctors = result.doctors
         .map((d) => ({ ...d, provider: providerById.get(d.providerId) }))
-        .filter((d): d is typeof d & { provider: Provider } => !!d.provider);
+        .filter((d): d is typeof d & { provider: Provider } =>
+            !!d.provider && (d.provider.region ?? regionOf(d.provider.lng)) === region);
 
     return (
         <section className="ms-ai" style={panel}>

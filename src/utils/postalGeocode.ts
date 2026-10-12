@@ -1,5 +1,6 @@
 import { importLibrary } from '@googlemaps/js-api-loader';
 import type { Country } from '../types/provider';
+import { inRegion, type RegionId } from './region';
 // Side-effect import: configures the loader with our key. Without it,
 // importLibrary below resolves against a keyless loader and never answers.
 import '../lib/googleMaps';
@@ -23,6 +24,14 @@ import '../lib/googleMaps';
  * side it is looking from when it knows, and when it does not, both are tried
  * and an ambiguous code comes back as two candidates for the user to pick
  * between rather than as a guess.
+ *
+ * The border region narrows that further. Tijuana's 22xxx codes are also
+ * Virginia ZIPs, and someone browsing San Diego–Tijuana who types 22000 means
+ * Tijuana; asking them about Virginia is noise. Only one region's providers
+ * are loaded at a time, so a reading outside it could never return anyone:
+ * with a region given, only in-region readings are returned, and a code that
+ * has none reads as "no providers in this code" rather than as a radius
+ * around Springfield, VA.
  */
 
 export interface PostalHit {
@@ -152,25 +161,31 @@ async function geocodeOne(code: string, country: Country): Promise<PostalHit | n
  * `preferred` is the side the user is searching from. When it resolves, it is
  * the only answer — someone who has already said "El Paso" does not want to be
  * asked whether they meant Chihuahua. With no preference, both sides are tried
- * and both are returned, and it is the caller's job to ask.
+ * and both are returned, and it is the caller's job to ask. With a `region`,
+ * readings outside it are dropped first, so the question is only asked when
+ * the code is genuinely ambiguous within the region.
  */
 export async function resolvePostal(
     code: string,
     preferred: Country | '',
+    region?: RegionId,
 ): Promise<PostalHit[]> {
     const trimmed = code.trim();
     if (!trimmed) return [];
 
+    const local = (h: PostalHit) => !region || inRegion(h.lat, h.lng, region);
+
     if (preferred) {
         const hit = await geocodeOne(trimmed, preferred);
-        if (hit) return [hit];
+        if (hit && local(hit)) return [hit];
         // Fall through rather than give up: a mistyped side should still find
         // the code, not report that it does not exist.
     }
 
-    const both = await Promise.all([
+    const both = (await Promise.all([
         geocodeOne(trimmed, 'MX'),
         geocodeOne(trimmed, 'US'),
-    ]);
-    return both.filter((h): h is PostalHit => h !== null);
+    ])).filter((h): h is PostalHit => h !== null);
+
+    return both.filter(local);
 }

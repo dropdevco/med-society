@@ -4,7 +4,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import { useProviders } from '../hooks/useProviders';
 import { useAiSearch } from '../hooks/useAiSearch';
-import { SearchHero } from '../components/search/SearchHero';
+import { SearchHero, type HeroWhere } from '../components/search/SearchHero';
 import { SearchPill } from '../components/search/SearchPill';
 import { CategoryRail } from '../components/search/CategoryRail';
 import { FilterChipRow } from '../components/search/FilterChipRow';
@@ -20,7 +20,7 @@ import { IconSearch, IconMapPin, IconList } from '../components/icons/Icons';
 import { trackProviderClick } from '../utils/analytics';
 import { distanceKm } from '../utils/geo';
 import { tokenize } from '../utils/search';
-import { countActiveFilters } from '../utils/filters';
+import { countActiveFilters, defaultFilters } from '../utils/filters';
 import type { PostalHit } from '../utils/postalGeocode';
 import { buildDiscoverRows } from '../utils/discover';
 import type { MapBox, Provider, ProviderFilters, Specialty } from '../types/provider';
@@ -75,7 +75,7 @@ export function SearchPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const {
-        providers: matched, allProviders, filters, updateFilter, patchFilters, resetFilters,
+        providers: matched, allProviders, region, filters, updateFilter, patchFilters, resetFilters,
         facets, vocabulary, loading,
         knownPostalCodes, centre, postalPending, postalChoices,
     } = useProviders();
@@ -95,7 +95,9 @@ export function SearchPage() {
         : !loading && (termCount >= 3 || (termCount >= 1 && matched.length === 0))
             ? filters.search.trim()
             : null;
-    const ai = useAiSearch(aiQuery, i18n.language?.slice(0, 2) === 'es' ? 'es' : 'en');
+    // Answers are drawn from the selected region's reviews, so the matches it
+    // returns are providers this page actually holds.
+    const ai = useAiSearch(aiQuery, i18n.language?.slice(0, 2) === 'es' ? 'es' : 'en', region);
     const aiHasAnswer = ai.loading || !!ai.result?.isConcern;
     const aiSpecialty = ai.result?.specialty ?? null;
 
@@ -112,7 +114,9 @@ export function SearchPage() {
     const providerById = useMemo(() => new Map(allProviders.map((p) => [p.id, p])), [allProviders]);
 
     const activeCount = countActiveFilters(filters);
-    const searching = filters.search !== '' || activeCount > 0;
+    // `browse` is the Filters dialog saying "show me the list" with nothing
+    // else narrowing it (see ProviderFilters.browse).
+    const searching = filters.search !== '' || activeCount > 0 || filters.browse;
 
     const [view, setView] = useState<'list' | 'map'>('list');
     /**
@@ -221,8 +225,8 @@ export function SearchPage() {
     );
 
     const discoverRows = useMemo(
-        () => (searching ? [] : buildDiscoverRows(allProviders)),
-        [searching, allProviders],
+        () => (searching ? [] : buildDiscoverRows(allProviders, region)),
+        [searching, allProviders, region],
     );
 
     /**
@@ -376,9 +380,57 @@ export function SearchPage() {
         patchFilters({ search: '', smart: false, specialty: [s] });
     }, [patchFilters]);
 
+    /**
+     * The hero's WHERE, as currently shown — possibly changed but not yet
+     * committed. A ref: it only matters at the moment a smart search runs.
+     */
+    const heroWhereRef = useRef<HeroWhere | null>(null);
+    const handleHeroWhere = useCallback((where: HeroWhere | null) => {
+        heroWhereRef.current = where;
+    }, []);
+
+    /**
+     * On the home page the smart bar sits under the segmented box, and a
+     * visitor who switched WHERE to San Diego – Tijuana and then described
+     * their problem expects Tijuana's reviews — the same place the Search
+     * button would have searched. So the box's draft WHERE goes with it, the
+     * way the Search button commits it. With no box on screen (the results
+     * toolbar's smart mode) the committed WHERE stands.
+     */
     const runSmartSearch = useCallback((text: string) => {
-        runSearch({ search: text, smart: true, specialty: [] });
-    }, [runSearch]);
+        const where = heroWhereRef.current;
+        runSearch({
+            search: text, smart: true, specialty: [],
+            ...(where ? {
+                region: where.region,
+                country: where.country,
+                postalCode: where.postalCode,
+                // A camera box over the old region means nothing in the new one.
+                ...(where.region !== filters.region ? { mapArea: null } : {}),
+            } : {}),
+        });
+    }, [runSearch, filters.region]);
+
+    /**
+     * The Filters dialog changes the URL as you tick, so its edits go through
+     * here: every one also sets `browse`, which keeps the results list up
+     * when the only thing chosen is a region (or everything was cleared) —
+     * "Show 4,067 results" has to show them, not the landing rows.
+     */
+    const updateFilterFromDialog = useCallback(
+        <K extends keyof ProviderFilters>(key: K, value: ProviderFilters[K]) => {
+            patchFilters({ [key]: value, browse: true } as Partial<ProviderFilters>);
+        },
+        [patchFilters],
+    );
+    const patchFiltersFromDialog = useCallback(
+        (patch: Partial<ProviderFilters>) => patchFilters({ ...patch, browse: true }),
+        [patchFilters],
+    );
+    const resetFiltersFromDialog = useCallback(
+        () => patchFilters({ ...defaultFilters, region, browse: true }),
+        [patchFilters, region],
+    );
 
     /**
      * A smart search's text is a description, not keywords, so the regular box
@@ -400,6 +452,9 @@ export function SearchPage() {
             onSubmit={(patch) => runSearch({ ...patch, smart: false })}
             onProvider={handleProviderSuggestion}
             autoFocus={heroOpen}
+            onWhereChange={handleHeroWhere}
+            // The region is the page's scope; switching it must not wait for Search.
+            onRegionChange={patchFilters}
         />
     );
 
@@ -481,6 +536,7 @@ export function SearchPage() {
                                 result={ai.result}
                                 loading={ai.loading}
                                 providerById={providerById}
+                                region={region}
                                 onSelect={handleSelect}
                                 onSpecialty={handleAiSpecialty}
                                 distanceOf={distanceOf}
@@ -572,6 +628,7 @@ export function SearchPage() {
                                 <MapView
                                     providers={providers}
                                     allProviders={allProviders}
+                                    region={region}
                                     onProviderSelect={handleProviderFromMap}
                                     hoveredId={hoveredId}
                                     onProviderFocus={setFocusedId}
@@ -641,9 +698,9 @@ export function SearchPage() {
             {filtersOpen && (
                 <FilterModal
                     filters={filters}
-                    updateFilter={updateFilter}
-                    patchFilters={patchFilters}
-                    resetFilters={resetFilters}
+                    updateFilter={updateFilterFromDialog}
+                    patchFilters={patchFiltersFromDialog}
+                    resetFilters={resetFiltersFromDialog}
                     facets={facets}
                     count={providers.length}
                     onClose={() => setFiltersOpen(false)}

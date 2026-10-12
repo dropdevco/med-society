@@ -6,6 +6,7 @@ import {
     IconMX, IconUS, SpecialtyIcon,
 } from '../icons/Icons';
 import { ScrollRail } from './ScrollRail';
+import { REGIONS } from '../../utils/region';
 
 interface FilterChipRowProps {
     filters: ProviderFilters;
@@ -57,15 +58,16 @@ export function FilterChipRow({
 
             <span className="ms-chiprow-sep" aria-hidden="true" />
 
+            {/* The two sides of the selected region's border, by city name. */}
             <Chip
                 icon={<IconMX size={14} />}
-                label={t('filters.juarez')}
+                label={REGIONS[filters.region].mx.city}
                 on={filters.country === 'MX'}
                 onClick={() => toggleCountry('MX')}
             />
             <Chip
                 icon={<IconUS size={14} />}
-                label={t('filters.elPaso')}
+                label={REGIONS[filters.region].us.city}
                 on={filters.country === 'US'}
                 onClick={() => toggleCountry('US')}
             />

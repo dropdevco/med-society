@@ -53,6 +53,39 @@ restart skips everything already done. `--refetch` ignores the cache,
 npx tsx scripts/doctoralia/selftest.ts     # dedupe + price-parsing helpers
 ```
 
+## Other cities (Tijuana)
+
+Every command takes `--city=tijuana` (or `DOCTORALIA_CITY=tijuana`); output goes
+to `out/tijuana/`, the HTTP cache is shared. Tijuana also walks the six
+`playas-de-tijuana` landing pages, keeping only cards whose address line says
+Tijuana — past its own results that page is padded with Ensenada and Mexicali.
+
+Unattended run (keeps Windows awake, restarts on a crash, logs to `out/tijuana/run.log`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/doctoralia/run-overnight.ps1 -City tijuana
+```
+
+~134 landing pages and ~7,600 profiles: about 35 min of discovery plus ~7 h of profiles.
+
+**Emails.** Doctoralia publishes none. `profile.emails` holds the few a provider
+typed into their own profile (website field, about, services, Q&A — 7 of 2,794 in
+Juárez). The rest come from `emails.ts`, which `run-overnight.ps1` runs after the
+scrape: it reads each practice's own website (home page, then up to two
+contact-looking pages), honours a site-wide robots.txt block, and writes
+`out/<city>/emails.jsonl`. In the Tijuana smoke test 7 of 9 sites gave one.
+
+**Photos.** `profile.photos` lists every image that is the provider's own at
+`_large` size — portrait/logo, cover banner, gallery, certificates, news posts —
+as URLs on Doctoralia's S3. Nothing is downloaded.
+
+**Re-parsing without the network.** Every fetched page stays in `.cache/`, so a
+parser fix never needs a re-scrape: move `out/tijuana/profiles.jsonl` aside and run
+`scrape.ts profiles --city=tijuana` again — it is served entirely from cache.
+
+`npx tsx scripts/doctoralia/tijuana-selftest.ts` checks the parser against saved
+Tijuana pages (`TIJUANA_SAMPLES=<dir>`) plus a regression over cached Juárez pages.
+
 ## Loading it
 
 Run `schema.sql` once in the Supabase SQL editor, then:
@@ -189,7 +222,6 @@ Worth knowing before you build UI on this.
 | Field | Source | Stored in Supabase? |
 | --- | --- | --- |
 | Insurers accepted | Doctoralia (Vue prop, not the truncated visible list) | Yes — our own scrape |
-| Booking link | Doctoralia profile, only where a bookable calendar exists | Yes |
 | Reviews | Google Places, fetched on drawer open | **No** |
 | Clinic photos | Google Places, fetched on drawer open | **No** |
 
@@ -202,6 +234,46 @@ booking links come from our own scrape and carry no such restriction.
 Requesting `photos` puts Place Details in the Enterprise tier (1,000 free
 calls/month). Because it is per-drawer-open and session-cached, spend tracks
 actual usage — watch it in Cloud Console > Billing > Reports.
+
+## San Diego sweep
+
+The same Google Places sweep, for the US side of San Diego–Tijuana (San Diego,
+Chula Vista, National City, Imperial Beach, San Ysidro and whatever else falls
+in the box). `--target=san-diego` switches both scripts; without it they do
+exactly what they did for Juárez. Targets live in `sweep-targets.ts`. (It is
+`--target`, not `--city`: `config.ts` owns `--city` and rejects unknown cities.)
+
+- **Queries.** 68 English categories — the Juárez Doctoralia labels, translated
+  and with gender variants merged — run once against the metro, and the 16
+  densest (dentist, primary care, urgent care, pharmacy, OB-GYN, …) repeated for
+  Chula Vista, National City, Imperial Beach and San Ysidro: 132 queries.
+  `--estimate --list` prints them all.
+- **Box.** 32.534–32.90 N, -117.30 – -116.90. The box alone does not exclude
+  Mexico (the border rises to ~32.55 at Otay Mesa), so a place is kept only if
+  it is north of the border survey line, its address reads `…, CA …, USA`, and
+  Place Details says country `US`. promote re-checks all of that.
+- **Rows.** `google_places_san_diego` (migration `0023`), then `providers` with
+  `source 'google'`, `country 'US'`, `city` = Google's locality (`San Diego`,
+  `Chula Vista`, …; San Ysidro comes back as `San Diego`), `postalCode` from the
+  address, `languages []`, status/tier left at their defaults — the El Paso
+  conventions. Specialty: English name/type rules, else the query that found it,
+  else `general`. Dedupe against all `providers`: same `googlePlaceId`, same
+  phone, or similar name within 150 m.
+- `link` / `report` are Doctoralia matching and refuse to run for this target.
+
+```bash
+# 0. once: apply supabase/migrations/0023_google_places_san_diego.sql
+npx tsx scripts/doctoralia/sweep.ts collect --target=san-diego --estimate   # no network at all
+npx tsx scripts/doctoralia/sweep.ts collect --target=san-diego --commit     # PAID: Google Places
+npx tsx scripts/doctoralia/promote-google.ts --target=san-diego             # dry run, Supabase reads only
+npx tsx scripts/doctoralia/promote-google.ts --target=san-diego --commit    # insert into providers
+```
+
+`--estimate` replaces `fetch` with a stub that throws and creates no Supabase
+client, so it needs no keys and prints `0 network calls attempted`. The estimate
+is list price (~US$40 for 264 searches + 1,584 details); the free monthly
+allowance per SKU usually makes the real bill far lower. Try
+`--commit --limit=5` first to see a real cost per query.
 
 ## Files
 
@@ -222,7 +294,7 @@ actual usage — watch it in Cloud Console > Billing > Reports.
 | `schema-enrichment.sql` | `google_*` columns on `doctoralia_doctors` |
 | `schema-002-address-phone.sql` | adds `doctoralia_addresses.phone` |
 | `schema-003-google-sweep.sql` | `google_places_juarez` table |
-| `schema-004-provider-extras.sql` | `providers.insurances` + `providers.bookingUrl` |
+| `schema-004-provider-extras.sql` | `providers.insurances` (the `bookingUrl` column is dropped by migration 0016) |
 | `backfill-extras.ts` | fills those two from the scrape |
 | `parse-media.ts` | Pure gallery / website / socials extractor |
 | `media-selftest.ts` | Fixtures for `parse-media.ts` |

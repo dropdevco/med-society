@@ -1,14 +1,20 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { GoogleReview } from '../../hooks/useGoogleReviews';
+import type { ReviewItem } from '../../types/review';
 import { IconStar, IconChevronLeft, IconChevronRight } from '../icons/Icons';
 
 interface ReviewCarouselProps {
-    reviews: GoogleReview[];
+    reviews: ReviewItem[];
     loading: boolean;
+    /**
+     * Where these reviews come from, said under the heading ("From Doctoralia ·
+     * latest 10 of 2,820"). A listing can carry two carousels — Google's and
+     * Doctoralia's — and the reader should never have to guess which is which.
+     */
+    note?: string;
 }
 
-export function ReviewCarousel({ reviews, loading }: ReviewCarouselProps) {
+export function ReviewCarousel({ reviews, loading, note }: ReviewCarouselProps) {
     const { t } = useTranslation();
     const scrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -53,8 +59,11 @@ export function ReviewCarousel({ reviews, loading }: ReviewCarouselProps) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <SectionHeading>{t('drawer.topReviews')}</SectionHeading>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
+                    <SectionHeading>{t('drawer.topReviews')}</SectionHeading>
+                    {note && <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{note}</span>}
+                </div>
 
                 {reviews.length > 1 && (
                     <div style={{ display: 'flex', gap: '0.3rem' }}>
@@ -105,7 +114,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 /* ── Individual review card ───────────────────────────────────────────── */
-function ReviewCard({ review }: { review: GoogleReview }) {
+function ReviewCard({ review }: { review: ReviewItem }) {
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
     const isLong = review.text.length > 120;
@@ -195,6 +204,12 @@ function ReviewCard({ review }: { review: GoogleReview }) {
             >
                 {review.text || t('drawer.noWrittenReview')}
             </p>
+
+            {review.translated && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', fontStyle: 'italic' }}>
+                    {t('reviews.translated')}
+                </span>
+            )}
 
             {isLong && (
                 <button

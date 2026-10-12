@@ -1,10 +1,13 @@
-import type { Provider, ProviderFilters, SortMode } from '../types/provider';
+import type { Provider, ProviderFilters, SortMode, Specialty } from '../types/provider';
 import type { SearchDoc } from './search';
 import { scoreDoc } from './search';
 import { distanceKm, DEFAULT_RADIUS_KM } from './geo';
 import { shrunkScore, isRated } from './rating';
+import { DEFAULT_REGION, type RegionId } from './region';
 
 export const defaultFilters: ProviderFilters = {
+    region: DEFAULT_REGION,
+    browse: false,
     search: '',
     smart: false,
     specialty: [],
@@ -12,7 +15,6 @@ export const defaultFilters: ProviderFilters = {
     minRating: 0,
     insurances: [],
     languages: [],
-    bookableOnly: false,
     verifiedOnly: false,
     withPricing: false,
     maxPriceMxn: null,
@@ -23,11 +25,24 @@ export const defaultFilters: ProviderFilters = {
 };
 
 /**
+ * Moving to another border region. The side, postal code and map box all
+ * belong to the region being left — a Juárez postal code or a camera box over
+ * El Paso means nothing in Tijuana — so they are released with it. Everything
+ * else (specialty, insurers, sort…) carries over.
+ */
+export function regionPatch(region: RegionId): Partial<ProviderFilters> {
+    return { region, country: '', postalCode: '', mapArea: null };
+}
+
+/**
  * How many filters are narrowing the list, ignoring the free-text search.
  *
  * Drives the count on the "Filters (2)" button and the badge on the mobile
  * sheet — with the rail closed, this is the only signal that results are being
  * filtered at all.
+ *
+ * `region` is not counted either: it is a scope, always set, and choosing one
+ * alone keeps the browse rows (for that region) rather than opening results.
  *
  * `mapArea` is deliberately NOT counted, and this is not an oversight.
  * SearchPage derives `searching = filters.search !== '' || activeCount > 0`,
@@ -52,6 +67,34 @@ export function countActiveFilters(filters: ProviderFilters): number {
     return n;
 }
 
+/**
+ * Is this provider *about* `specialty`, rather than merely offering it?
+ *
+ * General hospitals carry up to thirteen specialty tags (Hospital Angeles
+ * Tijuana is a dentist, a cardiologist, a paediatrician…), and with the
+ * strongest review counts in the region they led every specialty list. A
+ * provider is focused on a specialty when it is their primary one (listed
+ * first) or when they list only a few.
+ */
+export const FOCUSED_MAX_SPECIALTIES = 3;
+
+export function isFocusedOn(p: Provider, specialty: Specialty): boolean {
+    if (!p.specialty.includes(specialty)) return false;
+    return p.specialty[0] === specialty || p.specialty.length <= FOCUSED_MAX_SPECIALTIES;
+}
+
+/**
+ * How far a generalist sinks in a specialty-filtered list: 0.05 of a star per
+ * specialty beyond FOCUSED_MAX_SPECIALTIES, capped at half a star. Applied to
+ * the confidence-weighted rating only (the default order and every tiebreak),
+ * so an explicit "most reviews", "nearest" or "price" sort is untouched, and
+ * a well-reviewed hospital still outranks a poorly-reviewed specialist.
+ */
+function generalistPenalty(p: Provider, selected: readonly Specialty[]): number {
+    if (selected.length === 0 || selected.some((s) => isFocusedOn(p, s))) return 0;
+    return Math.min(0.5, 0.05 * (p.specialty.length - FOCUSED_MAX_SPECIALTIES));
+}
+
 export interface FilterContext {
     /** Folded haystack per provider id, from buildSearchIndex(). */
     index: Map<string, SearchDoc>;
@@ -61,7 +104,7 @@ export interface FilterContext {
     centre: { lat: number; lng: number } | null;
     /**
      * Mean rating across the whole directory — the prior the confidence-weighted
-     * sort shrinks toward. Passed in rather than derived here so the 4,000-row
+     * sort shrinks toward. Passed in rather than derived here so the region-wide
      * average is computed once per directory load, not once per sort.
      */
     prior: number;
@@ -93,6 +136,10 @@ export function matchesFilters(
 ): boolean {
     const skipped = (key: keyof ProviderFilters) =>
         Array.isArray(skip) ? skip.includes(key) : skip === key;
+
+    // Only the selected region is loaded, so this rarely bites; it keeps mock
+    // data (which is not split by region) and any stale paint honest.
+    if (p.region && p.region !== filters.region) return false;
 
     if (filters.postalCode && !skipped('postalCode')) {
         // An unknown code yields no centre; returning false here is deliberate,
@@ -220,6 +267,15 @@ export function applyFilters(
      */
     const curated = filters.sort === 'relevance' && ctx.terms.length === 0;
 
+    // Precomputed: the comparator runs O(n log n) times.
+    const penalties = new Map<string, number>();
+    if (filters.specialty.length) {
+        for (const p of kept) {
+            const pen = generalistPenalty(p, filters.specialty);
+            if (pen > 0) penalties.set(p.id, pen);
+        }
+    }
+
     kept.sort((a, b) => {
         if (curated) {
             const ra = a.featuredRank ?? Infinity;
@@ -273,7 +329,8 @@ export function applyFilters(
          * Unrated providers score below every rated one. They are not bad;
          * they are unknown, and unknown belongs after known in a ranking.
          */
-        const d = shrunkScore(b, ctx.prior) - shrunkScore(a, ctx.prior);
+        const d = (shrunkScore(b, ctx.prior) - (penalties.get(b.id) ?? 0))
+            - (shrunkScore(a, ctx.prior) - (penalties.get(a.id) ?? 0));
         if (Math.abs(d) > 0.0001) return d;
         return (b.reviewCount || 0) - (a.reviewCount || 0);
     });

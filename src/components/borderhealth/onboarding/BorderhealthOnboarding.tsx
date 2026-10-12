@@ -14,7 +14,7 @@ import { stringsFor } from './strings';
 import type { ErrorCode } from './strings';
 import {
     SPECIALTY_KEYS, authErrorCode, claimEvidence, clearPending, countryFor, isFinal,
-    mapSpecialties, matchProviders, readPending, resumeUrl, runAction, runOnce, sameEmail, savePending,
+    listingCityFor, mapSpecialties, matchProviders, readPending, resumeUrl, runAction, runOnce, sameEmail, savePending,
 } from './logic';
 import type { ListingDraft, OnboardingAction, Outcome, PendingOnboarding } from './logic';
 import './onboarding.css';
@@ -61,7 +61,7 @@ function initialForm(sub: BhSubmission): ListingForm {
         name: sub.contact.org || sub.contact.name || '',
         specialty: mapSpecialties(sub.practiceType, sub.specialty)[0],
         address: '',
-        city: sub.city || '',
+        city: listingCityFor(sub.cityKey, sub.city || ''),
         phone: sub.contact.phone || sub.contact.whatsapp || '',
         email: sub.contact.email || '',
         website: sub.website || '',

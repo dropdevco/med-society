@@ -95,13 +95,17 @@ export function servicesOf(profile: DoctoraliaProfile): ServiceRow[] {
       if (!name) continue;
 
       const { mxn, isFrom } = parsePrice(s.price);
+      // A handful of tourist-facing surgeons quote dollars ("Precio en dolares").
+      // Keep the figure visible, labelled, but never as pesos: it must not feed
+      // the "From $X" badge or a price sort.
+      const isUsd = s.currency === 'USD';
       const key = s.slug || foldKey(name);
       const next: ServiceRow = {
         name,
         slug: s.slug ?? null,
-        priceText: s.price ?? null,
-        priceMxn: mxn,
-        isFrom,
+        priceText: s.price ? (isUsd ? `${s.price} USD` : s.price) : null,
+        priceMxn: isUsd ? null : mxn,
+        isFrom: s.isPriceFrom ?? isFrom,
       };
 
       const prev = merged.get(key);

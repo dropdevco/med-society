@@ -1,7 +1,7 @@
 /**
  * The directory's search engine.
  *
- * Everything runs client-side over the ~4k providers we already hold, so this
+ * Everything runs client-side over the selected region's providers (4–7k), so this
  * has to be cheap enough to run on every keystroke. The shape is:
  *
  *   buildSearchIndex(providers, labelOf)  →  once per [providers, language]
@@ -266,6 +266,24 @@ function qualityOf(p: Provider): number {
 }
 
 /**
+ * Every service name a provider publishes, in both languages.
+ *
+ * The directory loads the lean `provider_list` view, which carries the names
+ * pre-flattened as `service_names` (Spanish and English, de-duplicated). Mock
+ * data and full rows carry the `services` menu instead; both shapes answer
+ * the same question here.
+ */
+export function serviceNamesOf(p: Pick<Provider, 'serviceNames' | 'services'>): string[] {
+    if (p.serviceNames) return p.serviceNames;
+    const out: string[] = [];
+    for (const s of p.services ?? []) {
+        if (s.name) out.push(s.name);
+        if (s.nameEn && s.nameEn !== s.name) out.push(s.nameEn);
+    }
+    return out;
+}
+
+/**
  * Fold every searchable field of every provider, once.
  *
  * `labelOf` resolves a specialty key to its label in the active UI language;
@@ -288,7 +306,7 @@ export function buildSearchIndex(
             id: p.id,
             name: fold(p.name ?? ''),
             specialty: fold(specialtyParts.join('|')),
-            service: fold((p.services ?? []).map((s) => s.name).join('|')),
+            service: fold(serviceNamesOf(p).join('|')),
             city: fold(p.city ?? ''),
             address: fold(p.address ?? ''),
             insurance: fold((p.insurances ?? []).join('|')),

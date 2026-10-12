@@ -25,4 +25,18 @@ i18n
         },
     });
 
+/**
+ * Keep `<html lang>` in step with the UI language. index.html ships "en", and
+ * without this a screen reader kept reading the Spanish site with English
+ * pronunciation rules (and the browser offered to "translate from English").
+ * Registered before any change can fire; the detector has already resolved
+ * the initial language synchronously by the time init returns.
+ */
+const syncHtmlLang = (lng: string | undefined) => {
+    if (typeof document === 'undefined' || !lng) return;
+    document.documentElement.lang = lng.toLowerCase().startsWith('es') ? 'es' : 'en';
+};
+i18n.on('languageChanged', syncHtmlLang);
+syncHtmlLang(i18n.resolvedLanguage ?? i18n.language);
+
 export default i18n;
