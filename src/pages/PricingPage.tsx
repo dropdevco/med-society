@@ -414,18 +414,6 @@ export function PricingPage() {
                 </Reveal>
             </section>
 
-            <footer
-                style={{
-                    borderTop: '1px solid var(--border)',
-                    padding: '2rem 1.5rem',
-                    textAlign: 'center',
-                    color: 'var(--gray-400)',
-                    fontSize: '0.85rem',
-                }}
-            >
-                {t('sales.footer', { year: new Date().getFullYear() })}
-            </footer>
-
             {modalPlan !== null && (
                 <InquiryModal key={modalPlan} onClose={closeForm} plan={modalPlan} />
             )}

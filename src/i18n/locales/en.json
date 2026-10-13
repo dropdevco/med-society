@@ -245,6 +245,16 @@
     "ctaBannerBtn": "Get listed free",
     "footer": "© {{year}} MedSociety · Medical care across the US–Mexico border"
   },
+  "contact": {
+    "title": "Contact us"
+  },
+  "footer": {
+    "copyright": "© {{year}} MedSociety · Medical care across the US–Mexico border",
+    "navLabel": "Legal and contact",
+    "contact": "Contact",
+    "terms": "Terms and Conditions",
+    "privacy": "Privacy Policy"
+  },
   "languages": {
     "en": "English",
     "es": "Spanish"
