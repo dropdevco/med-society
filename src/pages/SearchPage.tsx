@@ -7,7 +7,6 @@ import { useAiSearch, specialtiesOf } from '../hooks/useAiSearch';
 import { SearchHero, type HeroWhere } from '../components/search/SearchHero';
 import { SearchPill } from '../components/search/SearchPill';
 import { CategoryRail } from '../components/search/CategoryRail';
-import { FilterChipRow } from '../components/search/FilterChipRow';
 import { FilterModal } from '../components/search/FilterModal';
 import { FilterSummary } from '../components/search/FilterSummary';
 import { AiMatches } from '../components/search/AiMatches';
@@ -16,7 +15,7 @@ import { SearchModeToggle, type SearchMode } from '../components/search/SearchMo
 import { ProviderCard } from '../components/provider/ProviderCard';
 import { Discover } from '../components/discover/Discover';
 import { LogoMark } from '../components/brand/Logo';
-import { IconSearch, IconMapPin, IconList } from '../components/icons/Icons';
+import { IconSearch, IconMapPin, IconList, IconSliders } from '../components/icons/Icons';
 import { trackProviderClick } from '../utils/analytics';
 import { distanceKm } from '../utils/geo';
 import { tokenize } from '../utils/search';
@@ -445,6 +444,10 @@ export function SearchPage() {
         [filters],
     );
 
+    /** The results toolbar is showing the full box rather than its pill. */
+    const heroExpanded = searching && barMode === 'regular' && heroOpen;
+    const collapseHero = useCallback(() => setHeroOpen(false), []);
+
     const hero = (
         <SearchHero
             filters={heroFilters}
@@ -458,6 +461,10 @@ export function SearchPage() {
             onWhereChange={handleHeroWhere}
             // The region is the page's scope; switching it must not wait for Search.
             onRegionChange={patchFilters}
+            // Over results the open box is a sheet over the list, and a tap
+            // anywhere else folds it back to the pill. On the home page it is
+            // the page itself, with nothing to fold into.
+            onDismiss={searching ? collapseHero : undefined}
         />
     );
 
@@ -466,7 +473,17 @@ export function SearchPage() {
             {searching ? (
                 <>
                     {/* ── Results toolbar ── */}
-                    <div ref={attachBand} className="ms-band" style={{ top: NAV_HEIGHT }}>
+                    {/* Catches the tap that closes the open box, so it cannot
+                        also open whichever card was under the finger. */}
+                    {heroExpanded && (
+                        <div className="ms-band-scrim" aria-hidden="true" onClick={collapseHero} />
+                    )}
+
+                    <div
+                        ref={attachBand}
+                        className={`ms-band${heroExpanded ? ' is-expanded' : ''}`}
+                        style={{ top: NAV_HEIGHT }}
+                    >
                         <div className="ms-band-inner">
                             <SearchModeToggle
                                 mode={barMode}
@@ -499,15 +516,6 @@ export function SearchPage() {
                                 active={filters.specialty}
                                 onToggle={toggleSpecialty}
                             />
-
-                            <FilterChipRow
-                                filters={filters}
-                                updateFilter={updateFilter}
-                                patchFilters={patchFilters}
-                                facets={facets}
-                                activeCount={activeCount}
-                                onOpenFilters={() => setFiltersOpen(true)}
-                            />
                         </div>
                     </div>
 
@@ -533,6 +541,7 @@ export function SearchPage() {
                                 postalStatus={postalStatus}
                                 postalChoices={postalChoices}
                                 onChoosePostal={choosePostal}
+                                onOpenFilters={() => setFiltersOpen(true)}
                             />
 
                             <AiMatches
@@ -664,6 +673,19 @@ export function SearchPage() {
                         {view === 'map' ? <IconList size={16} /> : <IconMapPin size={16} />}
                         {view === 'map' ? t('map.listShort') : t('map.mapShort')}
                     </button>
+
+                    {/* The Filters pill lives in the list's caption, and the list
+                        is unmounted in map view — so the map gets its own. */}
+                    {view === 'map' && (
+                        <button
+                            onClick={() => setFiltersOpen(true)}
+                            className="ms-filters-fab press"
+                        >
+                            <IconSliders size={16} weight={2} />
+                            {t('filters.filtersLabel')}
+                            {activeCount > 0 && <span className="ms-chip-count">{activeCount}</span>}
+                        </button>
+                    )}
                 </>
             ) : (
                 <>
@@ -675,8 +697,22 @@ export function SearchPage() {
                             </h1>
                             <p className="ms-hero-sub">{t('discover.heroSubtitle')}</p>
                         </div>
-                        {hero}
-                        <SmartSearchBar onSubmit={runSmartSearch} />
+                        {/* One box at a time. Two stacked bars (and the paragraph
+                            that explained the second) made the top of the page
+                            read as a form; the toggle is the same one the
+                            results toolbar uses. The segmented box stays mounted
+                            while hidden so a half-chosen WHERE survives a flip
+                            to Smart and back. */}
+                        <div className="ms-hero-mode">
+                            <SearchModeToggle
+                                mode={barMode}
+                                onChange={(mode) => { setBarMode(mode); setBarToggled(true); }}
+                            />
+                        </div>
+                        <div hidden={barMode !== 'regular'}>{hero}</div>
+                        {barMode === 'smart' && (
+                            <SmartSearchBar autoFocus={barToggled} onSubmit={runSmartSearch} />
+                        )}
                     </section>
 
                     <div className="ms-cats-band">
@@ -685,6 +721,7 @@ export function SearchPage() {
                                 order={specialtyOrder}
                                 active={filters.specialty}
                                 onToggle={toggleSpecialty}
+                                tiles
                             />
                         </div>
                     </div>

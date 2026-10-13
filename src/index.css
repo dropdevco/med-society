@@ -546,7 +546,8 @@ select option {
   text-align: center;
 }
 
-.ms-hero-copy { margin-bottom: 2rem; }
+.ms-hero-copy { margin-bottom: 1.5rem; }
+.ms-hero-mode { display: flex; justify-content: center; margin-bottom: 0.9rem; }
 
 .ms-hero-title {
   font-size: clamp(2.4rem, 6vw, 3.6rem);
@@ -556,8 +557,9 @@ select option {
 .ms-hero-sub {
   font-size: 1.02rem;
   color: var(--gray-400);
-  max-width: 34rem;
+  max-width: 40rem;
   margin: 0 auto;
+  text-wrap: balance;
 }
 
 /* ─── Smart search ───────────────────────────────────────
@@ -597,9 +599,12 @@ select option {
   background: var(--brand); color: var(--on-brand);
   font-weight: 700; font-size: 0.9rem;
 }
-.ms-smart-btn:disabled { opacity: 0.5; cursor: default; }
 .ms-smart-hint { font-size: 0.8rem; color: var(--gray-400); margin: 0.45rem 0 0 0.9rem; }
 .ms-smart.is-compact { margin-top: 0; width: min(680px, 100%); }
+/* On the home page the toggle above already says "Smart". */
+.ms-hero-section .ms-smart { margin-top: 0; }
+.ms-hero-section .ms-smart-label { display: none; }
+.ms-hero-section .ms-smart-hint { text-align: center; margin: 0.7rem 0 0; }
 
 /* Regular ⇄ smart, above the toolbar's search box. */
 .ms-mode-toggle {
@@ -968,6 +973,23 @@ select option {
   border-bottom: 1px solid var(--border);
   background: var(--navy);
 }
+
+/* Home page tiles: the same rail, with each specialty's hue given a round
+   backdrop so the row is recognised by colour and shape before it is read. */
+.ms-cats.is-tiles { gap: 0.9rem; align-items: flex-start; padding: 0.4rem 0 0; }
+.ms-cats.is-tiles .ms-cat { gap: 0.5rem; padding: 0.6rem 0.4rem 0.8rem; font-size: 0.78rem; min-width: 5.6rem; }
+.ms-cats.is-tiles .ms-cat-ico {
+  width: 3.4rem; height: 3.4rem;
+  align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cat-c, var(--gray-500)) 13%, transparent);
+  transition: transform 0.18s var(--ease-out), background 0.18s var(--ease-out);
+}
+.ms-cats.is-tiles .ms-cat:hover .ms-cat-ico { transform: translateY(-2px); }
+.ms-cats.is-tiles .ms-cat.is-active .ms-cat-ico {
+  background: color-mix(in srgb, var(--cat-c, var(--gray-500)) 24%, transparent);
+}
+.ms-cats.is-tiles .ms-cat > span:last-child { white-space: normal; text-align: center; max-width: 6.6rem; line-height: 1.2; text-wrap: balance; }
 .ms-cats-band .ms-band-inner { padding-top: 0; padding-bottom: 0; }
 
 /* ─── Results toolbar ────────────────────────────────── */
@@ -990,6 +1012,18 @@ select option {
 }
 
 .ms-band-pill { display: flex; justify-content: center; }
+
+/* The open search box sits over the results like a sheet: the toolbar lifts
+   above the floating Map button and everything beneath it dims. A tap on the
+   dimmed part folds the box back into its pill. */
+.ms-band.is-expanded { z-index: 70; }
+.ms-band-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgba(8, 15, 28, 0.45);
+  animation: ms-pm-fade 0.18s var(--ease-out);
+}
 
 /* ─── Collapsed search pill ──────────────────────────── */
 .ms-pill {
@@ -1097,6 +1131,29 @@ select option {
 }
 
 .ms-chip-n { color: var(--gray-500); font-size: 0.74rem; font-weight: 600; }
+
+/* ─── Sort select ────────────────────────────────────────
+   The native arrow sits flush against the pill's right edge and cannot be
+   padded, so it is drawn by hand: appearance off, our chevron laid over the
+   room the padding leaves. */
+.ms-sort-wrap { position: relative; display: inline-flex; align-items: center; }
+.ms-sort-wrap > svg {
+  position: absolute;
+  right: 0.7rem;
+  pointer-events: none;
+  color: var(--gray-400);
+}
+.ms-sort-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--navy-800);
+  color: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.35rem 2.1rem 0.35rem 0.85rem;
+}
 
 /* ─── Results split ──────────────────────────────────────
    The page scrolls (the virtualizer measures the window) and the map
@@ -1344,6 +1401,28 @@ select option {
   .ms-view-fab:hover  { transform: translateX(-50%) translateY(-1px); }
   .ms-view-fab:active { transform: translateX(-50%) scale(0.975); }
 
+  /* Map view only: centred just above the List button. */
+  .ms-filters-fab {
+    position: fixed;
+    left: 50%;
+    bottom: 5.1rem;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.7rem 1.1rem;
+    border-radius: var(--radius-pill);
+    background: var(--navy-800);
+    border: 1px solid var(--border-strong);
+    color: var(--white);
+    font-size: 0.88rem;
+    font-weight: 700;
+    box-shadow: var(--shadow);
+  }
+  .ms-filters-fab:hover  { transform: translateX(-50%) translateY(-1px); }
+  .ms-filters-fab:active { transform: translateX(-50%) scale(0.975); }
+
   .ms-row-track { grid-auto-columns: calc((100% - 3 * 1.15rem) / 4); }
 }
 
@@ -1376,11 +1455,18 @@ select option {
     margin-top: 0.35rem;
   }
   .ms-band-inner { padding-left: 1rem; padding-right: 1rem; }
+  /* On a phone the open box is the whole job; the category and filter rails
+     under it only crowd it, and they come back the moment it folds. */
+  .ms-band.is-expanded .ms-rail { display: none; }
   .ms-results { padding-left: 1rem; padding-right: 1rem; }
   .ms-discover { padding-left: 1rem; padding-right: 1rem; }
   .ms-row-track { grid-auto-columns: calc((100% - 1.15rem) / 2); }
   .ms-pill-cover { display: none; }
   .ms-cats { gap: 1.15rem; }
+  .ms-cats.is-tiles { gap: 0.2rem; }
+  .ms-cats.is-tiles .ms-cat { min-width: 4.7rem; font-size: 0.74rem; }
+  .ms-cats.is-tiles .ms-cat-ico { width: 3rem; height: 3rem; }
+  .ms-cats.is-tiles .ms-cat > span:last-child { max-width: 5rem; }
   .ms-modal-scrim { padding: 0; }
   .ms-modal { max-width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
 }

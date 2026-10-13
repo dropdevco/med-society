@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconSparkle, IconSearch } from '../icons/Icons';
 
@@ -22,6 +22,7 @@ interface SmartSearchBarProps {
 export function SmartSearchBar({ initial = '', onSubmit, compact, autoFocus }: SmartSearchBarProps) {
     const { t } = useTranslation();
     const [text, setText] = useState(initial);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     // Adopt a query changed elsewhere (back button, a shared link).
     const [seen, setSeen] = useState(initial);
@@ -38,7 +39,10 @@ export function SmartSearchBar({ initial = '', onSubmit, compact, autoFocus }: S
             role="search"
             onSubmit={(e) => {
                 e.preventDefault();
+                // Too short to search: point at the box rather than sit dimmed
+                // and unexplained, which read as a broken button.
                 if (ready) onSubmit(text.trim());
+                else inputRef.current?.focus();
             }}
         >
             <label className="ms-smart-label" htmlFor={compact ? 'ms-smart-q-compact' : 'ms-smart-q'}>
@@ -49,6 +53,7 @@ export function SmartSearchBar({ initial = '', onSubmit, compact, autoFocus }: S
             <div className="ms-smart-box">
                 {compact && <IconSparkle size={16} weight={2} style={{ color: 'var(--gold)', flexShrink: 0 }} />}
                 <input
+                    ref={inputRef}
                     id={compact ? 'ms-smart-q-compact' : 'ms-smart-q'}
                     type="text"
                     value={text}
@@ -59,7 +64,7 @@ export function SmartSearchBar({ initial = '', onSubmit, compact, autoFocus }: S
                     aria-label={t('smart.label')}
                     onChange={(e) => setText(e.target.value)}
                 />
-                <button type="submit" className="ms-smart-btn press" disabled={!ready} aria-label={t('smart.submit')}>
+                <button type="submit" className="ms-smart-btn press" aria-label={t('smart.submit')}>
                     <IconSearch size={16} weight={2} />
                     <span className="ms-smart-btn-text">{t('smart.submit')}</span>
                 </button>

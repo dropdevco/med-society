@@ -272,7 +272,7 @@
   },
   "discover": {
     "heroTitle": "Atención médica de confianza en ambos lados de la frontera",
-    "heroSubtitle": "Dentistas, cirujanos y especialistas en El Paso – Ciudad Juárez y San Diego – Tijuana. Compara calificaciones, precios publicados, cédulas profesionales y seguros, en español o inglés, antes de cruzar.",
+    "heroSubtitle": "Compara calificaciones, precios y cédulas antes de cruzar, en español o inglés.",
     "scrollBack": "Ver anteriores",
     "scrollOn": "Ver más",
     "dentistsJuarez": "Dentistas mejor calificados en Ciudad Juárez",
@@ -639,7 +639,7 @@
     "label": "Búsqueda inteligente",
     "new": "Nuevo",
     "placeholder": "Describe lo que sientes, ej. \"siento raro el oído desde ayer\"",
-    "hint": "Cuéntanos tu problema con tus palabras. Lo comparamos con lo que dijeron pacientes de doctores que los ayudaron con algo similar.",
+    "hint": "Descríbelo con tus palabras. Lo comparamos con lo que dijeron pacientes de doctores que los ayudaron.",
     "submit": "Buscar",
     "modeLabel": "Tipo de búsqueda",
     "modeRegular": "Buscar",

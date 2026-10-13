@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { ProviderFilters, SortMode, Specialty } from '../../types/provider';
-import { IconClose, IconMapPin } from '../icons/Icons';
+import { IconClose, IconMapPin, IconSliders, IconChevronDown } from '../icons/Icons';
 import { RADIUS_OPTIONS } from '../../utils/geo';
 import { formatPrice } from '../../utils/currency';
 import type { PostalHit } from '../../utils/postalGeocode';
@@ -32,6 +32,8 @@ interface FilterSummaryProps {
     /** The places an ambiguous code could mean. Empty unless status is 'ambiguous'. */
     postalChoices: PostalHit[];
     onChoosePostal: (hit: PostalHit) => void;
+    /** Opens the Filters dialog — the one door to every filter. */
+    onOpenFilters: () => void;
 }
 
 /**
@@ -49,6 +51,7 @@ export function FilterSummary({
     postalStatus,
     postalChoices,
     onChoosePostal,
+    onOpenFilters,
 }: FilterSummaryProps) {
     const { t, i18n } = useTranslation();
 
@@ -90,33 +93,38 @@ export function FilterSummary({
                     display: 'flex', alignItems: 'center', gap: '0.5rem',
                     flexWrap: 'wrap', minWidth: 0,
                 }}>
+                    <button
+                        onClick={onOpenFilters}
+                        className={`ms-chip ms-chip-filters${activeCount > 0 ? ' is-active' : ''}`}
+                    >
+                        <IconSliders size={15} weight={2} />
+                        {t('filters.filtersLabel')}
+                        {activeCount > 0 && <span className="ms-chip-count">{activeCount}</span>}
+                    </button>
+
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)', fontWeight: 600 }}>
                             {t('filters.sortLabel', { defaultValue: 'Sort' })}
                         </span>
-                        <select
-                            value={filters.sort}
-                            onChange={(e) => updateFilter('sort', e.target.value as SortMode)}
-                            style={{
-                                background: 'var(--navy-800)', color: 'var(--white)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-pill)',
-                                fontSize: '0.82rem', fontWeight: 700,
-                                padding: '0.35rem 0.6rem',
-                            }}
-                        >
-                            {SORTS
-                                // Nearest is only an order when we have a point
-                                // to measure from.
-                                .filter((s) => s !== 'distance' || filters.postalCode)
-                                .map((s) => (
-                                    <option key={s} value={s}>
-                                        {t(`filters.sort.${s}`, { defaultValue: s })}
-                                    </option>
-                                ))}
-                        </select>
+                        <span className="ms-sort-wrap">
+                            <select
+                                value={filters.sort}
+                                onChange={(e) => updateFilter('sort', e.target.value as SortMode)}
+                                className="ms-sort-select"
+                            >
+                                {SORTS
+                                    // Nearest is only an order when we have a point
+                                    // to measure from.
+                                    .filter((s) => s !== 'distance' || filters.postalCode)
+                                    .map((s) => (
+                                        <option key={s} value={s}>
+                                            {t(`filters.sort.${s}`, { defaultValue: s })}
+                                        </option>
+                                    ))}
+                            </select>
+                            <IconChevronDown size={14} weight={2.4} />
+                        </span>
                     </label>
-
                 </div>
             </div>
 

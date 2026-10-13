@@ -272,7 +272,7 @@
   },
   "discover": {
     "heroTitle": "Trusted medical care on both sides of the border",
-    "heroSubtitle": "Dentists, surgeons and specialists in El Paso – Ciudad Juárez and San Diego – Tijuana. Compare ratings, published prices, licenses and insurance, in English or Spanish, before you cross.",
+    "heroSubtitle": "Compare ratings, prices and credentials before you cross, in English or Spanish.",
     "scrollBack": "Show previous",
     "scrollOn": "Show more",
     "dentistsJuarez": "Top-rated dentists in Ciudad Juárez",
@@ -639,7 +639,7 @@
     "label": "Smart search",
     "new": "New",
     "placeholder": "Describe what you feel, e.g. \"my ear has felt strange since yesterday\"",
-    "hint": "Tell us your problem in your own words. We match it with what patients said about doctors who helped them with something similar.",
+    "hint": "Describe it in your own words. We match it to what patients said about doctors who helped.",
     "submit": "Search",
     "modeLabel": "Search type",
     "modeRegular": "Search",

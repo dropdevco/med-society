@@ -281,46 +281,46 @@ export function MapView({
             .map((s) => t(`specialties.${s}`, { defaultValue: s }))
             .join(' · ');
         const side = placeLabel(p);
-        const accent = p.country === 'MX' ? '#3f6b52' : '#3f5570';
+        const accent = p.country === 'MX' ? 'var(--mx)' : 'var(--us)';
 
         const star =
-            '<svg width="13" height="13" viewBox="0 0 24 24" fill="#b5760a" style="flex-shrink:0">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="var(--star)" style="flex-shrink:0">' +
             '<path d="M12 3.6l2.6 5.3 5.85.85-4.23 4.12 1 5.83L12 16.95l-5.22 2.75 1-5.83L3.55 9.75 9.4 8.9z"/></svg>';
 
         // Same rule as the cards: never print 0.0 for a provider the source
         // never rated. `rating.toFixed(1)` here was the last place saying it.
         const rated = ratingOf(p);
         const ratingHtml = rated === null
-            ? `<span style="color:#5c6068;">${escapeHtml(t('card.unrated'))}</span>`
+            ? `<span style="color:var(--gray-400);">${escapeHtml(t('card.unrated'))}</span>`
             : `${star}<strong>${rated.toFixed(1)}</strong>`
-              + `<span style="color:#5c6068;">(${p.reviewCount.toLocaleString()})</span>`;
+              + `<span style="color:var(--gray-400);">(${p.reviewCount.toLocaleString()})</span>`;
 
         return `
-      <div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:13px 15px;max-width:265px;color:#14161a;">
+      <div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:13px 15px;max-width:265px;color:var(--white);">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="width:7px;height:7px;border-radius:50%;background:${accent};flex-shrink:0;"></span>
           <span style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:${accent};">
             ${escapeHtml(side)}
           </span>
           ${p.promoted
-                ? '<span style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#0f6b52;border:1px solid #b8ddd0;border-radius:99px;padding:1px 6px;">'
+                ? '<span style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);border:1px solid var(--border-strong);border-radius:99px;padding:1px 6px;">'
                 + escapeHtml(t('drawer.promoted')) + '</span>'
                 : ''}
         </div>
         <div style="font-size:15px;font-weight:700;line-height:1.3;margin-bottom:3px;">
           ${escapeHtml(p.name)}
         </div>
-        <div style="font-size:12px;color:#5c6068;line-height:1.45;margin-bottom:8px;">
+        <div style="font-size:12px;color:var(--gray-400);line-height:1.45;margin-bottom:8px;">
           ${escapeHtml(specialties)}
         </div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:#14161a;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--white);">
           ${ratingHtml}
-          <span style="color:#cfcfcd;">|</span>
-          <span style="color:#5c6068;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <span style="color:var(--border-strong);">|</span>
+          <span style="color:var(--gray-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             ${escapeHtml(p.city)}
           </span>
         </div>
-        <div style="margin-top:9px;font-size:11px;font-weight:600;color:#0f6b52;">
+        <div style="margin-top:9px;font-size:11px;font-weight:600;color:var(--accent);">
           ${escapeHtml(t('map.clickForDetails'))}
         </div>
       </div>`;
