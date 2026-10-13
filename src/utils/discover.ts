@@ -98,6 +98,14 @@ const CANDIDATES: Candidate[] = [
         match: (p) => p.country === 'MX' && isFocusedOn(p, 'dentist'),
         // Picked by hand for their photos; fills a large-monitor row.
         pinnedIds: [
+            // Tijuana (ids outside the loaded region never match).
+            'b6e2963a-1b5b-4191-af36-d9eeba68ae6e', // Dr. Christian Lizalde Swain
+            '4a4d98ff-9023-4962-81df-7b497f2c70fe', // Dr. Diego Tirado
+            '147262c5-a74c-48bd-ab66-3db39c1d1492', // Dra. Adriana Lares Aviles
+            'ddc60f98-9f54-40d4-be00-d8f5a4f32581', // Dr. Eduardo Zamora Murguia
+            '90cff5d4-48dd-44d6-91ad-46c49167ad46', // Dra. Pilar Fernández Guzmán
+            'ee2e800e-4891-43a2-91e4-8819b37a39e2', // Dra. Adaris Arleen Ruiz Mena
+            // Juárez.
             '7942ede4-af3d-4ca4-9aff-43673c503f00', // Dra. Laura Karina Uribe Fentanes
             '931ca3a3-0fe1-4521-8d52-c6820ccfda60', // Dra. Silma Chavez Rios
             '0e25b2e4-fb3c-40ef-ab6f-0d2206153f63', // Dr. Ever Renteria Sepulveda
@@ -111,8 +119,11 @@ const CANDIDATES: Candidate[] = [
         titleKey: 'regions.rows.{region}.primary',
         filters: { specialty: ['general'], country: 'US' },
         match: (p) => p.country === 'US' && isFocusedOn(p, 'general'),
-        // Picked by hand (El Paso; ids outside the loaded region never match).
+        // Picked by hand (San Diego, then El Paso; ids outside the loaded region never match).
         pinnedIds: [
+            '5a9ac1e2-7c7f-4b4c-a074-4916bb615144', // Advanced Functional Medicine
+            '9d3e2bdf-3ccd-4fa6-92a5-349a46c6e90c', // Natural Health & Acupuncture in San Diego
+            '9e41ed34-ce0d-429c-8011-a94386242974', // Julie Roth, DO - Shoreline Medical Group
             '76601617-50bd-4998-8c4b-1f9040c13c09', // Premier Primary Care Clinic (George Dieter Dr)
             'c63d8264-3664-4936-afbf-864b265c14db', // El Paso Primary Care
             'd029f7b5-2e9a-49ca-a264-163b29db3332', // Village Medical - South Mesa Hills
@@ -132,6 +143,15 @@ const CANDIDATES: Candidate[] = [
         titleKey: 'discover.womensHealth',
         filters: { specialty: ['obgyn'] },
         match: (p) => isFocusedOn(p, 'obgyn'),
+        // Picked by hand for their photos (Tijuana).
+        pinnedIds: [
+            '4e31800f-0ad8-40ce-8ef1-87775643d268', // Dra. Rosalva Jímenez Barriga
+            '84832062-b991-431e-90f4-7322ecad3ed8', // Dra. Linda Vargas
+            '9c06389a-8b47-4b31-8f90-3c9001c7843a', // Dra. Diana Luna Guerrero
+            '88487971-50d4-4009-baa2-709b41f95408', // Dra. Silvia Guadalupe Sánchez Meza
+            '027ee4d2-e755-4882-9741-d5ff5655714d', // Dra. Aleyda Fernanda Armenta Rios
+            '3510af92-3010-4c1c-8549-0ec187afbf93', // Dra. Viridiana Martinez Avendaño
+        ],
     },
     {
         id: 'mental-health',

@@ -455,7 +455,9 @@ export function SearchPage() {
             insurers={insurers}
             // The segmented box always means keywords, even when it is
             // refining a search that started in the smart bar.
-            onSubmit={(patch) => runSearch({ ...patch, smart: false })}
+            // `browse`: pressing Search with nothing filled in opens the map and
+            // the full list for the region, not the landing rows.
+            onSubmit={(patch) => runSearch({ ...patch, smart: false, browse: true })}
             onProvider={handleProviderSuggestion}
             autoFocus={heroOpen}
             onWhereChange={handleHeroWhere}
