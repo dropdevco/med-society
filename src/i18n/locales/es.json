@@ -245,6 +245,16 @@
     "ctaBannerBtn": "Registrarme gratis",
     "footer": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos"
   },
+  "contact": {
+    "title": "Contáctanos"
+  },
+  "footer": {
+    "copyright": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos",
+    "navLabel": "Legal y contacto",
+    "contact": "Contacto",
+    "terms": "Términos y Condiciones",
+    "privacy": "Política de Privacidad"
+  },
   "languages": {
     "en": "Inglés",
     "es": "Español"
