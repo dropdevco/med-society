@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { sendInquiry } from '../../lib/inquiries';
-import { clearDraft, loadDraft, saveDraft, type DraftTime } from '../../lib/inquiryDraft';
+import { clearDraft, loadDraft, saveDraft } from '../../lib/inquiryDraft';
 import { useSession } from '../../hooks/useSession';
 import { hueOf, portraitUrlSized } from '../../utils/images';
 import { IconCheck, IconPhone } from '../icons/Icons';
@@ -11,17 +11,8 @@ import { IconCheck, IconPhone } from '../icons/Icons';
 const MAX_MESSAGE = 1000;
 /** The character count only appears when the limit is in sight; until then it is noise. */
 const COUNT_FROM = MAX_MESSAGE * 0.8;
-const TIMES = ['morning', 'afternoon', 'evening', 'any'] as const satisfies readonly DraftTime[];
-type TimeChoice = (typeof TIMES)[number];
 type Status = 'idle' | 'sending' | 'sent' | 'error';
 type ErrorKind = 'server' | 'network' | 'too_many' | 'auth';
-
-const TIME_KEY: Record<TimeChoice, string> = {
-    morning: 'inquiry.timeMorning',
-    afternoon: 'inquiry.timeAfternoon',
-    evening: 'inquiry.timeEvening',
-    any: 'inquiry.timeAny',
-};
 
 /**
  * One-tap openers, like the suggested replies in a messaging app. Each drops a
@@ -139,7 +130,6 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
     // A message written before signing up, restored once; see lib/inquiryDraft.ts.
     const [draft] = useState(() => loadDraft(provider.id));
     const [message, setMessage] = useState(draft?.message ?? '');
-    const [time, setTime] = useState<TimeChoice | null>(draft?.time ?? null);
     const [restored, setRestored] = useState(draft !== null);
 
     // null = untouched, so the account's own details fill in until the patient
@@ -192,7 +182,6 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
         setMessage('');
         setNameInput(null);
         setContactInput(null);
-        setTime(null);
         setRestored(false);
         setTouched({ name: false, contact: false, message: false });
         setStatus('idle');
@@ -225,7 +214,7 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
             textRef.current?.focus();
             return;
         }
-        saveDraft(provider.id, { message, time });
+        saveDraft(provider.id, { message });
         const next = encodeURIComponent(`/providers/${provider.id}`);
         navigate(`/login?${mode === 'up' ? 'mode=signup&' : ''}next=${next}`);
     };
@@ -245,7 +234,6 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
             name: name.trim(),
             contact: contact.trim(),
             message: message.trim(),
-            preferredTime: time ?? undefined,
             language: i18n.language?.startsWith('en') ? 'en' : 'es',
             sourceUrl: window.location.href,
             website: honeypot,
@@ -441,25 +429,6 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
                     </>
                 )}
             </div>
-
-            {user && (
-                <fieldset className="inq-times" disabled={sending}>
-                    <legend>{t('inquiry.timeLabel')}</legend>
-                    <div className="inq-chips" role="group">
-                        {TIMES.map((k) => (
-                            <button
-                                key={k}
-                                type="button"
-                                className={`inq-chip${time === k ? ' is-on' : ''}`}
-                                aria-pressed={time === k}
-                                onClick={() => setTime(time === k ? null : k)}
-                            >
-                                {t(TIME_KEY[k])}
-                            </button>
-                        ))}
-                    </div>
-                </fieldset>
-            )}
 
             {status === 'error' && (
                 <div className="inq-error" role="alert">

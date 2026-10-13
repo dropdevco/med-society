@@ -6,7 +6,6 @@ export interface InquiryPayload {
     name: string;
     contact: string;
     message: string;
-    preferredTime?: string;
     language: 'en' | 'es';
     sourceUrl?: string;
     /** Honeypot. Real users never fill it. */

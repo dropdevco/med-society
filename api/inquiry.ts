@@ -39,7 +39,6 @@ type Res = ServerResponse & {
 const SITE = 'https://medsociety.one';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const TIMES = new Set(['morning', 'afternoon', 'evening', 'any']);
 
 /* Best-effort per-IP limit. In-memory: each serverless instance keeps its own
  * counter and it resets on cold start, so a determined attacker spread across
@@ -133,7 +132,6 @@ export interface InquiryRow {
     contact: string;
     contact_kind: 'phone' | 'email';
     message: string;
-    preferred_time: string | null;
     language: 'en' | 'es';
     source_url: string | null;
 }
@@ -170,7 +168,6 @@ export function parseInquiry(body: unknown): Parsed {
     }
 
     const providerId = clean(b.providerId, 64);
-    const time = clean(b.preferredTime, 20).toLowerCase();
     const sourceUrl = clean(b.sourceUrl, 500);
 
     return {
@@ -183,7 +180,6 @@ export function parseInquiry(body: unknown): Parsed {
             contact,
             contact_kind: kind,
             message,
-            preferred_time: TIMES.has(time) ? time : null,
             language: clean(b.language, 2) === 'en' ? 'en' : 'es',
             source_url: /^https?:\/\//i.test(sourceUrl) ? sourceUrl : null,
         },
@@ -225,7 +221,6 @@ async function sendEmail(row: InquiryRow, account: AuthUser): Promise<void> {
         [row.contact_kind === 'email' ? 'Email' : 'Phone', row.contact],
         // The verified sign-in, which can differ from the contact they chose to be answered at.
         ['Account', account.email],
-        ['Preferred time', row.preferred_time],
         ['Language', row.language],
     ];
     const present = rows.filter((r): r is [string, string] => Boolean(r[1]));

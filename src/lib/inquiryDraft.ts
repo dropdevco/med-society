@@ -13,11 +13,8 @@
  * itself, and a draft that cannot be kept must never break the form.
  */
 
-export type DraftTime = 'morning' | 'afternoon' | 'evening' | 'any';
-
 export interface InquiryDraft {
     message: string;
-    time: DraftTime | null;
 }
 
 interface Stored extends InquiryDraft {
@@ -26,7 +23,6 @@ interface Stored extends InquiryDraft {
 
 const TTL_MS = 48 * 60 * 60 * 1000;
 const key = (providerId: string) => `ms-inquiry-draft:${providerId}`;
-const TIMES = new Set<string>(['morning', 'afternoon', 'evening', 'any']);
 
 export function saveDraft(providerId: string, draft: InquiryDraft): void {
     try {
@@ -51,10 +47,7 @@ export function loadDraft(providerId: string): InquiryDraft | null {
             localStorage.removeItem(key(providerId));
             return null;
         }
-        return {
-            message: d.message.slice(0, 1000),
-            time: typeof d.time === 'string' && TIMES.has(d.time) ? (d.time as DraftTime) : null,
-        };
+        return { message: d.message.slice(0, 1000) };
     } catch {
         return null;
     }
