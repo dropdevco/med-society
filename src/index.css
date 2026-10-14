@@ -1786,9 +1786,14 @@ select option {
 /* Mobile: bottom sheet */
 @media (max-width: 700px) {
   .ms-pm { padding: 0; align-items: flex-end; }
+  /* The sheet stops under the navbar, and the navbar rises above the dimmed
+     backdrop while one is open. On a phone the logo stays visible above the
+     sheet; a tap on it used to land on the backdrop and merely close the
+     sheet, so "tap the logo to go home" sometimes did not. */
+  body:has(.ms-pm) .ms-nav { z-index: 260 !important; }
   .ms-pm-panel {
     width: 100%;
-    max-height: 94dvh;
+    max-height: calc(100dvh - 68px);
     border-radius: 22px 22px 0 0;
     border-bottom: 0;
     animation: ms-pm-sheet-in 0.42s cubic-bezier(0.22, 1.05, 0.36, 1) both;

@@ -48,7 +48,14 @@ export function Navbar() {
                 borderBottom: '1px solid var(--nav-border)',
             }}
         >
-            <Link to="/" aria-label="MedSociety home" style={{ display: 'flex', alignItems: 'center' }}>
+            {/* On a phone the wordmark is hidden and the shield alone is 34px.
+                The padding grows the tap target to 44px; the negative margin
+                keeps the layout where it was. */}
+            <Link
+                to="/"
+                aria-label="MedSociety home"
+                style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0.5rem', margin: '-0.4rem -0.5rem' }}
+            >
                 <Logo size={34} idle />
             </Link>
 
