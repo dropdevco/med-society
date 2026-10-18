@@ -65,6 +65,12 @@ export function identifyUser(id: string, props?: Record<string, unknown>): void 
     try { posthog.identify(id, props); } catch { /* ignore */ }
 }
 
+/** PostHog's id for this visitor, so a feedback report can be found next to their events. */
+export function distinctId(): string | undefined {
+    if (!ready) return undefined;
+    try { return posthog.get_distinct_id(); } catch { return undefined; }
+}
+
 export function resetIdentity(): void {
     if (!ready) return;
     try { posthog.reset(); } catch { /* ignore */ }
@@ -94,6 +100,9 @@ export type AppEvent =
     | 'forum_reply_created'
     | 'forum_helpful_marked'
     | 'language_changed'
+    | 'feedback_opened'
+    | 'feedback_submitted'
+    | 'feedback_failed'
     | `bh_${string}`;
 
 export function track(event: AppEvent, props?: Record<string, unknown>): void {

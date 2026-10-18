@@ -141,3 +141,23 @@ export interface BillingOverview {
 export const fetchBilling = () => rpc<BillingOverview>('admin_billing_overview');
 export const resolveBillingEvent = (eid: string, pid: string, plan: string | null) =>
     rpc<{ outcome: string; detail?: string }>('admin_resolve_billing_event', { eid, pid, p_plan: plan });
+
+export interface FeedbackItem {
+    id: string; created_at: string; kind: 'bug' | 'content' | 'idea' | 'other'; message: string;
+    page_path: string | null; language: string | null; contact_email: string | null; account_email: string | null;
+    viewport: string | null; app_build: string | null; user_agent: string | null;
+    client_errors: { type: string; msg: string; path: string }[];
+    verdict: string | null; confidence: number | null; severity: 'low' | 'medium' | 'high' | null;
+    reason: string | null; triage_source: 'model' | 'heuristic' | null;
+    corroborated: boolean; duplicate_count: number; escalated: boolean; notified_at: string | null;
+    status: 'new' | 'open' | 'resolved' | 'dismissed'; admin_note: string | null; resolved_at: string | null;
+}
+export interface FeedbackOverview {
+    generated_at: string;
+    counts: { total: number; last_30d: number; needs_attention: number; unreviewed: number };
+    by_verdict: { verdict: string; n: number }[];
+    items: FeedbackItem[];
+}
+export const fetchFeedback = () => rpc<FeedbackOverview>('admin_feedback_overview');
+export const setFeedbackStatus = (fid: string, status: FeedbackItem['status']) =>
+    rpc<void>('admin_feedback_set_status', { fid, new_status: status });

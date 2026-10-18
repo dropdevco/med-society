@@ -748,5 +748,39 @@
       "gateSignIn": "Already verified? Sign in",
       "gatePatients": "Looking for answers as a patient? Ask a Doctor"
     }
+  },
+  "feedback": {
+    "open": "Feedback",
+    "openLabel": "Send feedback",
+    "title": "Send feedback",
+    "close": "Close",
+    "kindLabel": "What is this about?",
+    "kinds": {
+      "bug": "Something is broken",
+      "content": "Wrong information",
+      "idea": "An idea",
+      "other": "Something else"
+    },
+    "messageLabel": "Tell us what happened",
+    "placeholder": {
+      "bug": "What did you try, and what happened instead?",
+      "content": "What is wrong, and what should it say?",
+      "idea": "What would make MedSociety better for you?",
+      "other": "Tell us anything."
+    },
+    "emailLabel": "Email (optional, only if you'd like a reply)",
+    "privacy": "Please don't include medical details or other personal health information.",
+    "send": "Send",
+    "sending": "Sending…",
+    "thanks": "Thank you, we've got it.",
+    "thanksSub": "Our team reviews every report.",
+    "done": "Done",
+    "errors": {
+      "generic": "We couldn't send that. Please try again in a moment.",
+      "tooMany": "You've sent a few reports already. Please try again later.",
+      "tooShort": "Please write a little more (at least 5 characters).",
+      "tooLong": "That's too long. Please keep it under 2000 characters.",
+      "badEmail": "That email address doesn't look right."
+    }
   }
 }

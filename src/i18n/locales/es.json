@@ -748,5 +748,39 @@
       "gateSignIn": "¿Ya estás verificado? Inicia sesión",
       "gatePatients": "¿Buscas respuestas como paciente? Pregunta al Doctor"
     }
+  },
+  "feedback": {
+    "open": "Comentarios",
+    "openLabel": "Enviar comentarios",
+    "title": "Enviar comentarios",
+    "close": "Cerrar",
+    "kindLabel": "¿Sobre qué es?",
+    "kinds": {
+      "bug": "Algo no funciona",
+      "content": "Información incorrecta",
+      "idea": "Una idea",
+      "other": "Otra cosa"
+    },
+    "messageLabel": "Cuéntanos qué pasó",
+    "placeholder": {
+      "bug": "¿Qué intentaste y qué pasó en su lugar?",
+      "content": "¿Qué está mal y qué debería decir?",
+      "idea": "¿Qué haría que MedSociety te sirviera más?",
+      "other": "Cuéntanos lo que quieras."
+    },
+    "emailLabel": "Correo (opcional, solo si quieres una respuesta)",
+    "privacy": "Por favor, no incluyas datos médicos ni otra información de salud personal.",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "thanks": "Gracias, lo recibimos.",
+    "thanksSub": "Nuestro equipo revisa cada reporte.",
+    "done": "Listo",
+    "errors": {
+      "generic": "No pudimos enviarlo. Inténtalo de nuevo en un momento.",
+      "tooMany": "Ya enviaste varios reportes. Inténtalo más tarde.",
+      "tooShort": "Escribe un poco más (al menos 5 caracteres).",
+      "tooLong": "Es demasiado largo. Usa menos de 2000 caracteres.",
+      "badEmail": "Ese correo no parece válido."
+    }
   }
 }
