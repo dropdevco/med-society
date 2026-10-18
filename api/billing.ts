@@ -23,7 +23,7 @@
  * ── GHL workflow (one per payment link, or one with branches) ────────────────
  *   Trigger : Payment Received (filter by product), plus one for the cancel /
  *             refund events you want honoured.
- *   Action  : Webhook → POST https://medsociety.one/api/billing
+ *   Action  : Webhook → POST https://www.medsociety.one/api/billing
  *             Header  x-webhook-secret: <BILLING_WEBHOOK_SECRET>
  *             Custom data (these keys are read, in any case or snake/camel form):
  *               event   payment | canceled | failed | refunded   (default payment)
