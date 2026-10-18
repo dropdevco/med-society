@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../types/provider';
 import { supabase } from '../lib/supabase';
+import { fetchProviderRow } from '../lib/providerRead';
 import { normalizeProvider } from '../utils/normalizeProvider';
 import { submitClaim } from '../lib/auth';
 import { useSession } from '../hooks/useSession';
@@ -34,14 +35,11 @@ export function ClaimPage() {
     useEffect(() => {
         if (!supabase || !providerId) { setLoading(false); return; }
         let live = true;
-        supabase
-            .from('providers')
-            .select('*')
-            .eq('id', providerId)
-            .maybeSingle()
-            .then(({ data }) => {
+        fetchProviderRow(providerId)
+            .catch(() => null)
+            .then((row) => {
                 if (!live) return;
-                setProvider(data ? normalizeProvider(data) : null);
+                setProvider(row ? normalizeProvider(row) : null);
                 setLoading(false);
             });
         return () => { live = false; };
