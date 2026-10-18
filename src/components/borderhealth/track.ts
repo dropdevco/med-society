@@ -5,6 +5,7 @@
  * travel with the real submission.
  */
 import { getClientId, getRef, getSession } from './submit';
+import { track as capture } from '../../lib/posthog';
 import type { BhLang, BhSegment } from './types';
 
 export type FormEvent =
@@ -93,6 +94,14 @@ export function track(event: FormEvent, fields: TrackFields = {}): void {
             payload.referrer = document.referrer || null;
             Object.assign(payload, device());
         }
+        // Mirror to PostHog (same no-answers rule as above) so the survey funnel
+        // sits beside the rest of the product funnel. form_events stays the
+        // source of truth.
+        capture(`bh_${event}`, {
+            form_segment: fields.form_segment, lang: fields.lang, step: fields.step, step_id: fields.step_id,
+            ...fields.props, utm_source: payload.utm_source, utm_medium: payload.utm_medium,
+            utm_campaign: payload.utm_campaign, ref: payload.ref,
+        });
         const body = JSON.stringify(payload);
         if (navigator.sendBeacon && navigator.sendBeacon('/api/form-event', new Blob([body], { type: 'application/json' }))) return;
         void fetch('/api/form-event', {

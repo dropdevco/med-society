@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
+import { track } from '../../lib/posthog';
 import { fetchPlanStatus, startCheckout, type PlanKey, type PlanStatusRow } from '../../lib/billing';
 import { IconCheck, IconVerified, IconPromoted, IconChart, IconLock } from '../icons/Icons';
 
@@ -91,10 +92,12 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     const subscribe = async (plan: PlanKey) => {
         setBusy(plan);
         setError(null);
+        track('checkout_started', { plan, provider_id: clinic.id, current_tier: clinic.tier });
         try {
             const url = await startCheckout(clinic.id, plan, i18n.language, email);
             window.location.assign(url);
         } catch {
+            track('checkout_failed', { plan, provider_id: clinic.id });
             setError(t('account.checkoutFailed'));
             setBusy(null);
         }

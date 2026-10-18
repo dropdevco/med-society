@@ -257,6 +257,25 @@ async function sendEmail(row: InquiryRow, account: AuthUser): Promise<void> {
     if (!r.ok) console.error('[inquiry] resend failed:', r.status, (await r.text().catch(() => '')).slice(0, 300));
 }
 
+/**
+ * Server-side PostHog event, so revenue and leads are counted even when the
+ * browser blocked or never sent its own. Fire-and-forget with a short timeout:
+ * analytics must never delay or fail a webhook. No-op without the key.
+ */
+async function capture(event: string, distinctId: string, properties: Record<string, unknown>): Promise<void> {
+    const key = process.env.VITE_POSTHOG_KEY ?? process.env.POSTHOG_KEY;
+    if (!key) return;
+    const host = (process.env.VITE_POSTHOG_HOST ?? process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com').replace(/\/$/, '');
+    try {
+        await fetch(`${host}/capture/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: key, event, distinct_id: distinctId, properties: { ...properties, source: 'server' } }),
+            signal: AbortSignal.timeout(2000),
+        });
+    } catch { /* never surface an analytics failure */ }
+}
+
 export default async function handler(req: Req, res: Res) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
@@ -322,6 +341,10 @@ export default async function handler(req: Req, res: Res) {
         console.error('[inquiry] insert threw:', String(e).slice(0, 200));
         return res.status(500).json({ ok: false, error: 'server_error' });
     }
+
+    // The same user id the browser identifies with, so this joins the visitor's
+    // journey. Ids only: nothing the patient wrote leaves this function.
+    await capture('inquiry_received', user.id, { provider_id: parsed.row.provider_id });
 
     try {
         await sendEmail(parsed.row, user);

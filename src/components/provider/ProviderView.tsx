@@ -23,6 +23,8 @@ import {
 } from '../icons/Icons';
 import { SOCIAL_ICONS, SOCIAL_ORDER } from '../icons/socialMap';
 import { placeLabel } from '../../utils/place';
+import { contactMethodOf, providerProps } from '../../utils/analytics';
+import { track } from '../../lib/posthog';
 import { languageName } from '../../utils/languages';
 
 /** The map is the heaviest thing on a provider profile — never pay for it before it scrolls into view. */
@@ -59,9 +61,17 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
             + (provider.googlePlaceId ? `&destination_place_id=${encodeURIComponent(provider.googlePlaceId)}` : '')
         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(provider.address)}`;
 
+    // One listener for every phone, email, website, directions and social link
+    // on the profile, classified by href, so a new link is counted for free.
+    const trackContact = (e: React.MouseEvent) => {
+        const a = (e.target as Element).closest('a[href]');
+        const method = a ? contactMethodOf(a.getAttribute('href') ?? '') : null;
+        if (method) track('provider_contact_click', providerProps(provider, { method }));
+    };
+
     return (
         <>
-                <div className="ms-provider-layout">
+                <div className="ms-provider-layout" onClickCapture={trackContact}>
                     {/* ── Main column ── */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', minWidth: 0 }}>
                         {/* Header */}

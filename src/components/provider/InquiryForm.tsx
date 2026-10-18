@@ -5,6 +5,8 @@ import type { Provider } from '../../types/provider';
 import { sendInquiry } from '../../lib/inquiries';
 import { clearDraft, loadDraft, saveDraft } from '../../lib/inquiryDraft';
 import { useSession } from '../../hooks/useSession';
+import { track } from '../../lib/posthog';
+import { providerProps } from '../../utils/analytics';
 import { hueOf, portraitUrlSized } from '../../utils/images';
 import { IconCheck, IconPhone } from '../icons/Icons';
 
@@ -214,6 +216,7 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
             textRef.current?.focus();
             return;
         }
+        track('inquiry_login_prompt', { provider_id: provider.id, mode });
         saveDraft(provider.id, { message });
         const next = encodeURIComponent(`/providers/${provider.id}`);
         navigate(`/login?${mode === 'up' ? 'mode=signup&' : ''}next=${next}`);
@@ -241,10 +244,12 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
         inFlight.current = false;
 
         if (result.ok) {
+            track('inquiry_sent', providerProps(provider, { message_length: message.trim().length }));
             clearDraft(provider.id);
             setStatus('sent');
             onSent?.();
         } else {
+            track('inquiry_failed', { provider_id: provider.id, reason: result.error });
             setErrorKind(
                 result.error === 'network' ? 'network' : result.error === 'too_many' ? 'too_many' : result.error === 'auth' ? 'auth' : 'server',
             );

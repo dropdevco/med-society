@@ -17,6 +17,7 @@ import { Discover } from '../components/discover/Discover';
 import { LogoMark } from '../components/brand/Logo';
 import { IconSearch, IconMapPin, IconList, IconSliders } from '../components/icons/Icons';
 import { trackProviderClick } from '../utils/analytics';
+import { track } from '../lib/posthog';
 import { distanceKm } from '../utils/geo';
 import { tokenize } from '../utils/search';
 import { countActiveFilters, defaultFilters } from '../utils/filters';
@@ -119,6 +120,37 @@ export function SearchPage() {
     // `browse` is the Filters dialog saying "show me the list" with nothing
     // else narrowing it (see ProviderFilters.browse).
     const searching = filters.search !== '' || activeCount > 0 || filters.browse;
+
+    /**
+     * One `search_performed` per settled search, never per keystroke. The text
+     * itself is not sent (people describe symptoms here); only its shape, the
+     * filters in play and how many listings came back, which is what shows
+     * where demand has no supply.
+     */
+    const resultCount = useRef(0);
+    useEffect(() => { resultCount.current = providers.length; }, [providers.length]);
+    const lastSearchSig = useRef('');
+    useEffect(() => {
+        if (!searching || loading) return;
+        const sig = JSON.stringify([filters.search.trim().toLowerCase(), filters.smart, filters.specialty, activeCount, region]);
+        if (sig === lastSearchSig.current) return;
+        const timer = window.setTimeout(() => {
+            lastSearchSig.current = sig;
+            const text = filters.search.trim();
+            track('search_performed', {
+                mode: filters.smart ? 'smart' : 'keyword',
+                has_text: text !== '',
+                text_length: text.length,
+                term_count: tokenize(text).length,
+                filters_count: activeCount,
+                specialties: filters.specialty,
+                region,
+                result_count: resultCount.current,
+                no_results: resultCount.current === 0,
+            });
+        }, 1500);
+        return () => window.clearTimeout(timer);
+    }, [searching, loading, filters.search, filters.smart, filters.specialty, activeCount, region]);
 
     const [view, setView] = useState<'list' | 'map'>('list');
     /**

@@ -15,6 +15,7 @@ import { ForumPage } from './pages/ForumPage';
 import { ForumThreadPage } from './pages/ForumThreadPage';
 import { FORUM_PATH } from './lib/forumRoutes';
 import { ProviderModal } from './components/provider/ProviderModal';
+import { AnalyticsBridge } from './components/AnalyticsBridge';
 import './index.css';
 
 /**
@@ -102,6 +103,7 @@ function SiteFooter() {
 export default function App() {
   return (
     <BrowserRouter>
+      <AnalyticsBridge />
       <SiteNavbar />
       <AppRoutes />
       <SiteFooter />

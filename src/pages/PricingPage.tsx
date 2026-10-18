@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/posthog';
 import { InquiryModal } from '../components/sales/InquiryModal';
 import { LogoMark } from '../components/brand/Logo';
 import {
@@ -84,6 +85,7 @@ export function PricingPage() {
     // in, or claiming a listing, on the way) where the payment page opens.
     const FREE_ENTRIES = ['hero', 'free', 'closing'];
     const openForm = (plan: string) => {
+        track('pricing_cta_click', { plan });
         if (FREE_ENTRIES.includes(plan)) navigate('/borderhealth?seg=provider&by=listing');
         else if (plan === 'promoted' || plan === 'featured') navigate(`/dashboard?tab=plan&buy=${plan}`);
         else setModalPlan(plan);
