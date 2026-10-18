@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Provider } from '../types/provider';
 import { supabase } from '../lib/supabase';
+import { fetchMyProviderRows } from '../lib/providerRead';
 import { normalizeProvider } from '../utils/normalizeProvider';
 
 export interface ClaimRow {
@@ -41,8 +42,10 @@ export function useMyClinic(userId: string | null) {
         const ids = (ownerRes.data ?? []).map((row) => row.provider_id as string);
 
         if (ids.length > 0) {
-            const { data } = await supabase.from('providers').select('*').in('id', ids);
-            setOwned((data ?? []).map(normalizeProvider));
+            // Own rows only, contact fields included (migration 0032): the
+            // table grant no longer lets the browser `select *` providers.
+            const rows = await fetchMyProviderRows(ids).catch(() => []);
+            setOwned(rows.map(normalizeProvider));
         } else {
             setOwned([]);
         }

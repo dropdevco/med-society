@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Provider } from '../types/provider';
 import { supabase } from '../lib/supabase';
+import { fetchProviderRow } from '../lib/providerRead';
 import { normalizeProvider } from '../utils/normalizeProvider';
 import { mockProviders } from '../data/providers';
 
@@ -45,18 +46,14 @@ export function useProvider(id: string | undefined): { provider: Provider | null
             return () => { live = false; };
         }
 
-        supabase
-            .from('providers')
-            .select('*')
-            .eq('id', id)
-            .maybeSingle()
-            .then(({ data, error }) => {
-                if (!live) return;
-                if (error || !data) {
-                    setResult({ id, provider: fallback() });
-                    return;
-                }
-                setResult({ id, provider: normalizeProvider(data) });
+        // Contact columns are not readable from the browser's table grant
+        // (migration 0032), so the full row comes through a function: one
+        // provider per call, throttled per client. See lib/providerRead.ts.
+        fetchProviderRow(id)
+            .then((row) => (row ? normalizeProvider(row) : fallback()))
+            .catch(fallback)
+            .then((provider) => {
+                if (live) setResult({ id, provider });
             });
 
         return () => { live = false; };
