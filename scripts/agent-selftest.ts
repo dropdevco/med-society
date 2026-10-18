@@ -85,9 +85,14 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         return json(rows, rows.length);
     }
     if (url.includes('/rest/v1/providers?')) {
-        const id = /id=eq\.([0-9a-f-]+)/.exec(url)?.[1];
+        // The table grant hides contact columns from the anon key; a regression
+        // that goes back to reading them from the table would 401 for real.
+        return new Response('permission denied for table providers', { status: 401 });
+    }
+    if (url.includes('/rest/v1/rpc/provider_public')) {
+        const id = (JSON.parse(String(init?.body ?? '{}')) as { p_id?: string }).p_id;
         const other = LIST.find((r) => r.id === id);
-        return json(id === FULL.id ? [FULL] : other ? [{ ...other, services: [] }] : []);
+        return json(id === FULL.id ? FULL : other ? { ...other, services: [], status: 'live' } : null);
     }
     if (url.includes('/rpc/provider_reviews')) {
         return json([{ author_label: 'Leticia M.', rating: 5, published_at: '2026-08-01T00:00:00Z', body: 'Muy buena atención', body_es: 'Muy buena atención', body_en: 'Very good care', source_lang: 'es' }]);

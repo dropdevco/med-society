@@ -1242,9 +1242,11 @@ const httpUrl = (v: unknown): string | null => {
 /** Public fields of one live provider, or null. Contact e-mail is deliberately left out. */
 async function fetchDetail(id: string): Promise<Detail | null> {
     if (!UUID.test(id)) return null;
-    const { data } = await sb(`providers?select=*&id=eq.${id}&status=eq.live&limit=1`);
-    const raw = (data as Record<string, unknown>[])[0];
-    const row = raw ? toRow(raw) : null;
+    // The table grant hides contact columns from the anon key (migration 0032),
+    // so one provider's full row comes from the throttled RPC instead.
+    const { data } = await sb('rpc/provider_public', { method: 'POST', body: { p_id: id } });
+    const raw = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+    const row = raw && raw.status === 'live' ? toRow(raw) : null;
     if (!raw || !row) return null;
 
     const socials: Record<string, string> = {};
