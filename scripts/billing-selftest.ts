@@ -8,7 +8,7 @@
  *
  *   npx tsx scripts/billing-selftest.ts
  */
-import handler, { eventsFromGhl, inferPlan, normEmail, parseEvent, secretMatches, tagsFor, toE164 } from '../api/billing';
+import handler, { eventsFromGhl, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, tagsFor, toE164 } from '../api/billing';
 
 process.env.VITE_SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
@@ -34,12 +34,15 @@ let pendingRows: unknown[] = [];
 let ghlTagStatus = 200;
 let ghlTransactions: unknown[] = [];
 let ghlSubscriptions: unknown[] = [];
+let ghlReadFails = false;
 
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     calls.push({ url, method: init?.method ?? 'GET', body });
     const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status });
+    if (url.includes('/contacts/?locationId')) return json(200, { contacts: [{ id: 'c-found', email: 'Owner@Clinic.com' }] });
+    if (ghlReadFails && url.includes('/payments/')) return json(500, {});
     if (url.includes('/payments/transactions')) return json(200, { data: ghlTransactions, totalCount: ghlTransactions.length });
     if (url.includes('/payments/subscriptions')) return json(200, { data: ghlSubscriptions, totalCount: ghlSubscriptions.length });
     if (url.includes('/rpc/apply_billing_event')) return json(200, applyReply);
@@ -61,6 +64,8 @@ function reset() {
     ghlTagStatus = 200;
     ghlTransactions = [];
     ghlSubscriptions = [];
+    ghlReadFails = false;
+    delete process.env.BILLING_ACCEPT_TEST_MODE;
 }
 
 interface Reply { code: number; body: Record<string, unknown> }
@@ -220,6 +225,70 @@ async function main() {
     check('backstop: a cancelled live subscription becomes a cancel event', canceled.length === 1 && canceled[0].kind === 'canceled' && canceled[0].key === 'canceled:sub_1' && canceled[0].plan === 'promoted', canceled);
     check('backstop: active, test-mode, incomplete and stale subscriptions are ignored',
         eventsFromGhl([], [sub({ status: 'active' }), sub({ liveMode: false }), sub({ status: 'incomplete_expired' }), sub({ updatedAt: ago(90) })] as never, now).length === 0);
+
+    // ── sync ping: a tag change or payment names a contact; the site verifies with GHL ──
+    check('ping: tag and sync events are recognised, payments are not',
+        isSyncPing({ event: 'tag_added' }) && isSyncPing({ customData: { Event: 'sync' } }) && isSyncPing({ event: 'Tag Removed' })
+        && !isSyncPing({ event: 'payment' }) && !isSyncPing({ plan: 'promoted' }));
+
+    const liveCharge = { liveMode: true, status: 'succeeded', amount: 49, currency: 'usd', entitySourceName: 'MedSociety Promoted US', contactId: 'c1', contactEmail: 'owner@clinic.com', subscriptionId: 'sub_7', chargeId: 'ch_7', createdAt: new Date().toISOString(), amountRefunded: 0 };
+    const pendingRow = { id: 'sub-1', provider_id: 'p-1', provider_name: 'Clinica Uno', plan: 'promoted', market: 'us', status: 'active', paid_through: '2026-11-16T00:00:00Z', payer_email: 'owner@clinic.com', payer_phone: null, ghl_contact_id: 'c1', active_plans: ['promoted'] };
+
+    reset();
+    ghlTransactions = [liveCharge];
+    pendingRows = [pendingRow];
+    r = await run({ body: { event: 'tag_added', contact_id: 'c1' } });
+    const read = calls.find((c) => c.url.includes('/payments/transactions'));
+    const applied = calls.find((c) => c.url.includes('/rpc/apply_billing_event'));
+    const mail = calls.find((c) => c.url.includes('api.resend.com'));
+    check('ping: reads that contact\'s payments from GHL, applies them, tags, and emails the team',
+        r.code === 200 && r.body.mode === 'sync' && r.body.applied === 1 && r.body.ghl_synced === 1
+        && Boolean(read?.url.includes('contactId=c1'))
+        && (applied?.body as Record<string, unknown>)?.p_event_key === 'payment:ch_7'
+        && calls.some((c) => c.url.includes('/contacts/c1/tags') && c.method === 'POST')
+        && JSON.stringify(mail?.body).includes('Promoted plan activated for Clinica Uno'), { r, mail: mail?.body });
+
+    reset();
+    ghlTransactions = [liveCharge];
+    pendingRows = [pendingRow];
+    r = await run({ body: { event: 'sync', email: ' OWNER@clinic.com ' } });
+    check('ping: with only an email, finds the GHL contact first',
+        r.code === 200 && r.body.applied === 1 && calls.some((c) => c.url.includes('/contacts/?locationId'))
+        && Boolean(calls.find((c) => c.url.includes('/payments/transactions'))?.url.includes('contactId=c-found')), r);
+
+    reset();
+    r = await run({ body: { event: 'tag_added' } });
+    check('ping: naming no contact → 400', r.code === 400 && r.body.error === 'no_contact', r);
+
+    reset();
+    ghlTransactions = [{ ...liveCharge, liveMode: false }];
+    r = await run({ body: { event: 'tag_added', contact_id: 'c1' } });
+    check('ping: a test-mode charge changes nothing', r.code === 200 && r.body.seen === 0 && !calls.some((c) => c.url.includes('/rpc/apply_billing_event')), r);
+
+    reset();
+    process.env.BILLING_ACCEPT_TEST_MODE = '1';
+    ghlTransactions = [{ ...liveCharge, liveMode: false }];
+    pendingRows = [pendingRow];
+    r = await run({ body: { event: 'tag_added', contact_id: 'c1' } });
+    check('ping: with BILLING_ACCEPT_TEST_MODE=1 the test charge is applied (rehearsal)', r.code === 200 && r.body.applied === 1, r);
+
+    reset();
+    ghlReadFails = true;
+    r = await run({ body: { event: 'tag_added', contact_id: 'c1' } });
+    check('ping: GHL unreadable → 502 so GHL retries', r.code === 502, r);
+
+    reset();
+    ghlTransactions = [liveCharge];
+    applyReply = { outcome: 'duplicate' };
+    r = await run({ body: { event: 'tag_added', contact_id: 'c1' } });
+    check('ping: a charge already recorded is a no-op and sends no email',
+        r.code === 200 && r.body.applied === 0 && r.body.already === 1 && !calls.some((c) => c.url.includes('api.resend.com')), r);
+
+    reset();
+    pendingRows = [pendingRow];
+    r = await run({ body: good });
+    check('webhook payment: the team is told the plan switched on',
+        r.code === 200 && JSON.stringify(calls.find((c) => c.url.includes('api.resend.com'))?.body).includes('plan activated for Clinica Uno'), calls.map((c) => c.url));
 
     // ── cron ────────────────────────────────────────────────────────────────
     reset();

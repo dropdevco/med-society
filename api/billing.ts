@@ -34,6 +34,13 @@
  *             invoice_id, subscription_id, amount, currency, product_name.
  *   The standard contact fields GHL adds to every webhook are enough on their own.
  *
+ * ── Sync ping: catching every change the moment it happens ───────────────────
+ * Add one more GHL workflow: trigger "Contact Tag" (added / removed, for the
+ * tier-promoted and tier-featured tags), or any payment trigger, action Webhook
+ * with custom data `event` = `sync`. The payload only names the contact. The
+ * site then reads that contact's payments from GHL, applies them, mirrors the
+ * tags and emails the team, so a plan switches on within seconds of the tag.
+ *
  * ── The backstop: the daily sync reads GHL itself ────────────────────────────
  * The webhook is the fast path; it is not the only one. Every day the sync also
  * lists GHL's live transactions and subscriptions (read-only) and feeds any
@@ -47,6 +54,8 @@
  *                            Integration Token with view access to Payments
  *                            (transactions, subscriptions). Falls back to
  *                            GHL_PIT_MEDSOCIETY if that token has those scopes.
+ *   BILLING_ACCEPT_TEST_MODE set to 1 ONLY while rehearsing with GHL test payments;
+ *                            remove it before going live (test charges then count).
  *   BILLING_WEBHOOK_SECRET   random string (openssl rand -hex 32), same as the header
  *   CRON_SECRET              already set for api/forum-notify.ts; Vercel sends it
  *   SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL      already set
@@ -500,10 +509,18 @@ const within = (iso: string | undefined, days: number, now: Date) => {
 /**
  * Turns GHL's live payment records into the same events the webhook produces.
  * Keys come from GHL's own ids, so running this daily, or after the webhook
- * already delivered the same charge, changes nothing. Test-mode records and
- * products that are not one of the two plans are ignored.
+ * already delivered the same charge, changes nothing. Test-mode records are
+ * ignored unless `acceptTest` is set (BILLING_ACCEPT_TEST_MODE=1, for rehearsing
+ * the whole loop before GHL payments go live); products that are not one of the
+ * two plans are always ignored.
  */
-export function eventsFromGhl(txs: GhlTransaction[], subs: GhlSubscription[], now = new Date()): ParsedEvent[] {
+export function eventsFromGhl(
+    txs: GhlTransaction[],
+    subs: GhlSubscription[],
+    now = new Date(),
+    opts: { acceptTest?: boolean } = {},
+): ParsedEvent[] {
+    const usable = (liveMode: boolean | undefined) => liveMode === true || opts.acceptTest === true;
     const out: ParsedEvent[] = [];
     const base = (name: string, currency: string | undefined, email: string | undefined) => {
         const cur = String(currency ?? '').toUpperCase().slice(0, 3);
@@ -513,7 +530,7 @@ export function eventsFromGhl(txs: GhlTransaction[], subs: GhlSubscription[], no
     };
 
     for (const t of txs) {
-        if (t.liveMode !== true || !t.chargeId) continue;
+        if (!usable(t.liveMode) || !t.chargeId) continue;
         const name = t.entitySourceName ?? '';
         const { plan, market, cur, email } = base(name, t.currency, t.contactEmail);
         if (!plan) continue;
@@ -530,7 +547,7 @@ export function eventsFromGhl(txs: GhlTransaction[], subs: GhlSubscription[], no
     }
 
     for (const s of subs) {
-        if (s.liveMode !== true || s.status !== 'canceled' || !s.subscriptionId) continue;
+        if (!usable(s.liveMode) || s.status !== 'canceled' || !s.subscriptionId) continue;
         if (!within(s.updatedAt, CHANGE_WINDOW_DAYS, now)) continue;
         const name = s.recurringProduct?.product?.name || s.entitySourceName || '';
         const { plan, market, cur, email } = base(`${name} ${s.entitySourceName ?? ''}`, s.currency, s.contactEmail);
@@ -565,16 +582,51 @@ async function ghlList<T>(cfg: Cfg, resource: 'transactions' | 'subscriptions', 
     return rows;
 }
 
+/** Test-mode GHL records only count while this is deliberately switched on. */
+const acceptTest = () => process.env.BILLING_ACCEPT_TEST_MODE === '1';
+
 interface PollSummary {
     seen: number;
     applied: number;
     already: number;
     unmatched: number;
     error: string | null;
+    /** Subscriptions this run changed, so the caller can announce and mirror them. */
+    changed: { subscriptionId: string; kind: Kind }[];
+}
+
+const emptySummary = (): PollSummary => ({ seen: 0, applied: 0, already: 0, unmatched: 0, error: null, changed: [] });
+
+/** Feeds GHL-derived events through the database function and tallies what happened. */
+async function applyAll(cfg: Cfg, events: ParsedEvent[], s: PollSummary, source: string): Promise<void> {
+    s.seen += events.length;
+    const needsHelp: string[] = [];
+    for (const ev of events) {
+        try {
+            const r = await applyEvent(cfg, ev);
+            if (r.outcome === 'duplicate' || r.outcome === 'duplicate_period') s.already++;
+            else if (r.outcome === 'unmatched' || r.outcome === 'ambiguous') {
+                s.unmatched++;
+                needsHelp.push(`${ev.kind} ${ev.plan} (${ev.market ?? '?'}): ${ev.email || ev.contactId} - ${r.detail ?? r.outcome}`);
+            } else {
+                s.applied++;
+                if (r.outcome === 'applied' && r.subscription_id) s.changed.push({ subscriptionId: r.subscription_id, kind: ev.kind });
+            }
+        } catch (e) {
+            s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
+            console.error(`billing: ${source} apply failed`, s.error);
+        }
+    }
+    if (needsHelp.length > 0) {
+        await alertTeam('MedSociety payments found in GHL need a listing attached', [
+            ...needsHelp,
+            `Attach them in ${SITE}/admin → Billing. The next payments from the same person then match by themselves.`,
+        ]);
+    }
 }
 
 async function pollGhl(cfg: Cfg): Promise<PollSummary> {
-    const s: PollSummary = { seen: 0, applied: 0, already: 0, unmatched: 0, error: null };
+    const s = emptySummary();
     if (!cfg.readPit) {
         s.error = 'no GHL token for reading payments (GHL_PIT_READONLY)';
         return s;
@@ -585,35 +637,68 @@ async function pollGhl(cfg: Cfg): Promise<PollSummary> {
             ghlList<GhlTransaction>(cfg, 'transactions'),
             ghlList<GhlSubscription>(cfg, 'subscriptions'),
         ]);
-        events = eventsFromGhl(txs, subs);
+        events = eventsFromGhl(txs, subs, new Date(), { acceptTest: acceptTest() });
     } catch (e) {
         s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
         console.error('billing: ghl poll failed', s.error);
         return s;
     }
-    s.seen = events.length;
-    const needsHelp: string[] = [];
-    for (const ev of events) {
-        try {
-            const r = await applyEvent(cfg, ev);
-            if (r.outcome === 'duplicate' || r.outcome === 'duplicate_period') s.already++;
-            else if (r.outcome === 'unmatched' || r.outcome === 'ambiguous') {
-                s.unmatched++;
-                needsHelp.push(`${ev.kind} ${ev.plan} (${ev.market ?? '?'}): ${ev.email || ev.contactId} - ${r.detail ?? r.outcome}`);
-            } else s.applied++;
-        } catch (e) {
-            s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
-            console.error('billing: poll apply failed', s.error);
-        }
+    await applyAll(cfg, events, s, 'poll');
+    return s;
+}
+
+// ── Sync ping: "something changed on this contact" ───────────────────────────
+// A GHL workflow on a tag change (or a payment) sends `event: sync` with the
+// contact. The payload is only a pointer: the site reads that contact's real
+// payment records from GHL and acts on those, so nothing in the ping can grant
+// a plan by itself.
+
+const SYNC_EVENTS = /^(sync|check|tag|tag_?added|tag_?removed|tag_?changed|contact_?updated)$/;
+
+export function isSyncPing(body: unknown): boolean {
+    return SYNC_EVENTS.test(pick(body, ['event', 'eventType', 'billingEvent']).toLowerCase().replace(/[\s-]+/g, '_'));
+}
+
+async function findContactByEmail(cfg: Cfg, email: string): Promise<string> {
+    const r = await ghlGet<{ contacts?: { id: string; email?: string }[] }>(
+        cfg, `/contacts/?locationId=${cfg.locationId}&query=${encodeURIComponent(email)}&limit=10`);
+    return (r.contacts ?? []).find((c) => normEmail(c.email) === email)?.id ?? '';
+}
+
+async function syncContact(cfg: Cfg, contactId: string): Promise<PollSummary> {
+    const s = emptySummary();
+    if (!cfg.readPit) {
+        s.error = 'no GHL token for reading payments (GHL_PIT_READONLY)';
+        return s;
     }
-    if (needsHelp.length > 0) {
-        await alertTeam('MedSociety payments found in GHL need a listing attached', [
-            ...needsHelp,
-            `Attach them in ${SITE}/admin → Billing. The next payments from the same person then match by themselves.`,
+    try {
+        const q = `altId=${cfg.locationId}&altType=location&limit=100&contactId=${encodeURIComponent(contactId)}`;
+        const [txs, subs] = await Promise.all([
+            ghlGet<{ data?: GhlTransaction[] }>(cfg, `/payments/transactions?${q}`),
+            ghlGet<{ data?: GhlSubscription[] }>(cfg, `/payments/subscriptions?${q}`),
         ]);
+        await applyAll(cfg, eventsFromGhl(txs.data ?? [], subs.data ?? [], new Date(), { acceptTest: acceptTest() }), s, 'contact sync');
+    } catch (e) {
+        s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
+        console.error('billing: contact sync failed', s.error);
     }
     return s;
 }
+
+/** One line to the team for every plan that switches on, is cancelled, refunded or lapses. */
+async function announce(row: PendingRow, what: 'activated' | 'cancelled' | 'refunded' | 'lapsed'): Promise<void> {
+    const plan = row.plan === 'featured' ? 'Featured' : 'Promoted';
+    await alertTeam(`MedSociety: ${plan} plan ${what} for ${row.provider_name}`, [
+        `${plan}${row.market ? ` (${row.market.toUpperCase()})` : ''} ${what}: ${row.provider_name}`,
+        `Payer: ${row.payer_email ?? 'unknown'}${row.ghl_contact_id ? ` · GHL contact ${row.ghl_contact_id}` : ''}`,
+        row.paid_through ? `Paid through ${row.paid_through.slice(0, 10)}` : 'No end date',
+        `${SITE}/providers/${row.provider_id}`,
+    ]);
+}
+
+const WHAT: Record<Kind, 'activated' | 'cancelled' | 'refunded' | 'lapsed'> = {
+    payment: 'activated', canceled: 'cancelled', refunded: 'refunded', failed: 'lapsed',
+};
 
 /**
  * Server-side PostHog event, so revenue and leads are counted even when the
@@ -648,7 +733,45 @@ async function webhook(req: Req, res: Res, url: URL) {
         return res.status(500).json({ ok: false, error: 'not_configured' });
     }
 
-    const parsed = parseEvent(await readBody(req));
+    const body = await readBody(req);
+
+    if (isSyncPing(body)) {
+        let contactId = pick(body, ['contactId']) || (() => {
+            const n = (body as { contact?: { id?: unknown } }).contact?.id;
+            return typeof n === 'string' ? n.trim() : '';
+        })();
+        try {
+            if (!contactId) {
+                const email = normEmail(pick(body, ['email', 'contactEmail']));
+                if (email) contactId = await findContactByEmail(cfg, email);
+            }
+        } catch (e) {
+            console.error('billing: contact lookup failed', String(e).slice(0, 200));
+        }
+        if (!contactId) return res.status(400).json({ ok: false, error: 'no_contact' });
+
+        const s = await syncContact(cfg, contactId);
+        // Mirror and announce whatever this contact's payments changed.
+        let mirrored = 0;
+        if (s.changed.length > 0) {
+            try {
+                const pending = await rpc<PendingRow[]>(cfg, 'billing_pending_ghl', { lim: 50 });
+                for (const c of s.changed) {
+                    const row = pending.find((p) => p.id === c.subscriptionId);
+                    if (!row) continue;
+                    if (await syncRow(cfg, row)) mirrored++;
+                    await announce(row, WHAT[c.kind]);
+                }
+            } catch (e) {
+                console.error('billing: ping mirror failed', String(e).slice(0, 200));
+            }
+        }
+        // 502 when GHL itself could not be read, so GHL's retry policy gets another go.
+        if (s.error && s.applied === 0 && s.already === 0) return res.status(502).json({ ok: false, error: 'sync_failed' });
+        return res.status(200).json({ ok: true, mode: 'sync', seen: s.seen, applied: s.applied, already: s.already, unmatched: s.unmatched, ghl_synced: mirrored });
+    }
+
+    const parsed = parseEvent(body);
     if (!parsed.ok) return res.status(400).json({ ok: false, error: parsed.error });
     const ev = parsed.ev;
 
@@ -677,7 +800,10 @@ async function webhook(req: Req, res: Res, url: URL) {
         try {
             const pending = await rpc<PendingRow[]>(cfg, 'billing_pending_ghl', { lim: 50 });
             const mine = pending.find((p) => p.id === result.subscription_id);
-            if (mine) synced = await syncRow(cfg, mine);
+            if (mine) {
+                synced = await syncRow(cfg, mine);
+                if (result.outcome === 'applied') await announce(mine, WHAT[ev.kind]);
+            }
         } catch (e) {
             console.error('billing: pending fetch failed', String(e).slice(0, 200));
         }
@@ -712,6 +838,14 @@ async function sync(req: Req, res: Res) {
         const poll = await pollGhl(cfg);
         const lapsed = await rpc<{ provider_id: string; plan: string }[] | null>(cfg, 'billing_expire', {});
         const pending = (await rpc<PendingRow[] | null>(cfg, 'billing_pending_ghl', { lim: 100 })) ?? [];
+        // Announce only what changed in THIS run, not rows that are merely waiting on a GHL retry.
+        const changedNow = new Map(poll.changed.map((c) => [c.subscriptionId, c.kind]));
+        const lapsedNow = new Set((lapsed ?? []).map((l) => `${l.provider_id}:${l.plan}`));
+        for (const row of pending) {
+            const kind = changedNow.get(row.id);
+            if (kind) await announce(row, WHAT[kind]);
+            else if (lapsedNow.has(`${row.provider_id}:${row.plan}`)) await announce(row, 'lapsed');
+        }
         let ok = 0;
         let failed = 0;
         for (const row of pending) {
