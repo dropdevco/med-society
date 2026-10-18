@@ -162,6 +162,18 @@ export function StatsSummary({ clinic, stats, loading, onSeeInsights }: {
     const views = stats?.totals?.views ?? stats?.views_30d;
     const contacts = stats?.totals?.contacts;
 
+    // Not enough traffic yet: say nothing about traffic (no "—" tiles, no
+    // "collecting" note, no link to a hidden tab). The rating is not traffic, so
+    // it stays when there are reviews.
+    if (!ready) {
+        if (clinic.reviewCount <= 0) return null;
+        return (
+            <div style={tileGrid}>
+                <Tile icon={<IconStar size={18} filled />} value={clinic.rating.toFixed(1)} label={t('account.statRating')} />
+            </div>
+        );
+    }
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             <div style={tileGrid}>

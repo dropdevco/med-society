@@ -144,6 +144,15 @@ export function DashboardPage() {
 
     const clinic = owned.find((p) => p.id === activeId) ?? owned[0];
 
+    // Insights stays out of sight until the database says the listing has enough
+    // traffic (`ready`: 30-day views past the threshold in stats_settings, or a
+    // manual override). It appears by itself the moment that flips; a deep link to
+    // it falls back to Overview until then.
+    const insightsReady = Boolean(stats?.ready);
+    const visibleTabs = (['overview', 'insights', 'profile', 'photos', 'plan'] as Tab[])
+        .filter((key) => key !== 'insights' || insightsReady);
+    const activeTab: Tab = tab === 'insights' && !insightsReady ? 'overview' : tab;
+
     return (
         <ToastProvider>
         <AuthShell wide title={clinic.name} subtitle={t('account.dashboardSubtitle')}>
@@ -191,19 +200,19 @@ export function DashboardPage() {
                     borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
                 }}
             >
-                {(['overview', 'insights', 'profile', 'photos', 'plan'] as Tab[]).map((key) => (
+                {visibleTabs.map((key) => (
                     <button
                         key={key}
                         role="tab"
-                        aria-selected={tab === key}
+                        aria-selected={activeTab === key}
                         onClick={() => goTab(key)}
                         style={{
                             background: 'none',
                             padding: '0.6rem 0.85rem',
                             fontWeight: 700,
                             fontSize: '0.88rem',
-                            color: tab === key ? 'var(--white)' : 'var(--gray-500)',
-                            borderBottom: `2px solid ${tab === key ? 'var(--accent)' : 'transparent'}`,
+                            color: activeTab === key ? 'var(--white)' : 'var(--gray-500)',
+                            borderBottom: `2px solid ${activeTab === key ? 'var(--accent)' : 'transparent'}`,
                             marginBottom: '-1px',
                         }}
                     >
@@ -212,7 +221,7 @@ export function DashboardPage() {
                 ))}
             </div>
 
-            {tab === 'overview' && (
+            {activeTab === 'overview' && (
                 <Overview
                     clinic={clinic}
                     galleryCount={galleryCount}
@@ -222,7 +231,7 @@ export function DashboardPage() {
                     onSeeInsights={() => goTab('insights')}
                 />
             )}
-            {tab === 'insights' && (
+            {activeTab === 'insights' && (
                 <StatsPanel
                     key={clinic.id}
                     clinic={clinic}
