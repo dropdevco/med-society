@@ -10,7 +10,11 @@
     "languageGroup": "Language",
     "listYourClinic": "List your clinic",
     "signIn": "Sign in",
-    "myClinic": "My clinic"
+    "myClinic": "My clinic",
+    "primaryNav": "Main",
+    "skipToContent": "Skip to main content",
+    "resultsHeading": "Provider search results",
+    "resultsRegion": "Search results"
   },
   "search": {
     "placeholder": "Search doctors, specialties, services or ZIP",

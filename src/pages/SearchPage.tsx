@@ -503,9 +503,12 @@ export function SearchPage() {
     );
 
     return (
-        <div className="ms-page" style={{ paddingTop: NAV_HEIGHT }}>
+        <main className="ms-page" id="main-content" style={{ paddingTop: NAV_HEIGHT }}>
             {searching ? (
                 <>
+                    {/* The discover hero owns the visible h1; the results view has none. */}
+                    <h1 className="sr-only">{t('nav.resultsHeading')}</h1>
+
                     {/* ── Results toolbar ── */}
                     {/* Catches the tap that closes the open box, so it cannot
                         also open whichever card was under the finger. */}
@@ -561,7 +564,12 @@ export function SearchPage() {
                             the body, which re-fires the observer that measures
                             the list. That loop is a hard crash, not a flicker. */}
                         {view === 'list' && (
-                        <div className="ms-results-list">
+                        <div
+                            className="ms-results-list"
+                            role="region"
+                            aria-label={t('nav.resultsRegion')}
+                            aria-busy={loading}
+                        >
                             <FilterSummary
                                 filters={filters}
                                 updateFilter={updateFilter}
@@ -621,13 +629,16 @@ export function SearchPage() {
                                 aiHasAnswer ? null : <EmptyState onClear={resetFilters} />
                             ) : (
                                 <div ref={attachList} style={{ marginTop: '0.9rem' }}>
-                                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+                                    <div role="list" style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
                                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                                             const p = providers[virtualRow.index];
                                             return (
                                                 <div
                                                     key={p.id}
                                                     data-index={virtualRow.index}
+                                                    role="listitem"
+                                                    aria-posinset={virtualRow.index + 1}
+                                                    aria-setsize={providers.length}
                                                     ref={rowVirtualizer.measureElement}
                                                     style={{
                                                         position: 'absolute', top: 0, left: 0, width: '100%',
@@ -782,7 +793,7 @@ export function SearchPage() {
                     onClose={() => setFiltersOpen(false)}
                 />
             )}
-        </div>
+        </main>
     );
 }
 
@@ -816,7 +827,7 @@ function EmptyState({ onClear }: { onClear: () => void }) {
             }}>
                 <IconSearch size={28} />
             </div>
-            <p style={{ marginBottom: '0.6rem', fontSize: '1rem', color: 'var(--white)', fontWeight: 600 }}>
+            <p role="status" aria-live="polite" style={{ marginBottom: '0.6rem', fontSize: '1rem', color: 'var(--white)', fontWeight: 600 }}>
                 {t('map.noResults')}
             </p>
             <button

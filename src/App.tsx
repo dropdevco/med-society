@@ -16,6 +16,8 @@ import { ForumThreadPage } from './pages/ForumThreadPage';
 import { FORUM_PATH } from './lib/forumRoutes';
 import { ProviderModal } from './components/provider/ProviderModal';
 import { AnalyticsBridge } from './components/AnalyticsBridge';
+import { RouteMeta } from './components/RouteMeta';
+import { AgentBridge } from './components/AgentBridge';
 import './index.css';
 
 /**
@@ -104,6 +106,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <AnalyticsBridge />
+      <RouteMeta />
+      <AgentBridge />
       <SiteNavbar />
       <AppRoutes />
       <SiteFooter />

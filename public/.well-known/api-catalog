@@ -1,0 +1,19 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://www.medsociety.one/api/v1",
+      "service-desc": [
+        { "href": "https://www.medsociety.one/openapi.json", "type": "application/vnd.oai.openapi+json" }
+      ],
+      "service-doc": [
+        { "href": "https://www.medsociety.one/llms-full.txt", "type": "text/markdown" }
+      ]
+    },
+    {
+      "anchor": "https://www.medsociety.one/mcp",
+      "service-doc": [
+        { "href": "https://www.medsociety.one/llms-full.txt", "type": "text/markdown" }
+      ]
+    }
+  ]
+}

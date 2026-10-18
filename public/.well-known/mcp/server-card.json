@@ -1,0 +1,7 @@
+{
+  "serverInfo": { "name": "medsociety-directory", "title": "MedSociety Directory", "version": "1.0.0" },
+  "description": "Read-only search of health providers across the US–Mexico border (El Paso – Ciudad Juárez, San Diego – Tijuana): ratings, published prices, languages, insurance, reviews.",
+  "transport": { "type": "streamable-http", "url": "https://www.medsociety.one/mcp" },
+  "authentication": { "required": false },
+  "documentation": "https://www.medsociety.one/llms-full.txt"
+}

@@ -67,7 +67,7 @@ export function FilterSummary({
                 gap: '0.6rem', flexWrap: 'wrap',
             }}>
                 {countLabel ? (
-                    <span style={{ fontSize: '0.95rem', color: 'var(--white)', fontWeight: 700 }}>
+                    <span role="status" aria-live="polite" style={{ fontSize: '0.95rem', color: 'var(--white)', fontWeight: 700 }}>
                         {countLabel}
                         {/* A smart search answers from one region's reviews;
                             say which, as the plain count does. */}
@@ -76,7 +76,7 @@ export function FilterSummary({
                         </span>
                     </span>
                 ) : (
-                    <span style={{ fontSize: '0.88rem', color: 'var(--gray-400)' }}>
+                    <span role="status" aria-live="polite" style={{ fontSize: '0.88rem', color: 'var(--gray-400)' }}>
                         <strong style={{ color: 'var(--white)', fontWeight: 800, fontSize: '1.05rem' }}>
                             {count.toLocaleString()}
                         </strong>

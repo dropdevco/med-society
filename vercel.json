@@ -9,8 +9,108 @@
       "destination": "https://us.i.posthog.com/:path*"
     },
     {
+      "source": "/api/v1",
+      "destination": "/api/agent?route=v1"
+    },
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/agent?route=v1&path=:path*"
+    },
+    {
+      "source": "/mcp",
+      "destination": "/api/agent?route=mcp"
+    },
+    {
+      "source": "/api/mcp",
+      "destination": "/api/agent?route=mcp"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "/api/agent?route=openapi"
+    },
+    {
+      "source": "/llms.txt",
+      "destination": "/api/agent?route=llms"
+    },
+    {
+      "source": "/llms-full.txt",
+      "destination": "/api/agent?route=llms-full"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/agent?route=sitemap"
+    },
+    {
+      "source": "/sitemaps/:name",
+      "destination": "/api/agent?route=sitemap&name=:name"
+    },
+    {
+      "source": "/",
+      "destination": "/api/agent?route=page&kind=home",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
+      "source": "/providers/:id",
+      "destination": "/api/agent?route=page&kind=provider&id=:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
+      "source": "/pricing",
+      "destination": "/api/agent?route=page&kind=pricing",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
+      "source": "/contact",
+      "destination": "/api/agent?route=page&kind=contact",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/api-catalog",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/linkset+json"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/mcp/server-card.json",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
     }
   ],
   "crons": [

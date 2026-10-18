@@ -93,7 +93,7 @@ export function PricingPage() {
     const closeForm = () => setModalPlan(null);
 
     return (
-        <div style={{ paddingTop: 68 }}>
+        <main id="main-content" style={{ paddingTop: 68 }}>
             {/* ══ Hero ══════════════════════════════════════════════
                 Asymmetric editorial split. The previous version tracked the
                 cursor with a radial gold glow; it is replaced by a static
@@ -440,7 +440,7 @@ export function PricingPage() {
                     }
                 }
             `}</style>
-        </div>
+        </main>
     );
 }
 

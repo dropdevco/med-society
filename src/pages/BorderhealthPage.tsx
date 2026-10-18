@@ -121,9 +121,9 @@ export function BorderhealthPage({ research = false }: { research?: boolean }) {
     if (!research && result && result.segment === 'provider') {
         return (
             <div className="bh-page">
-                <div className="bh-wrap">
+                <main className="bh-wrap" id="main-content">
                     <BorderhealthOnboarding submission={result.submission} lang={lang} onRestart={restart} />
-                </div>
+                </main>
             </div>
         );
     }
@@ -157,7 +157,7 @@ export function BorderhealthPage({ research = false }: { research?: boolean }) {
                     </div>
                 </header>
 
-                <main className="bh-main" lang={lang}>
+                <main className="bh-main" id="main-content" lang={lang}>
                     {result ? (
                         <div className="bh-screen bh-done">
                             <div className="bh-tick">

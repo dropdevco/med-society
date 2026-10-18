@@ -48,9 +48,38 @@ function placePhotoDevMiddleware(mode: string): Plugin {
                 if (!process.env[key] && env[key]) process.env[key] = env[key]
             }
 
+            // The agent surface (api/agent.ts) is reached in production through the
+            // rewrites in vercel.json. Mirror the non-page ones here so `npm run dev`
+            // answers /api/v1/*, /mcp, /openapi.json, /llms.txt and the sitemaps too.
+            // The HTML routes (/, /providers/:id…) stay with Vite, which serves the app;
+            // reach the pre-rendered form in dev at /api/agent?route=page&kind=provider&id=…
+            const agentRoutes: [RegExp, (m: RegExpExecArray) => string][] = [
+                [/^\/api\/v1(?:\/([^?]*))?(?:\?|$)/, (m) => `route=v1&path=${m[1] ?? ''}`],
+                [/^\/(?:api\/)?mcp(?:\?|$)/, () => 'route=mcp'],
+                [/^\/openapi\.json(?:\?|$)/, () => 'route=openapi'],
+                [/^\/llms\.txt(?:\?|$)/, () => 'route=llms'],
+                [/^\/llms-full\.txt(?:\?|$)/, () => 'route=llms-full'],
+                [/^\/sitemap\.xml(?:\?|$)/, () => 'route=sitemap'],
+                [/^\/sitemaps\/([^?]+)(?:\?|$)/, (m) => `route=sitemap&name=${m[1]}`],
+            ]
+            server.middlewares.use((req, res, next) => {
+                const url = req.url ?? ''
+                for (const [pattern, toQuery] of agentRoutes) {
+                    const m = pattern.exec(url)
+                    if (!m) continue
+                    const rest = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
+                    req.url = `/api/agent?${toQuery(m)}${rest ? `&${rest}` : ''}`
+                    server
+                        .ssrLoadModule('/api/agent.ts')
+                        .then((mod) => mod.default(req, withVercelHelpers(res)))
+                        .catch(next)
+                    return
+                }
+                next()
+            })
             server.middlewares.use((req, res, next) => {
                 // Same shim serves every dev-mapped function (api/<name>.ts).
-                const match = /^\/api\/(place-photo|inquiry|ai-search|forum-notify)(?:[/?]|$)/.exec(req.url ?? '')
+                const match = /^\/api\/(place-photo|inquiry|ai-search|forum-notify|agent)(?:[/?]|$)/.exec(req.url ?? '')
                 if (!match) return next()
 
                 server

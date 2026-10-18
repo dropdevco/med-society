@@ -86,7 +86,7 @@ export function ForumPage({ forum }: { forum: ForumKind }) {
     };
 
     if (forum === 'society' && (sessionLoading || clinicianLoading)) {
-        return <div className="ms-page forum-page"><div className="forum-wrap"><div className="skeleton" style={{ height: 160, borderRadius: 'var(--radius)' }} /></div></div>;
+        return <main className="ms-page forum-page" id="main-content"><div className="forum-wrap"><div className="skeleton" style={{ height: 160, borderRadius: 'var(--radius)' }} /></div></main>;
     }
     if (forum === 'society' && !isClinician) {
         return <ClinicianGate signedIn={!!user} />;
@@ -101,7 +101,7 @@ export function ForumPage({ forum }: { forum: ForumKind }) {
     };
 
     return (
-        <div className="ms-page forum-page">
+        <main className="ms-page forum-page" id="main-content">
             <div className="forum-wrap">
                 <header className="forum-hero">
                     <p className="forum-eyebrow">{t(`forum.${k}.eyebrow`)}</p>
@@ -175,7 +175,7 @@ export function ForumPage({ forum }: { forum: ForumKind }) {
                             aria-label={t(`forum.${k}.search`)}
                         />
                     </form>
-                    <SpecialtySelect value={topic} onChange={(v) => setParam('topic', v)} allLabel={t('forum.allTopics')} />
+                    <SpecialtySelect value={topic} onChange={(v) => setParam('topic', v)} allLabel={t('forum.allTopics')} ariaLabel={t('forum.allTopics')} />
                 </div>
 
                 <div className="forum-list">
@@ -201,6 +201,6 @@ export function ForumPage({ forum }: { forum: ForumKind }) {
 
                 {forum === 'patients' && <p className="forum-disclaimer">{t('forum.disclaimer')}</p>}
             </div>
-        </div>
+        </main>
     );
 }

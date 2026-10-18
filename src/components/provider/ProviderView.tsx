@@ -71,7 +71,7 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
 
     return (
         <>
-                <div className="ms-provider-layout" onClickCapture={trackContact}>
+                <div className="ms-provider-layout" data-provider-id={provider.id} onClickCapture={trackContact}>
                     {/* ── Main column ── */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', minWidth: 0 }}>
                         {/* Header */}
@@ -287,7 +287,12 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                                     {provider.priceFromMxn != null && (
                                         <p style={{ fontSize: '0.9rem', margin: 0 }}>
                                             <span style={{ color: 'var(--gray-400)' }}>{t('providerPage.pricesFrom')} </span>
-                                            <strong style={{ color: 'var(--gold)' }}>{formatPrice(provider.priceFromMxn, i18n.language)}</strong>
+                                            <strong style={{ color: 'var(--gold)' }}>
+                                                {/* Machine-readable amount (always MXN as stored); the text is the localised display. */}
+                                                <data value={provider.priceFromMxn} data-currency="MXN" data-price-from="true">
+                                                    {formatPrice(provider.priceFromMxn, i18n.language)}
+                                                </data>
+                                            </strong>
                                         </p>
                                     )}
                                     <ServiceList services={provider.services ?? []} />

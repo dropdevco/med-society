@@ -1,0 +1,13 @@
+# MedSociety: a public directory. Search engines and AI agents are welcome.
+# Machine-readable interfaces: https://www.medsociety.one/llms.txt
+
+User-agent: *
+Allow: /
+Allow: /api/v1/
+Disallow: /api/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /login
+Disallow: /claim/
+
+Sitemap: https://www.medsociety.one/sitemap.xml

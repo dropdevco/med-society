@@ -35,7 +35,7 @@ export function AiMatches({ result, loading, providerById, region, onSelect, onS
                 <p style={{ ...eyebrow, marginBottom: '0.6rem' }}>
                     <IconReviews size={14} /> {t('ai.title')}
                 </p>
-                <p style={{ color: 'var(--gray-400)', fontSize: '0.9rem' }}>{t('ai.loading')}</p>
+                <p role="status" aria-live="polite" style={{ color: 'var(--gray-400)', fontSize: '0.9rem' }}>{t('ai.loading')}</p>
                 <div className="skeleton" style={{ height: 14, width: '70%', borderRadius: 6, marginTop: '0.75rem' }} />
             </section>
         );
@@ -115,7 +115,7 @@ export function AiMatches({ result, loading, providerById, region, onSelect, onS
                     </div>
                 </>
             ) : (
-                <p style={{ color: 'var(--gray-400)', fontSize: '0.85rem', marginTop: '0.9rem' }}>{t('ai.noMatches')}</p>
+                <p role="status" aria-live="polite" style={{ color: 'var(--gray-400)', fontSize: '0.85rem', marginTop: '0.9rem' }}>{t('ai.noMatches')}</p>
             )}
 
             <p style={{ color: 'var(--gray-400)', fontSize: '0.75rem', marginTop: '1rem', lineHeight: 1.45 }}>

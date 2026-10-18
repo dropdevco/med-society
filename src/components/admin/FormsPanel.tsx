@@ -245,7 +245,7 @@ export function ResponsesPanel({ data }: { data: FormsOverview }) {
 
             <Card title="All responses" hint={`latest ${data.recent.length}`} wide>
                 <div className="adm-tools">
-                    <input className="adm-input" placeholder="Search name, company, email, phone, city…" value={q} onChange={(e) => setQ(e.target.value)} />
+                    <input className="adm-input" aria-label="Search responses" placeholder="Search name, company, email, phone, city…" value={q} onChange={(e) => setQ(e.target.value)} />
                     <label className="adm-check"><input type="checkbox" checked={showTest} onChange={(e) => setShowTest(e.target.checked)} /> Show test rows</label>
                     <button type="button" className="adm-btn" onClick={() => downloadCsv(rows)} disabled={!rows.length}>Download CSV ({rows.length})</button>
                 </div>

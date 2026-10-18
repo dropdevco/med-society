@@ -20,7 +20,8 @@ export function AuthShell({ title, subtitle, children, wide = false }: {
     wide?: boolean;
 }) {
     return (
-        <div
+        <main
+            id="main-content"
             style={{
                 minHeight: '100vh',
                 paddingTop: 68,
@@ -65,7 +66,7 @@ export function AuthShell({ title, subtitle, children, wide = false }: {
 
                 {children}
             </div>
-        </div>
+        </main>
     );
 }
 

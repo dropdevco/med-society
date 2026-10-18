@@ -10,7 +10,11 @@
     "languageGroup": "Idioma",
     "listYourClinic": "Registra tu clínica",
     "signIn": "Iniciar sesión",
-    "myClinic": "Mi clínica"
+    "myClinic": "Mi clínica",
+    "primaryNav": "Principal",
+    "skipToContent": "Saltar al contenido principal",
+    "resultsHeading": "Resultados de búsqueda de proveedores",
+    "resultsRegion": "Resultados de búsqueda"
   },
   "search": {
     "placeholder": "Busca médicos, especialidades, servicios o código postal",

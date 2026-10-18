@@ -92,6 +92,7 @@ export function LoginPage() {
                 <Field label={t('account.email')}>
                     <input
                         type="email"
+                        name="email"
                         required
                         autoComplete="email"
                         value={email}
@@ -102,6 +103,7 @@ export function LoginPage() {
                 <Field label={t('account.password')}>
                     <input
                         type="password"
+                        name="password"
                         required
                         minLength={8}
                         autoComplete={mode === 'in' ? 'current-password' : 'new-password'}

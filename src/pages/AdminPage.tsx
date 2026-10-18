@@ -25,7 +25,7 @@ type Tab = (typeof TABS)[number][0];
 
 function NotFound() {
     return (
-        <main className="adm-gate">
+        <main className="adm-gate" id="main-content">
             <h1>Page not found</h1>
             <p>That page doesn’t exist.</p>
             <Link to="/">Back to MedSociety</Link>
@@ -68,15 +68,15 @@ export function AdminPage() {
         if (allowed) apply(Promise.all([fetchForms(), fetchSite()]));
     }, [allowed, apply]);
 
-    if (sessionLoading) return <main className="adm-gate"><p>Loading…</p></main>;
+    if (sessionLoading) return <main className="adm-gate" id="main-content"><p>Loading…</p></main>;
     if (!user) return <Navigate to="/login?next=/admin" replace />;
-    if (allowed === null) return <main className="adm-gate"><p>Loading…</p></main>;
+    if (allowed === null) return <main className="adm-gate" id="main-content"><p>Loading…</p></main>;
     if (!allowed) return <NotFound />;
 
     const tab = (TABS.find(([k]) => k === params.get('tab'))?.[0] ?? 'overview') as Tab;
 
     return (
-        <main className="adm">
+        <main className="adm" id="main-content">
             <header className="adm-top">
                 <div>
                     <h1>MedSociety analytics</h1>
