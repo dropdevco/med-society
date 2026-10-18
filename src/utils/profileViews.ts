@@ -1,8 +1,9 @@
 /**
  * PLACEHOLDER "profile views" counter.
  *
- * Every listing needs a profile-views figure to show publicly, but no view
- * tracking is wired up yet. This manufactures a plausible-looking integer in
+ * Every listing needs a profile-views figure to show publicly, but the real
+ * count (PostHog `provider_viewed`, see `trackProviderView`) is still being
+ * collected and is too small to show. This manufactures a plausible-looking integer in
  * [100, 200] deterministically from the provider id, so a listing shows the
  * same number on every render, every refresh, every device — never a random
  * number that would flicker or, worse, look like it was making something up

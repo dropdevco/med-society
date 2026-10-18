@@ -79,6 +79,9 @@ export function capturePageview(props: Record<string, unknown>): void {
 export type AppEvent =
     | 'search_performed'
     | 'provider_clicked'
+    | 'provider_viewed'
+    | 'provider_impressions'
+    | 'provider_section_viewed'
     | 'provider_contact_click'
     | 'inquiry_sent'
     | 'inquiry_failed'
@@ -98,5 +101,7 @@ export type AppEvent =
 
 export function track(event: AppEvent, props?: Record<string, unknown>): void {
     if (!ready) return;
+    // PostHog's own debug output collapses properties to "Object"; this prints them.
+    if (import.meta.env.DEV) console.debug(`[track] ${event}`, JSON.stringify(props ?? {}));
     try { posthog.capture(event, props); } catch { /* ignore */ }
 }

@@ -230,7 +230,7 @@ export function PricingPage() {
                                 tier={t('pricing.basicTier')}
                                 price="$0"
                                 period={t('pricing.basicPeriod')}
-                                features={[t('pricing.basicF1'), t('pricing.basicF2'), t('pricing.basicF3'), t('pricing.basicF4')]}
+                                features={[t('pricing.basicF1'), t('pricing.basicF2'), t('pricing.basicF3'), t('pricing.basicF4'), t('pricing.basicF5')]}
                                 ctaLabel={t('pricing.basicCta')}
                                 onCta={() => openForm('free')}
                             />

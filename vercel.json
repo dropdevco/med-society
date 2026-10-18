@@ -121,6 +121,14 @@
     {
       "path": "/api/billing?job=sync",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/stats?job=sync",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/stats?job=reports",
+      "schedule": "0 15 * * *"
     }
   ]
 }

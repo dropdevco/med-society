@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '../hooks/useSession';
 import { capturePageview, identifyUser, resetIdentity, setContext, track } from '../lib/posthog';
+import { sessionAttribution } from '../lib/attribution';
 
 /**
  * Renders nothing. Lives inside the router and feeds PostHog the three things
@@ -13,6 +14,13 @@ export function AnalyticsBridge() {
     const location = useLocation();
     const { i18n } = useTranslation();
     const { user, loading } = useSession();
+
+    // Where this visit came from, registered before the first $pageview below
+    // so every event of the session carries it (see lib/attribution.ts).
+    useEffect(() => {
+        const { channel, channel_source, utm_campaign } = sessionAttribution();
+        setContext({ channel, channel_source: channel_source ?? null, utm_campaign: utm_campaign ?? null });
+    }, []);
 
     // One $pageview per path. Query-only changes (search filters, the region the
     // home page appends to its own URL) are the same page, not a new view. A

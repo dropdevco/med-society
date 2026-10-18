@@ -2294,3 +2294,6 @@ select option {
   .acct-modal, .acct-modal-backdrop, .acct-toast, .acct-social-preview, .acct-flash { animation: none !important; }
 }
 /* ── /Account ── */
+
+/* A section marker around a component that rendered nothing must not leave a gap. */
+[data-section]:empty { display: none; }

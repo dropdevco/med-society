@@ -16,10 +16,11 @@ import { ProviderCard } from '../components/provider/ProviderCard';
 import { Discover } from '../components/discover/Discover';
 import { LogoMark } from '../components/brand/Logo';
 import { IconSearch, IconMapPin, IconList, IconSliders } from '../components/icons/Icons';
-import { trackProviderClick } from '../utils/analytics';
+import { trackProviderClick, trackImpressions } from '../utils/analytics';
 import { track } from '../lib/posthog';
 import { distanceKm } from '../utils/geo';
 import { tokenize } from '../utils/search';
+import { matchSearchTerms } from '../utils/searchTerms';
 import { countActiveFilters, defaultFilters } from '../utils/filters';
 import type { PostalHit } from '../utils/postalGeocode';
 import { buildDiscoverRows } from '../utils/discover';
@@ -129,6 +130,12 @@ export function SearchPage() {
      */
     const resultCount = useRef(0);
     useEffect(() => { resultCount.current = providers.length; }, [providers.length]);
+    // The latest of these, readable from the debounced callbacks below without
+    // making them re-arm every time the results change.
+    const aiSpecialtiesRef = useRef<Specialty[]>([]);
+    useEffect(() => { aiSpecialtiesRef.current = aiSpecialties; }, [aiSpecialties]);
+    const providersRef = useRef<Provider[]>([]);
+    useEffect(() => { providersRef.current = providers; }, [providers]);
     const lastSearchSig = useRef('');
     useEffect(() => {
         if (!searching || loading) return;
@@ -137,6 +144,8 @@ export function SearchPage() {
         const timer = window.setTimeout(() => {
             lastSearchSig.current = sig;
             const text = filters.search.trim();
+            const matched = filters.smart ? { terms: [], specialties: [] } : matchSearchTerms(text);
+            const resolved = filters.smart ? aiSpecialtiesRef.current : [];
             track('search_performed', {
                 mode: filters.smart ? 'smart' : 'keyword',
                 has_text: text !== '',
@@ -144,15 +153,50 @@ export function SearchPage() {
                 term_count: tokenize(text).length,
                 filters_count: activeCount,
                 specialties: filters.specialty,
+                // Demand, without the words. `terms` are ids from a fixed list of
+                // services (utils/searchTerms.ts); what was typed is never sent.
+                // A smart search reports the specialties it resolved to instead.
+                terms: matched.terms,
+                resolved_specialties: resolved,
+                // Every specialty this search was after, however it said so: the
+                // filter, what a smart search resolved to, or what a service
+                // term implies. This is what demand is reported against.
+                demand_specialties: [...new Set<string>([...filters.specialty, ...resolved, ...matched.specialties])],
+                insurance_filter: filters.insurances.length > 0,
+                language_filter: filters.languages,
+                verified_only: filters.verifiedOnly,
                 region,
                 result_count: resultCount.current,
                 no_results: resultCount.current === 0,
             });
         }, 1500);
         return () => window.clearTimeout(timer);
-    }, [searching, loading, filters.search, filters.smart, filters.specialty, activeCount, region]);
+    }, [searching, loading, filters.search, filters.smart, filters.specialty, filters.insurances.length, filters.languages, filters.verifiedOnly, activeCount, region]);
 
     const [view, setView] = useState<'list' | 'map'>('list');
+
+    /**
+     * Who was shown to whom, for the "impressions" a doctor sees. Same settle
+     * rule as `search_performed` (a search is running, results have loaded, a
+     * beat has passed), keyed on the leading results so a re-sort or a pan that
+     * reveals new clinics counts, but typing the same query again does not.
+     */
+    const lastImpressionSig = useRef('');
+    useEffect(() => {
+        if (!searching || loading || providers.length === 0) return;
+        const sig = providers.slice(0, 20).map((p) => p.id).join(',');
+        if (sig === lastImpressionSig.current) return;
+        const timer = window.setTimeout(() => {
+            lastImpressionSig.current = sig;
+            trackImpressions(providers, {
+                surface: view,
+                region,
+                specialties: filters.specialty,
+                mode: filters.smart ? 'smart' : 'keyword',
+            });
+        }, 1500);
+        return () => window.clearTimeout(timer);
+    }, [searching, loading, providers, view, region, filters.specialty, filters.smart]);
     /**
      * Whether the results follow the map on their own.
      *
@@ -325,12 +369,16 @@ export function SearchPage() {
      * the *listing* that we count, and the destination page doesn't need to
      * know it came from a search result versus, say, a shared link.
      */
-    const handleSelect = useCallback((p: Provider) => {
-        trackProviderClick(p);
+    const openProvider = useCallback((p: Provider, from: 'search' | 'map') => {
+        // Where it sat in the list when clicked: how far down a clinic is still
+        // getting opened is what a doctor's "average position" is read against.
+        const at = providersRef.current.findIndex((x) => x.id === p.id);
+        trackProviderClick(p, from, at >= 0 ? at + 1 : undefined);
         // `backgroundLocation` opens the profile as a modal over this page
         // (which stays mounted) instead of replacing it; see App.tsx.
         navigate(`/providers/${p.id}`, { state: { backgroundLocation: location } });
     }, [navigate, location]);
+    const handleSelect = useCallback((p: Provider) => openProvider(p, 'search'), [openProvider]);
 
     /**
      * A pin's "full details" was clicked. Same navigation as any other result:
@@ -338,8 +386,8 @@ export function SearchPage() {
      * current list to open its page.
      */
     const handleProviderFromMap = useCallback((p: Provider) => {
-        handleSelect(p);
-    }, [handleSelect]);
+        openProvider(p, 'map');
+    }, [openProvider]);
 
     /**
      * Release the viewport whenever a non-spatial filter changes.

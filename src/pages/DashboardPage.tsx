@@ -7,20 +7,21 @@ import { useMyClinic } from '../hooks/useMyClinic';
 import { signOut } from '../lib/auth';
 import type { PlanKey } from '../lib/billing';
 import { supabase } from '../lib/supabase';
-import { estimateViews } from '../utils/estimatedViews';
+import { useProviderStats, type ProviderStats } from '../hooks/useProviderStats';
 import { AuthShell } from '../components/account/AuthShell';
 import { ClinicProfileForm } from '../components/account/ClinicProfileForm';
 import { ClinicPhotoManager } from '../components/account/ClinicPhotoManager';
 import { ClinicPlanPanel } from '../components/account/ClinicPlanPanel';
+import { StatsPanel, StatsSummary } from '../components/account/StatsPanel';
 import { ClinicAvatar } from '../components/account/ClinicAvatar';
 import { ProfileCompleteness } from '../components/account/ProfileCompleteness';
 import { ToastProvider } from '../components/account/ToastProvider';
 import { ForumDashCard } from '../components/forum/ForumPromos';
 import { FORUMS_LISTED } from '../lib/forumRoutes';
 import type { CompletenessTarget } from '../utils/profileCompleteness';
-import { IconViews, IconClipboard, IconStar } from '../components/icons/Icons';
+import { IconViews } from '../components/icons/Icons';
 
-type Tab = 'overview' | 'profile' | 'photos' | 'plan';
+type Tab = 'overview' | 'insights' | 'profile' | 'photos' | 'plan';
 
 /**
  * What a clinic can actually do once it has claimed a listing — which, until
@@ -38,7 +39,10 @@ export function DashboardPage() {
     const [params] = useSearchParams();
     // The pricing page sends `?tab=plan&buy=<plan>`; the payment page sends the
     // customer back to `?tab=plan&paid=<plan>`. Read once, at mount.
-    const [tab, setTab] = useState<Tab>(() => (params.get('tab') === 'plan' ? 'plan' : 'overview'));
+    const [tab, setTab] = useState<Tab>(() => {
+        const wanted = params.get('tab');
+        return wanted === 'plan' || wanted === 'insights' ? wanted : 'overview';
+    });
     const planParam = (key: string): PlanKey | null => {
         const v = params.get(key);
         return v === 'promoted' || v === 'featured' ? v : null;
@@ -54,6 +58,8 @@ export function DashboardPage() {
     const setDirty = useCallback((d: boolean) => { dirtyRef.current = d; }, []);
 
     const activeClinicId = (owned.find((p) => p.id === activeId) ?? owned[0])?.id ?? null;
+    // The listing's analytics, fetched once and shared by the Overview summary and the Insights tab.
+    const { stats, loading: statsLoading, error: statsError } = useProviderStats(activeClinicId);
 
     useEffect(() => {
         if (!supabase || !activeClinicId) return;
@@ -185,7 +191,7 @@ export function DashboardPage() {
                     borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
                 }}
             >
-                {(['overview', 'profile', 'photos', 'plan'] as Tab[]).map((key) => (
+                {(['overview', 'insights', 'profile', 'photos', 'plan'] as Tab[]).map((key) => (
                     <button
                         key={key}
                         role="tab"
@@ -206,7 +212,28 @@ export function DashboardPage() {
                 ))}
             </div>
 
-            {tab === 'overview' && <Overview clinic={clinic} galleryCount={galleryCount} onGo={goTo} />}
+            {tab === 'overview' && (
+                <Overview
+                    clinic={clinic}
+                    galleryCount={galleryCount}
+                    onGo={goTo}
+                    stats={stats}
+                    statsLoading={statsLoading}
+                    onSeeInsights={() => goTab('insights')}
+                />
+            )}
+            {tab === 'insights' && (
+                <StatsPanel
+                    key={clinic.id}
+                    clinic={clinic}
+                    stats={stats}
+                    loading={statsLoading}
+                    error={statsError}
+                    galleryCount={galleryCount}
+                    onGo={goTo}
+                    onSeePlans={() => goTab('plan')}
+                />
+            )}
             {tab === 'profile' && (
                 <ClinicProfileForm key={clinic.id} clinic={clinic} onSaved={reload} onDirtyChange={setDirty} />
             )}
@@ -235,93 +262,25 @@ export function DashboardPage() {
     );
 }
 
-function Overview({ clinic, galleryCount, onGo }: {
+function Overview({ clinic, galleryCount, onGo, stats, statsLoading, onSeeInsights }: {
     clinic: Provider;
     galleryCount: number;
     onGo: (target: CompletenessTarget) => void;
+    stats: ProviderStats | null;
+    statsLoading: boolean;
+    onSeeInsights: () => void;
 }) {
-    const { t } = useTranslation();
-    const { views, contacts } = estimateViews(clinic);
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <ProfileCompleteness clinic={clinic} galleryCount={galleryCount} onGo={onGo} />
             {FORUMS_LISTED && <ForumDashCard specialties={clinic.specialty ?? []} />}
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                    gap: '0.9rem',
-                }}
-            >
-                <Stat
-                    icon={<IconViews size={18} />}
-                    value={views.toLocaleString()}
-                    label={t('account.statViews')}
-                />
-                <Stat
-                    icon={<IconClipboard size={18} />}
-                    value={contacts.toLocaleString()}
-                    label={t('account.statContacts')}
-                    alarming={contacts === 0}
-                />
-                <Stat
-                    icon={<IconStar size={18} filled />}
-                    value={clinic.reviewCount > 0 ? clinic.rating.toFixed(1) : '—'}
-                    label={t('account.statRating')}
-                />
-            </div>
-
             {/*
-              Said out loud, every time. These are modelled from demand signals,
-              not measured from traffic, and a clinic that later finds that out
-              on its own has every reason to stop believing the rest of the
-              directory too. The label is the point of the number, not a caveat
-              on it.
+              Measured traffic only. Until a listing has enough of it the numbers
+              read "collecting data" instead of falling back to a modelled
+              estimate: a figure a clinic later finds out was invented costs more
+              trust than an empty tile ever could.
             */}
-            <p style={{ fontSize: '0.78rem', color: 'var(--gray-500)', lineHeight: 1.6 }}>
-                {t('account.statsDisclaimer')}
-            </p>
-
-            {contacts === 0 && views > 0 && (
-                <div
-                    style={{
-                        padding: '1.1rem 1.2rem',
-                        borderRadius: 'var(--radius)',
-                        background: 'var(--gold-dim)',
-                        border: '1px solid var(--gold)',
-                    }}
-                >
-                    <p style={{ fontWeight: 800, marginBottom: '0.4rem' }}>{t('account.gapTitle')}</p>
-                    <p style={{ fontSize: '0.88rem', color: 'var(--gray-300)', lineHeight: 1.6 }}>
-                        {t('account.gapBody', { views: views.toLocaleString() })}
-                    </p>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function Stat({ icon, value, label, alarming = false }: {
-    icon: React.ReactNode; value: string; label: string; alarming?: boolean;
-}) {
-    return (
-        <div
-            style={{
-                padding: '1.1rem',
-                borderRadius: 'var(--radius)',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-            }}
-        >
-            <span style={{ color: alarming ? 'var(--red)' : 'var(--gray-500)', display: 'flex' }}>{icon}</span>
-            <p
-                className="display"
-                style={{ fontSize: '2rem', marginTop: '0.4rem', color: alarming ? 'var(--red)' : 'var(--white)' }}
-            >
-                {value}
-            </p>
-            <p style={{ fontSize: '0.78rem', color: 'var(--gray-500)', fontWeight: 600 }}>{label}</p>
+            <StatsSummary clinic={clinic} stats={stats} loading={statsLoading} onSeeInsights={onSeeInsights} />
         </div>
     );
 }
