@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../types/provider';
 import { useSession } from '../hooks/useSession';
 import { useMyClinic } from '../hooks/useMyClinic';
 import { signOut } from '../lib/auth';
+import type { PlanKey } from '../lib/billing';
 import { supabase } from '../lib/supabase';
 import { estimateViews } from '../utils/estimatedViews';
 import { AuthShell } from '../components/account/AuthShell';
@@ -33,7 +34,15 @@ export function DashboardPage() {
     const { t } = useTranslation();
     const { user, loading: sessionLoading } = useSession();
     const { owned, claims, loading, reload } = useMyClinic(user?.id ?? null);
-    const [tab, setTab] = useState<Tab>('overview');
+    const location = useLocation();
+    const [params] = useSearchParams();
+    // The pricing page sends `?tab=plan&buy=<plan>`; the payment page sends the
+    // customer back to `?tab=plan&paid=<plan>`. Read once, at mount.
+    const [tab, setTab] = useState<Tab>(() => (params.get('tab') === 'plan' ? 'plan' : 'overview'));
+    const planParam = (key: string): PlanKey | null => {
+        const v = params.get(key);
+        return v === 'promoted' || v === 'featured' ? v : null;
+    };
     const [activeId, setActiveId] = useState<string | null>(null);
     const [galleryCount, setGalleryCount] = useState(0);
     // A field to scroll to and focus once the target tab has rendered. `n`
@@ -92,7 +101,8 @@ export function DashboardPage() {
     };
 
     if (!sessionLoading && !user) {
-        return <Navigate to="/login?next=/dashboard" replace />;
+        // Keep the query: someone sent here to buy a plan should land back on it.
+        return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
     }
 
     // `loading` flips true on every reload (after a save); only the first load
@@ -208,7 +218,16 @@ export function DashboardPage() {
                     onGoToProfile={() => goTo({ tab: 'profile', field: 'acct-avatar' })}
                 />
             )}
-            {tab === 'plan' && <ClinicPlanPanel clinic={clinic} />}
+            {tab === 'plan' && (
+                <ClinicPlanPanel
+                    key={clinic.id}
+                    clinic={clinic}
+                    email={user?.email ?? ''}
+                    onRefresh={reload}
+                    highlight={planParam('buy')}
+                    returnedFrom={planParam('paid')}
+                />
+            )}
 
             <SignOutRow />
         </AuthShell>

@@ -118,3 +118,26 @@ export const fetchForms = () => rpc<FormsOverview>('admin_forms_overview');
 export const fetchSite = () => rpc<SiteOverview>('admin_site_overview');
 export const searchProviders = (q: string) => rpc<ProviderHit[]>('admin_provider_search', { q, lim: 25 });
 export const fetchProvider = (pid: string) => rpc<ProviderDetail | null>('admin_provider_detail', { pid });
+
+export interface BillingSub {
+    id: string; provider_id: string; provider_name: string; city: string | null; plan: string; market: string | null;
+    status: string; paid_through: string | null; last_payment_at: string | null; last_amount: number | null;
+    currency: string | null; payer_email: string | null; ghl_contact_id: string | null; ghl_dirty: boolean;
+    ghl_error: string | null; access: boolean; listing_tier: string;
+}
+export interface BillingEvent {
+    id: string; created_at: string; kind: string; plan: string | null; market: string | null;
+    payer_email: string | null; payer_phone?: string | null; ghl_contact_id?: string | null;
+    amount?: number | null; currency?: string | null; product?: string | null;
+    outcome: string; detail: string | null; match_method?: string | null; provider_name?: string | null;
+}
+export interface BillingOverview {
+    generated_at: string;
+    subscriptions: BillingSub[];
+    needs_attention: BillingEvent[];
+    recent_events: BillingEvent[];
+    tier_drift: { provider_id: string; name: string; tier: string }[];
+}
+export const fetchBilling = () => rpc<BillingOverview>('admin_billing_overview');
+export const resolveBillingEvent = (eid: string, pid: string, plan: string | null) =>
+    rpc<{ outcome: string; detail?: string }>('admin_resolve_billing_event', { eid, pid, p_plan: plan });

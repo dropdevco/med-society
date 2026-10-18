@@ -285,7 +285,9 @@ export function applyFilters(
 
         // Promoted listings hold the top tier in every order. That is the deal
         // they paid for, and it is why it sits above the sort choice.
-        if (a.promoted !== b.promoted) return a.promoted ? -1 : 1;
+        // Featured is "first position in your category", so it sits above Promoted.
+        const placement = (p: Provider) => (p.tier === 'featured' ? 2 : p.promoted ? 1 : 0);
+        if (placement(a) !== placement(b)) return placement(b) - placement(a);
 
         switch (sort) {
             case 'relevance': {

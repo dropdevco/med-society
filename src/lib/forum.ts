@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { track } from './posthog';
 
 /**
  * The two forums: "Ask a Doctor" (`patients`, public) and "Med Society"
@@ -136,6 +137,7 @@ export async function setHelpful(replyId: string, on: boolean): Promise<{ error:
     const { error } = on
         ? await supabase.from('forum_helpful').insert({ reply_id: replyId })
         : await supabase.from('forum_helpful').delete().eq('reply_id', replyId);
+    if (on && !error) track('forum_helpful_marked');
     return { error: error?.message ?? null };
 }
 
@@ -179,6 +181,7 @@ export async function createThread(input: {
         .select('id')
         .single();
     if (data?.id) notify('thread', data.id as string);
+    track('forum_thread_created', { forum: input.forum, ok: !error, specialty: input.specialty, as_clinic: input.providerId !== null });
     return { id: (data?.id as string) ?? null, error: error?.message ?? null };
 }
 
@@ -200,6 +203,7 @@ export async function createReply(input: {
         .select('id')
         .single();
     if (data?.id) notify('reply', data.id as string);
+    track('forum_reply_created', { ok: !error, as_clinic: input.providerId !== null });
     return { error: error?.message ?? null };
 }
 

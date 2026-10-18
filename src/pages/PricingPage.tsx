@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/posthog';
 import { InquiryModal } from '../components/sales/InquiryModal';
 import { LogoMark } from '../components/brand/Logo';
 import {
@@ -58,9 +59,10 @@ export function PricingPage() {
     const { t, i18n } = useTranslation();
     const [modalPlan, setModalPlan] = useState<string | null>(null);
 
-    // English readers only ever see USD; the MXN line is a courtesy for
-    // Spanish-speaking clinics who budget in pesos, so it stays hidden (not
-    // deleted — the keys are unchanged) whenever the site language is English.
+    // The site language picks the product: English sells the USD plans, Spanish
+    // the MXN ones (see PAYMENT_LINKS in lib/billing.ts). The price shown has to
+    // be the price charged, so the Spanish page quotes pesos and shows the USD
+    // figure only as a note.
     const isEnglish = i18n.language.startsWith('en');
 
     // Quote the real directory size with a count query (no rows transferred).
@@ -78,10 +80,14 @@ export function PricingPage() {
     // "Get listed free" is onboarding, not a contact form: it goes to the same
     // survey-then-claim/publish flow a doctor gets at /borderhealth, so what
     // they answer builds their listing. Paid plans and add-ons are sales
-    // inquiries and keep the modal.
+    // inquiries and keep the modal. The two monthly plans are self-serve: a plan
+    // belongs to a listing, so the buyer goes to that listing's Plan tab (signing
+    // in, or claiming a listing, on the way) where the payment page opens.
     const FREE_ENTRIES = ['hero', 'free', 'closing'];
     const openForm = (plan: string) => {
+        track('pricing_cta_click', { plan });
         if (FREE_ENTRIES.includes(plan)) navigate('/borderhealth?seg=provider&by=listing');
+        else if (plan === 'promoted' || plan === 'featured') navigate(`/dashboard?tab=plan&buy=${plan}`);
         else setModalPlan(plan);
     };
     const closeForm = () => setModalPlan(null);
@@ -231,9 +237,9 @@ export function PricingPage() {
                             <PricingCard
                                 featured
                                 tier={t('pricing.promotedTier')}
-                                price="$49"
-                                period={t('pricing.perMonth')}
-                                note={isEnglish ? undefined : t('pricing.promotedMxn')}
+                                price={isEnglish ? '$49' : '$899'}
+                                period={isEnglish ? t('pricing.perMonth') : t('pricing.perMonthMxn')}
+                                note={isEnglish ? undefined : t('pricing.promotedAlt')}
                                 badge={t('pricing.promotedBadge')}
                                 features={[t('pricing.promotedF1'), t('pricing.promotedF2'), t('pricing.promotedF3'), t('pricing.promotedF4')]}
                                 ctaLabel={t('pricing.promotedCta')}
@@ -241,9 +247,9 @@ export function PricingPage() {
                             />
                             <PricingCard
                                 tier={t('pricing.featuredTier')}
-                                price="$99"
-                                period={t('pricing.perMonth')}
-                                note={isEnglish ? undefined : t('pricing.featuredMxn')}
+                                price={isEnglish ? '$99' : '$1,799'}
+                                period={isEnglish ? t('pricing.perMonth') : t('pricing.perMonthMxn')}
+                                note={isEnglish ? undefined : t('pricing.featuredAlt')}
                                 features={[t('pricing.featuredF1'), t('pricing.featuredF2'), t('pricing.featuredF3'), t('pricing.featuredF4')]}
                                 ctaLabel={t('pricing.featuredCta')}
                                 onCta={() => openForm('featured')}
