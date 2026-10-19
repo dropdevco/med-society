@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { FormsOverview, ResponseRow } from '../../lib/adminApi';
 import { Card, DailyChart, Funnel, HBars, Kpi } from './charts';
 import { SERIES, fmt, pct, type Series } from './format';
-import { QUESTIONS, SEGMENTS, SEGMENT_LABEL, SLUG_LABEL, answerLabel, flattenAnswer, pretty, questionLabel } from './labels';
+import { QUESTIONS, SEGMENTS, SEGMENT_LABEL, SLUG_LABEL, STATE_LABEL, answerLabel, flattenAnswer, pretty, questionLabel } from './labels';
 
 function sum<T>(rows: T[], f: (r: T) => number | null | undefined): number {
     return rows.reduce((s, r) => s + (f(r) ?? 0), 0);
@@ -217,6 +217,12 @@ export function ResponsesPanel({ data }: { data: FormsOverview }) {
             <div className="adm-grid3">
                 <Card title={`City · ${SEGMENT_LABEL[seg]}`}><HBars rows={data.by_city.filter((r) => r.segment === seg).map((r) => ({ label: pretty(r.city), value: r.n }))} limit={8} /></Card>
                 <Card title={`Industry · ${SEGMENT_LABEL[seg]}`}><HBars rows={data.by_industry.filter((r) => r.segment === seg).map((r) => ({ label: pretty(r.industry), value: r.n }))} limit={8} /></Card>
+                <Card title={`State · ${SEGMENT_LABEL[seg]}`} hint="optional question">
+                    <HBars rows={answerRows.filter((a) => a.q === 'state_key').map((a) => ({ label: STATE_LABEL[a.v] ?? a.v, value: a.n })).sort((a, b) => b.value - a.value)} limit={10} empty="No state answers yet (the question is new)" />
+                </Card>
+                <Card title={`Country · ${SEGMENT_LABEL[seg]}`} hint="from the state answer">
+                    <HBars rows={answerRows.filter((a) => a.q === 'state_country').map((a) => ({ label: a.v, value: a.n })).sort((a, b) => b.value - a.value)} empty="No state answers yet" />
+                </Card>
                 {seg === 'provider' && (
                     <Card title="What providers did next" hint="claim, list, or neither">
                         <HBars rows={data.outcomes.filter((r) => r.segment === 'provider').map((r) => ({ label: pretty(r.outcome), value: r.n }))} />
@@ -267,6 +273,7 @@ export function ResponsesPanel({ data }: { data: FormsOverview }) {
 
 function ResponseRowView({ r, open, onToggle }: { r: ResponseRow; open: boolean; onToggle: () => void }) {
     const entries = Object.entries(r.answers ?? {}).filter(([k]) => k !== 'utm');
+    const utm = r.answers?.utm && typeof r.answers.utm === 'object' ? Object.entries(r.answers.utm as Record<string, string>) : [];
     return (
         <>
             <tr className={`adm-click${r.session === 'test' ? ' adm-testrow' : ''}`} onClick={onToggle} tabIndex={0}
@@ -284,6 +291,7 @@ function ResponseRowView({ r, open, onToggle }: { r: ResponseRow; open: boolean;
                             {entries.map(([k, v]) => (
                                 <div key={k}><dt>{questionLabel(r.segment, k)}</dt><dd>{flattenAnswer(r.segment, k, v) || '–'}</dd></div>
                             ))}
+                            {utm.length > 0 && <div><dt>Campaign tags</dt><dd>{utm.map(([k, v]) => `${k.replace('utm_', '')}: ${v}`).join(' · ')}</dd></div>}
                             {r.outcome && <div><dt>Onboarding outcome</dt><dd>{pretty(r.outcome)}</dd></div>}
                             {r.duration_s != null && <div><dt>Time to complete</dt><dd>{Math.floor(r.duration_s / 60)}m {r.duration_s % 60}s</dd></div>}
                             {r.session === 'test' && <div><dt>Session</dt><dd>test</dd></div>}
