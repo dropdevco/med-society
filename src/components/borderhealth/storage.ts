@@ -59,12 +59,17 @@ export function saveLang(l: BhLang): void {
     try { localStorage.setItem(LANG_KEY, l); } catch { /* storage unavailable */ }
 }
 
-/** `?lang=` wins, then the last choice on this device, then the phone's language, then Spanish. */
-export function pickLang(search: string): BhLang {
+/**
+ * `?lang=` wins, then the last choice on this device, then the phone's language, then Spanish.
+ * `spanishFirst` (the /research study page) skips the phone's language: the study is
+ * Spanish-first, so a bare link opens in Spanish even on an English phone.
+ */
+export function pickLang(search: string, spanishFirst = false): BhLang {
     const p = (new URLSearchParams(search).get('lang') || '').toLowerCase();
     if (p === 'en' || p === 'es') return p;
     const s = loadLang();
     if (s) return s;
+    if (spanishFirst) return 'es';
     try { if (/^en/i.test(navigator.language || '')) return 'en'; } catch { /* no navigator */ }
     return 'es';
 }
