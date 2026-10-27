@@ -127,6 +127,10 @@ export interface LeadBody {
     follow_up: boolean;
     follow_up_key?: string;
     variant?: 'research' | 'medsociety';
+    /** Client-generated uuid; also stored on bh_responses.submission_key. */
+    submission_key: string;
+    /** Same answers object inserted into bh_responses.answers (for GHL custom fields). */
+    answers: Record<string, unknown>;
 }
 
 /**
