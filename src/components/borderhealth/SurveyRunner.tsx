@@ -330,6 +330,8 @@ export function SurveyRunner({ lang, useUrlSeg, onSubmitted, research = false }:
                 phone: phoneOrWa, whatsapp: str(a, 'c_whatsapp'),
                 follow_up_key: str(a, 'follow_up') || undefined,
                 industry, city: [city, answers.state].filter(Boolean).join(', ') || null, follow_up: followed,
+                submission_key: submissionKey,
+                answers,
             });
         }
 

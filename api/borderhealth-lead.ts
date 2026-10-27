@@ -2,12 +2,12 @@
  * POST /api/borderhealth-lead
  *
  * Puts the person who just finished a form into the MedSociety LayerOne (GHL)
- * sub-account as a contact, tagged by audience, with a note saying what they
- * are and where the full answers live.
+ * sub-account as a contact, tagged by audience, with selected Border Health
+ * Contact Custom Fields and a note pointing at the full answers in Supabase.
  *
- * The full answers stay in Supabase (bh_responses). GHL only gets the lead:
- * name, org, email, WhatsApp, industry, city, follow-up yes/no. A fifteen
- * question survey does not belong in contact custom fields.
+ * The full answers stay in Supabase (bh_responses). GHL gets native contact
+ * fields, tags, and the 43 outreach-relevant custom fields (universal + the
+ * matching segment block). Research-only answers stay in Supabase only.
  *
  * This is a function rather than a fetch from the page because the page is
  * public and already carries the Supabase anon key. The PIT lives here, in
@@ -28,6 +28,9 @@
  *                            (HealthAtlas vault, GHL_PIT_MEDSOCIETY).
  *   GHL_LOCATION_MEDSOCIETY  the sub-account's location id. Defaults to the
  *                            MedSociety location below.
+ *
+ * GHL Contact Custom Field IDs are hardcoded below (from GET
+ * /locations/{id}/customFields?model=contact). They are not secrets.
  *
  * GHL API versions are per-endpoint and not interchangeable:
  *   contacts/upsert, contacts/{id}/notes -> 2021-07-28
@@ -65,6 +68,66 @@ function rateLimited(ip: string): boolean {
 
 const str = (v: unknown, n: number): string => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
 
+/** Verified MedSociety location Contact Custom Field ids (not secrets). */
+const GHL = {
+    universal: {
+        segment: 'TFCiyaz63Z64EVhFdw9N',
+        language: '9SBpVIPJG3sJBzV2AIl9',
+        leadSource: 'YoDuec9qIPAHYuF8zi9U',
+        whatsapp: 'jEi4QIYd2GV1rpTjdeac',
+        followUpPreference: 'cPvyK7ZrLH8xKvlfflou',
+        formVariant: 'baXFVU3BB7T7jv5QLt8y',
+        submissionKey: 'JgMJzEhKQSUeqTEKcboj',
+        lastSubmissionDate: 'xZBvro0vIGHGXOBdSNJO',
+    },
+    employer: {
+        industry: '5NL0h52GbDd4xNrf4e9w',
+        size: '0RkqV4HKrJAhWfv3VGCE',
+        employeeLocation: '4krZegTg6ZGShB6aTURC',
+        contactRole: 'dQEQdsu2GjK62qp2BhIp',
+        healthCoverage: 'GiP1zHDqTpvB6gQPgFHd',
+        insurerPlan: '9njRsudBvGvoMI6axyMk',
+        crossBorderCare: 'p6GGHvP9TmVwmQhcipRD',
+        challenges: 'GxGbhMt5n3TyopaOLEMW',
+        primaryChallenge: 'SDKqsSdXWNBo9wbbmoAi',
+        priority: 'PK8FiJvZZWzdAY9EUbSx',
+    },
+    employee: {
+        industry: 'XqyPgCrI3nYxYOzlKdpq',
+        workLocation: 'pqAH11DBOZVOyukgymkv',
+        residence: '9PpEMJPAgYCLiRsjjEwf',
+        healthCoverage: 'nRlEc1y1E1L7lGpKUWzn',
+        challenges: 'T2MVMgougTpMudZr2rMT',
+        primaryChallenge: 'BGCifzbWaFVSXE6uC9iF',
+        crossBorderCareUsage: 'bl8JbFYfIyEshlyHhK45',
+        improvementPriority: 'Npvqe0o3FZ2QcB0c4IHc',
+    },
+    provider: {
+        practiceType: 'mwYMjg4kprTVOXskfdRC',
+        specialty: '82F6b0evLmPVEMOOfrlR',
+        location: 'XrtqODHTiJOMmZGqHf1I',
+        practiceSize: 'Lc9ov7VHDvtwSivCCY7I',
+        crossBorderPatientShare: 'vdzjfxJX5mwCrOSDnhyV',
+        onlinePresence: '6hTf0PyWDMhOqpKA7se6',
+        website: 'pbIBn4NNWZ0Rk5b3CCiR',
+        bookingMethods: 'O1bHe4VZMkVtjFhTVl4U',
+        englishAvailability: '6OXw6yidX3WczV41b0XR',
+        virtualVisits: '5o1LPiViR5guCqvVHqUE',
+        paymentMethods: 'zYEO8880t5EYa1EM79LA',
+        acceptedInsurers: 'o0UyjpLPhzoFV9vtCi0L',
+        onsiteServices: 'XpMCf6bQAEP3NrbSa7Te',
+        primaryProcessChallenge: 'JSlT0keTpWKaWn62D4a6',
+        challenges: '1tIPg8ZjTZFVhwqyHa0K',
+        primaryChallenge: 'GOJ6I7dnWbOPyyh3M1v2',
+        referralInterest: 'RDi7pQSqKzMOMI09Bbrb',
+    },
+} as const;
+
+interface GhlCustomField {
+    id: string;
+    field_value: string | string[];
+}
+
 interface GhlResult {
     ok: boolean;
     status: number;
@@ -82,6 +145,103 @@ interface GhlContactPayload {
     companyName?: string;
     source: string;
     tags: string[];
+    customFields?: GhlCustomField[];
+}
+
+function ansStr(answers: Record<string, unknown>, key: string, n: number): string {
+    return str(answers[key], n);
+}
+
+function ansKey(answers: Record<string, unknown>, key: string): string {
+    return str(answers[key], 80);
+}
+
+function ansMulti(answers: Record<string, unknown>, key: string): string[] | null {
+    const v = answers[key];
+    if (!Array.isArray(v) || v.length === 0) return null;
+    const keys = v.map((x) => String(x).trim()).filter(Boolean);
+    return keys.length ? keys : null;
+}
+
+function pushField(out: GhlCustomField[], id: string, value: unknown): void {
+    if (value == null) return;
+    if (Array.isArray(value)) {
+        if (value.length === 0) return;
+        out.push({ id, field_value: value.map((x) => String(x)) });
+        return;
+    }
+    const s = String(value).trim();
+    if (!s) return;
+    out.push({ id, field_value: s });
+}
+
+function buildCustomFields(opts: {
+    segment: string;
+    lang: string;
+    ref: string;
+    whatsapp: string;
+    followKey: string;
+    variant: string;
+    submissionKey: string;
+    answers: Record<string, unknown>;
+}): GhlCustomField[] {
+    const { segment, lang, ref, whatsapp, followKey, variant, submissionKey, answers } = opts;
+    const out: GhlCustomField[] = [];
+    const U = GHL.universal;
+
+    pushField(out, U.segment, segment);
+    pushField(out, U.language, lang);
+    pushField(out, U.leadSource, ref);
+    pushField(out, U.whatsapp, whatsapp || ansStr(answers, 'contact_whatsapp', 40));
+    pushField(out, U.followUpPreference, followKey || ansKey(answers, 'follow_up_key'));
+    pushField(out, U.formVariant, variant || ansKey(answers, 'variant') || 'medsociety');
+    pushField(out, U.submissionKey, submissionKey);
+    pushField(out, U.lastSubmissionDate, new Date().toISOString().slice(0, 10));
+
+    if (segment === 'employer') {
+        const E = GHL.employer;
+        pushField(out, E.industry, ansKey(answers, 'industry_key'));
+        pushField(out, E.size, ansKey(answers, 'size_key'));
+        pushField(out, E.employeeLocation, ansKey(answers, 'where_key'));
+        pushField(out, E.contactRole, ansKey(answers, 'role_key'));
+        pushField(out, E.healthCoverage, ansMulti(answers, 'coverage_key'));
+        pushField(out, E.insurerPlan, ansStr(answers, 'insurers', 600));
+        pushField(out, E.crossBorderCare, ansKey(answers, 'crossing_key'));
+        pushField(out, E.challenges, ansMulti(answers, 'difficulties_key'));
+        pushField(out, E.primaryChallenge, ansKey(answers, 'difficulties_top_key'));
+        pushField(out, E.priority, ansStr(answers, 'change', 600));
+    } else if (segment === 'employee') {
+        const E = GHL.employee;
+        pushField(out, E.industry, ansKey(answers, 'industry_key'));
+        pushField(out, E.workLocation, ansKey(answers, 'work_where_key'));
+        pushField(out, E.residence, ansKey(answers, 'live_where_key'));
+        pushField(out, E.healthCoverage, ansMulti(answers, 'coverage_key'));
+        pushField(out, E.challenges, ansMulti(answers, 'last_hardest_key'));
+        pushField(out, E.primaryChallenge, ansKey(answers, 'last_hardest_top_key'));
+        pushField(out, E.crossBorderCareUsage, ansKey(answers, 'crossed_key'));
+        pushField(out, E.improvementPriority, ansStr(answers, 'change', 600));
+    } else if (segment === 'provider') {
+        const P = GHL.provider;
+        pushField(out, P.practiceType, ansKey(answers, 'practice_type_key'));
+        pushField(out, P.specialty, ansStr(answers, 'specialty', 200));
+        pushField(out, P.location, ansKey(answers, 'city_key'));
+        pushField(out, P.practiceSize, ansKey(answers, 'size_key'));
+        pushField(out, P.crossBorderPatientShare, ansKey(answers, 'us_patients_key'));
+        pushField(out, P.onlinePresence, ansMulti(answers, 'presence_key'));
+        pushField(out, P.website, ansStr(answers, 'website', 300));
+        pushField(out, P.bookingMethods, ansMulti(answers, 'booking_key'));
+        pushField(out, P.englishAvailability, ansKey(answers, 'english_key'));
+        pushField(out, P.virtualVisits, ansKey(answers, 'virtual_key'));
+        pushField(out, P.paymentMethods, ansMulti(answers, 'payments_key'));
+        pushField(out, P.acceptedInsurers, ansStr(answers, 'insurers', 600));
+        pushField(out, P.onsiteServices, ansMulti(answers, 'imaging_key'));
+        pushField(out, P.primaryProcessChallenge, ansKey(answers, 'process_hardest_key'));
+        pushField(out, P.challenges, ansMulti(answers, 'bottlenecks_key'));
+        pushField(out, P.primaryChallenge, ansKey(answers, 'bottlenecks_top_key'));
+        pushField(out, P.referralInterest, ansKey(answers, 'referrals_key'));
+    }
+
+    return out;
 }
 
 async function ghl(path: string, pit: string, payload: GhlContactPayload | { body: string }): Promise<GhlResult> {
@@ -105,6 +265,27 @@ async function ghl(path: string, pit: string, payload: GhlContactPayload | { bod
     return { ok: r.ok, status: r.status, json, text };
 }
 
+async function readBody(req: Req): Promise<Record<string, unknown>> {
+    let body = req.body;
+    if (typeof body === 'string') {
+        try {
+            body = JSON.parse(body);
+        } catch {
+            body = {};
+        }
+    }
+    if (body === undefined) {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(c as Buffer);
+        try {
+            body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+        } catch {
+            body = {};
+        }
+    }
+    return (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+}
+
 export default async function handler(req: Req, res: Res) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
@@ -116,15 +297,7 @@ export default async function handler(req: Req, res: Res) {
     const ip = (forwardedForValue || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
     if (rateLimited(ip)) return res.status(429).json({ ok: false, error: 'too_many' });
 
-    let body = req.body;
-    if (typeof body === 'string') {
-        try {
-            body = JSON.parse(body);
-        } catch {
-            body = {};
-        }
-    }
-    const b = (body || {}) as Record<string, unknown>;
+    const b = await readBody(req);
 
     const segment = str(b.segment, 20);
     const email = str(b.email, 160).toLowerCase();
@@ -140,6 +313,11 @@ export default async function handler(req: Req, res: Res) {
     const followKey = str(b.follow_up_key, 20);
     const whatsapp = str(b.whatsapp, 40);
     const variant = str(b.variant, 20) === 'research' ? 'research' : 'medsociety';
+    const submissionKey = str(b.submission_key, 40);
+    const answers =
+        b.answers && typeof b.answers === 'object' && !Array.isArray(b.answers)
+            ? (b.answers as Record<string, unknown>)
+            : {};
 
     if (!SEGMENTS.has(segment)) return res.status(400).json({ ok: false, error: 'bad_segment' });
     if (!email && !phone) return res.status(400).json({ ok: false, error: 'no_reach' });
@@ -161,6 +339,17 @@ export default async function handler(req: Req, res: Res) {
                   followKey === 'info_first' ? ['borderhealth-info-first'] : []
               ).concat([`borderhealth-v-${variant}`]);
 
+    const customFields = buildCustomFields({
+        segment,
+        lang,
+        ref,
+        whatsapp,
+        followKey,
+        variant,
+        submissionKey,
+        answers,
+    });
+
     const parts = name.split(' ');
     const contact: GhlContactPayload = {
         locationId,
@@ -172,6 +361,7 @@ export default async function handler(req: Req, res: Res) {
         companyName: org || undefined,
         source: variant === 'research' ? 'borderhealth research (MLCIC)' : 'medsociety.one/borderhealth',
         tags,
+        ...(customFields.length ? { customFields } : {}),
     };
 
     try {
