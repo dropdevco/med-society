@@ -1,4 +1,4 @@
-import { FORMS } from '../borderhealth/forms';
+import { FORMS, STATES } from '../borderhealth/forms';
 import type { BhSegment } from '../borderhealth/types';
 
 export const SEGMENTS: BhSegment[] = ['employer', 'employee', 'provider'];
@@ -15,6 +15,11 @@ export const REGION_LABEL: Record<string, string> = {
     'elpaso-juarez': 'El Paso – Juárez',
     'sandiego-tijuana': 'San Diego – Tijuana',
 };
+
+/** state_key (MX-CHH, US-TX, other_country) -> "Chihuahua, Mexico". */
+export const STATE_LABEL: Record<string, string> = Object.fromEntries(
+    STATES.map((s) => [s.v, s.v.startsWith('MX-') ? `${s.en}, Mexico` : s.v.startsWith('US-') ? `${s.en}, US` : s.en]),
+);
 
 export function regionName(r: string): string {
     return REGION_LABEL[r] ?? r;
