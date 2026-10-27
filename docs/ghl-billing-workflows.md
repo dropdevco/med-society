@@ -10,7 +10,7 @@ is nothing to keep in step per product and nothing in the payload can grant a pl
 
 | | |
 |---|---|
-| Endpoint | `POST https://medsociety.one/api/billing` |
+| Endpoint | `POST https://www.medsociety.one/api/billing` (use www: the bare domain redirects, which can drop the secret header) |
 | Header | `x-webhook-secret: <BILLING_WEBHOOK_SECRET>` |
 | Content-Type | `application/json` |
 | Custom data | `event` = `sync`, `contact_id` = the contact's id (`{{contact.id}}`), `email` = `{{contact.email}}` |
@@ -25,7 +25,7 @@ Prompt for GHL's AI workflow builder:
 > Trigger: Payment Received, for any product (no product filter).
 > Actions, in order:
 > 1. Wait 1 minute.
-> 2. Webhook. Method POST. URL https://medsociety.one/api/billing.
+> 2. Webhook. Method POST. URL https://www.medsociety.one/api/billing.
 >    Headers: `x-webhook-secret` = `<BILLING_WEBHOOK_SECRET>`, `Content-Type` = `application/json`.
 >    Custom data (key = value): `event` = `sync`, `contact_id` = the contact's ID (merge field Contact ID), `email` = the contact's email (merge field Contact Email).
 > 3. Wait 15 minutes.
@@ -41,7 +41,7 @@ applied, so sending twice is harmless.
 > Create a workflow named "MedSociety Plan - tag changed".
 > Triggers (any of): Contact Tag, tag added, tag `tier-promoted`; Contact Tag, tag added, tag `tier-featured`;
 > Contact Tag, tag removed, tag `tier-promoted`; Contact Tag, tag removed, tag `tier-featured`.
-> Actions: Webhook. Method POST. URL https://medsociety.one/api/billing.
+> Actions: Webhook. Method POST. URL https://www.medsociety.one/api/billing.
 > Headers: `x-webhook-secret` = `<BILLING_WEBHOOK_SECRET>`, `Content-Type` = `application/json`.
 > Custom data (key = value): `event` = `sync`, `contact_id` = Contact ID, `email` = Contact Email.
 > Publish it.

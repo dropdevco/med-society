@@ -93,7 +93,7 @@ export function PricingPage() {
     const closeForm = () => setModalPlan(null);
 
     return (
-        <div style={{ paddingTop: 68 }}>
+        <main id="main-content" style={{ paddingTop: 68 }}>
             {/* ══ Hero ══════════════════════════════════════════════
                 Asymmetric editorial split. The previous version tracked the
                 cursor with a radial gold glow; it is replaced by a static
@@ -230,7 +230,7 @@ export function PricingPage() {
                                 tier={t('pricing.basicTier')}
                                 price="$0"
                                 period={t('pricing.basicPeriod')}
-                                features={[t('pricing.basicF1'), t('pricing.basicF2'), t('pricing.basicF3'), t('pricing.basicF4')]}
+                                features={[t('pricing.basicF1'), t('pricing.basicF2'), t('pricing.basicF3'), t('pricing.basicF4'), t('pricing.basicF5')]}
                                 ctaLabel={t('pricing.basicCta')}
                                 onCta={() => openForm('free')}
                             />
@@ -440,7 +440,7 @@ export function PricingPage() {
                     }
                 }
             `}</style>
-        </div>
+        </main>
     );
 }
 

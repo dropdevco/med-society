@@ -204,8 +204,8 @@ export function ForumThreadPage({ forum }: { forum: ForumKind }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
     return (
-        <div className="ms-page forum-page">
+        <main className="ms-page forum-page" id="main-content">
             <div className="forum-wrap is-narrow">{children}</div>
-        </div>
+        </main>
     );
 }

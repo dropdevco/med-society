@@ -392,6 +392,7 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
                                     id={`${uid}-name`}
                                     className="inq-input"
                                     type="text"
+                                    name="name"
                                     autoComplete="name"
                                     maxLength={120}
                                     placeholder={t('inquiry.namePlaceholder')}
@@ -414,6 +415,7 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
                                     id={`${uid}-contact`}
                                     className="inq-input"
                                     type="text"
+                                    name="contact"
                                     inputMode={kind === 'phone' ? 'tel' : 'text'}
                                     autoComplete="email tel"
                                     autoCapitalize="none"

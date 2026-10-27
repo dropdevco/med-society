@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useNoIndex } from '../hooks/useNoIndex';
-import { fetchForms, fetchSite, isAdmin, type FormsOverview, type SiteOverview } from '../lib/adminApi';
+import { fetchFeedback, fetchForms, fetchSite, isAdmin, type FeedbackOverview, type FormsOverview, type SiteOverview } from '../lib/adminApi';
 import { Card, DailyChart, HBars, Kpi, SplitBar } from '../components/admin/charts';
 import { SERIES, fmt, pct, type Series } from '../components/admin/format';
 import { TrafficPanel, ResponsesPanel } from '../components/admin/FormsPanel';
 import { DirectoryPanel, AccountsPanel } from '../components/admin/SitePanel';
 import { ClinicLookup } from '../components/admin/ClinicLookup';
 import { BillingPanel } from '../components/admin/BillingPanel';
+import { FeedbackPanel } from '../components/admin/FeedbackPanel';
 import { SEGMENTS, SEGMENT_LABEL, regionName } from '../components/admin/labels';
 import '../components/admin/admin.css';
 
@@ -18,6 +19,7 @@ const TABS = [
     ['responses', 'Survey responses'],
     ['directory', 'Directory'],
     ['accounts', 'Accounts & leads'],
+    ['feedback', 'Feedback'],
     ['billing', 'Billing'],
     ['clinic', 'Clinic lookup'],
 ] as const;
@@ -25,7 +27,7 @@ type Tab = (typeof TABS)[number][0];
 
 function NotFound() {
     return (
-        <main className="adm-gate">
+        <main className="adm-gate" id="main-content">
             <h1>Page not found</h1>
             <p>That page doesn’t exist.</p>
             <Link to="/">Back to MedSociety</Link>
@@ -47,6 +49,8 @@ export function AdminPage() {
     const [site, setSite] = useState<SiteOverview | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    // Null until loaded, and stays null if migration 0030 has not been applied: the tab then says so.
+    const [feedback, setFeedback] = useState<FeedbackOverview | null>(null);
 
     const userId = user?.id ?? null;
     useEffect(() => {
@@ -62,21 +66,22 @@ export function AdminPage() {
             .finally(() => setLoading(false));
     }, []);
     const fetchAll = () => Promise.all([fetchForms(), fetchSite()]);
-    const refresh = () => { setLoading(true); apply(fetchAll()); };
+    const loadFeedback = useCallback(() => { fetchFeedback().then(setFeedback).catch(() => setFeedback(null)); }, []);
+    const refresh = () => { setLoading(true); apply(fetchAll()); loadFeedback(); };
 
     useEffect(() => {
-        if (allowed) apply(Promise.all([fetchForms(), fetchSite()]));
-    }, [allowed, apply]);
+        if (allowed) { apply(Promise.all([fetchForms(), fetchSite()])); loadFeedback(); }
+    }, [allowed, apply, loadFeedback]);
 
-    if (sessionLoading) return <main className="adm-gate"><p>Loading…</p></main>;
+    if (sessionLoading) return <main className="adm-gate" id="main-content"><p>Loading…</p></main>;
     if (!user) return <Navigate to="/login?next=/admin" replace />;
-    if (allowed === null) return <main className="adm-gate"><p>Loading…</p></main>;
+    if (allowed === null) return <main className="adm-gate" id="main-content"><p>Loading…</p></main>;
     if (!allowed) return <NotFound />;
 
     const tab = (TABS.find(([k]) => k === params.get('tab'))?.[0] ?? 'overview') as Tab;
 
     return (
-        <main className="adm">
+        <main className="adm" id="main-content">
             <header className="adm-top">
                 <div>
                     <h1>MedSociety analytics</h1>
@@ -88,25 +93,28 @@ export function AdminPage() {
             <nav className="adm-tabs" aria-label="Dashboard sections">
                 {TABS.map(([k, l]) => (
                     <button key={k} type="button" className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined}
-                        onClick={() => setParams(k === 'overview' ? {} : { tab: k }, { replace: true })}>{l}</button>
+                        onClick={() => setParams(k === 'overview' ? {} : { tab: k }, { replace: true })}>
+                        {l}{k === 'feedback' && feedback && feedback.counts.needs_attention > 0 ? ` (${feedback.counts.needs_attention})` : ''}
+                    </button>
                 ))}
             </nav>
 
             {error && <p className="adm-err" role="alert">Could not load data: {error}</p>}
-            {!error && tab !== 'clinic' && tab !== 'billing' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
+            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
 
-            {forms && site && tab === 'overview' && <Overview forms={forms} site={site} go={(t) => setParams({ tab: t }, { replace: true })} />}
+            {forms && site && tab === 'overview' && <Overview forms={forms} site={site} feedback={feedback} go={(t) => setParams({ tab: t }, { replace: true })} />}
             {forms && tab === 'traffic' && <TrafficPanel data={forms} />}
             {forms && tab === 'responses' && <ResponsesPanel data={forms} />}
             {site && tab === 'directory' && <DirectoryPanel site={site} />}
             {site && tab === 'accounts' && <AccountsPanel site={site} />}
+            {tab === 'feedback' && <FeedbackPanel data={feedback} onChanged={loadFeedback} />}
             {tab === 'billing' && <BillingPanel />}
             {tab === 'clinic' && <ClinicLookup />}
         </main>
     );
 }
 
-function Overview({ forms, site, go }: { forms: FormsOverview; site: SiteOverview; go: (t: Tab) => void }) {
+function Overview({ forms, site, feedback, go }: { forms: FormsOverview; site: SiteOverview; feedback: FeedbackOverview | null; go: (t: Tab) => void }) {
     const live = site.providers.completeness.live ?? 0;
     const liveBy = (r: string) => site.providers.by_region.filter((x) => x.region === r && x.status === 'live').reduce((s, x) => s + x.n, 0);
     const regs = [...new Set(site.providers.by_region.map((r) => r.region))].filter((r) => r !== '(none)').sort();
@@ -127,6 +135,7 @@ function Overview({ forms, site, go }: { forms: FormsOverview; site: SiteOvervie
     if (site.providers.flags.pending_review > 0) attention.push(`${site.providers.flags.pending_review} listing(s) waiting for review`);
     const sendErrors = forms.summary.reduce((s, r) => s + r.visits_with_send_error, 0);
     if (sendErrors > 0) attention.push(`${sendErrors} form visit(s) hit a send error`);
+    if (feedback && feedback.counts.needs_attention > 0) attention.push(`${feedback.counts.needs_attention} site bug report(s) confirmed by evidence`);
     if (site.community.leads > 0 && site.community.leads_by_status.some((l) => l.status === 'new')) attention.push('New sales leads are waiting');
 
     return (

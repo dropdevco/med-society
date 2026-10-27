@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { useGoogleReviews } from '../../hooks/useGoogleReviews';
@@ -23,8 +23,9 @@ import {
 } from '../icons/Icons';
 import { SOCIAL_ICONS, SOCIAL_ORDER } from '../icons/socialMap';
 import { placeLabel } from '../../utils/place';
-import { contactMethodOf, providerProps } from '../../utils/analytics';
+import { contactMethodOf, providerProps, trackProviderView } from '../../utils/analytics';
 import { track } from '../../lib/posthog';
+import { useSectionViews } from '../../hooks/useSectionViews';
 import { languageName } from '../../utils/languages';
 
 /** The map is the heaviest thing on a provider profile — never pay for it before it scrolls into view. */
@@ -49,6 +50,24 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
     );
     const { url: portrait } = usePortraitPhoto(provider);
 
+    // One `provider_viewed` per profile opened. This body is shared by the page
+    // and the modal, so counting here covers both. The ref keeps StrictMode's
+    // double effect, and re-renders of the same provider, from counting twice.
+    const location = useLocation();
+    const viewed = useRef('');
+    useEffect(() => {
+        if (viewed.current === provider.id) return;
+        viewed.current = provider.id;
+        const modal = Boolean((location.state as { backgroundLocation?: unknown } | null)?.backgroundLocation);
+        trackProviderView(provider, modal ? 'modal' : 'page');
+        // Only a different provider is a new view; `location` and the rest of
+        // `provider` changing underneath the same profile is not.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [provider.id]);
+
+    // Which parts of the profile were reached; see the data-section marks below.
+    useSectionViews(provider);
+
     const rating = ratingOf(provider);
     const specialtyLabel = (s: string) => t(`specialties.${s}`, { defaultValue: s });
     const accent = provider.country === 'MX' ? 'var(--mx)' : 'var(--us)';
@@ -71,7 +90,7 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
 
     return (
         <>
-                <div className="ms-provider-layout" onClickCapture={trackContact}>
+                <div className="ms-provider-layout" data-provider-id={provider.id} onClickCapture={trackContact}>
                     {/* ── Main column ── */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', minWidth: 0 }}>
                         {/* Header */}
@@ -157,14 +176,21 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             muted={!provider.languagesConfirmed || provider.languages.length === 0}
                         />
 
-                        <ClinicPhotos placeId={provider.googlePlaceId} portrait={portrait} galleryUrls={[...ownerPhotos, ...(provider.galleryUrls ?? [])]} />
+                        <div data-section="photos">
+                            <ClinicPhotos placeId={provider.googlePlaceId} portrait={portrait} galleryUrls={[...ownerPhotos, ...(provider.galleryUrls ?? [])]} />
+                        </div>
 
-                        <InsuranceList insurances={provider.insurances ?? []} />
+                        <div data-section="insurance">
+                            <InsuranceList insurances={provider.insurances ?? []} />
+                        </div>
 
                         {/* Messaging is the page's main action, so it sits in the wide column. */}
-                        <InquiryForm provider={provider} />
+                        <div data-section="inquiry">
+                            <InquiryForm provider={provider} />
+                        </div>
 
                         {/* Latest first, whatever the rating: a sample picked by stars would flatter the clinic. */}
+                        <div data-section="reviews" style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem' }}>
                         <ReviewCarousel
                             reviews={storedReviews}
                             loading={storedLoading}
@@ -184,6 +210,7 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             loading={reviewsLoading}
                             note={t('reviews.sourceGoogle')}
                         />
+                        </div>
 
                         {FORUMS_LISTED && <DoctorAnswers providerId={provider.id} />}
 
@@ -206,6 +233,7 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                     {/* ── Sidebar ── */}
                     <aside className="ms-provider-sidebar">
                         <div
+                            data-section="contact"
                             style={{
                                 background: 'var(--navy-800)', border: '1px solid var(--border)',
                                 borderRadius: 'var(--radius)', padding: '1.25rem',
@@ -283,18 +311,23 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             <SocialLinks socials={provider.socials} name={provider.name} />
 
                             {(provider.priceFromMxn != null || (provider.services?.length ?? 0) > 0) && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', borderTop: '1px solid var(--border)', paddingTop: '0.9rem' }}>
+                                <div data-section="services" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', borderTop: '1px solid var(--border)', paddingTop: '0.9rem' }}>
                                     {provider.priceFromMxn != null && (
                                         <p style={{ fontSize: '0.9rem', margin: 0 }}>
                                             <span style={{ color: 'var(--gray-400)' }}>{t('providerPage.pricesFrom')} </span>
-                                            <strong style={{ color: 'var(--gold)' }}>{formatPrice(provider.priceFromMxn, i18n.language)}</strong>
+                                            <strong style={{ color: 'var(--gold)' }}>
+                                                {/* Machine-readable amount (always MXN as stored); the text is the localised display. */}
+                                                <data value={provider.priceFromMxn} data-currency="MXN" data-price-from="true">
+                                                    {formatPrice(provider.priceFromMxn, i18n.language)}
+                                                </data>
+                                            </strong>
                                         </p>
                                     )}
                                     <ServiceList services={provider.services ?? []} />
                                 </div>
                             )}
 
-                            <div style={{ height: 200, borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                            <div data-section="map" style={{ height: 200, borderRadius: 'var(--radius)', overflow: 'hidden' }}>
                                 {hasCoords ? (
                                     <Suspense fallback={<MapPlaceholder />}>
                                         <ProviderMap

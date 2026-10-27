@@ -10,7 +10,11 @@
     "languageGroup": "Idioma",
     "listYourClinic": "Registra tu clínica",
     "signIn": "Iniciar sesión",
-    "myClinic": "Mi clínica"
+    "myClinic": "Mi clínica",
+    "primaryNav": "Principal",
+    "skipToContent": "Saltar al contenido principal",
+    "resultsHeading": "Resultados de búsqueda de proveedores",
+    "resultsRegion": "Resultados de búsqueda"
   },
   "search": {
     "placeholder": "Busca médicos, especialidades, servicios o código postal",
@@ -271,7 +275,7 @@
     }
   },
   "discover": {
-    "heroTitle": "Atención médica de confianza en ambos lados de la frontera",
+    "heroTitle": "Atención médica de confianza en ambos lados de la frontera",
     "heroSubtitle": "Compara calificaciones, precios y cédulas antes de cruzar, en español o inglés.",
     "scrollBack": "Ver anteriores",
     "scrollOn": "Ver más",
@@ -314,13 +318,13 @@
     "promotedF1": "Todo lo de Básico",
     "promotedF2": "Pin promovido en el mapa y prioridad en las búsquedas",
     "promotedF3": "Incluido en el boletín semanal para pacientes",
-    "promotedF4": "Reporte mensual de vistas y contactos",
+    "promotedF4": "Reporte mensual: vistas, contactos y de dónde llegan tus visitantes",
     "promotedCta": "Quiero promoverme",
     "featuredTier": "Destacado",
     "featuredAlt": "aprox. $99 USD",
     "featuredF1": "Todo lo de Promovido",
     "featuredF2": "Primer lugar en tu categoría",
-    "featuredF3": "Panel de analíticas completo",
+    "featuredF3": "Panel de analíticas completo, resumen semanal y exportación CSV",
     "featuredF4": "Auditoría trimestral de SEO y visibilidad en IA, más soporte prioritario",
     "featuredCta": "Quiero ser destacado",
     "terms": "Sin cuota de instalación, sin contrato, cancela cuando quieras.",
@@ -359,7 +363,8 @@
         "priceMxn": "aprox. $5,100 MXN",
         "body": "Dónde apareces en buscadores, mapas y asistentes de IA, cómo te comparas con las clínicas cerca de ti, y qué conviene arreglar primero. Incluida cada trimestre con Destacado."
       }
-    }
+    },
+    "basicF5": "Un correo mensual con cuántas personas vieron tu perfil"
   },
   "account": {
     "communityBody": "Haz tu pregunta gratis y recibe respuestas de doctores y clínicas verificados de El Paso – Ciudad Juárez y San Diego – Tijuana.",
@@ -404,6 +409,7 @@
     "findYourClinic": "Buscar mi clínica",
     "tab": {
       "overview": "Resumen",
+      "insights": "Estadísticas",
       "profile": "Perfil",
       "photos": "Fotos",
       "plan": "Plan"
@@ -411,7 +417,7 @@
     "statViews": "Vistas al perfil, últimos 30 días",
     "statContacts": "Contactos, últimos 30 días",
     "statRating": "Calificación",
-    "statsDisclaimer": "Las vistas y los contactos son estimaciones, modeladas a partir de la demanda de búsqueda de tu especialidad y tu zona — no es tráfico medido. Las vamos a reemplazar por cifras reales en cuanto el seguimiento esté activo.",
+    "statsDisclaimer": "Medido con visitas reales a tu perfil.",
     "gapTitle": "Te están encontrando y se están yendo",
     "gapBody": "Estimamos que alrededor de {{views}} personas vieron este perfil el mes pasado, y ninguna tuvo un botón de contacto que presionar. Un perfil promovido lo incluye.",
     "fieldName": "Nombre de la clínica o del profesional",
@@ -747,6 +753,150 @@
       "gateClaim": "Busca y reclama tu perfil",
       "gateSignIn": "¿Ya estás verificado? Inicia sesión",
       "gatePatients": "¿Buscas respuestas como paciente? Pregunta al Doctor"
+    }
+  },
+  "analytics": {
+    "loadError": "No pudimos cargar tus estadísticas en este momento. Inténtalo de nuevo en un rato.",
+    "period": "Últimos 30 días",
+    "collectingTitle": "Estamos juntando tus números",
+    "collectingBody": "Tus estadísticas aparecen aquí cuando tu perfil haya tenido suficientes visitas para que signifiquen algo. Empezamos a contar el {{date}}. Preferimos no mostrarte nada a mostrarte un número que es sobre todo ruido.",
+    "collectingBodyNoDate": "Tus estadísticas aparecen aquí cuando tu perfil haya tenido suficientes visitas para que signifiquen algo. Preferimos no mostrarte nada a mostrarte un número que es sobre todo ruido.",
+    "views": "Vistas al perfil",
+    "visitors": "Visitantes únicos",
+    "contacts": "Contactos",
+    "inquiries": "Consultas de pacientes",
+    "up": "▲ {{pct}}% frente a los 30 días anteriores",
+    "down": "▼ {{pct}}% frente a los 30 días anteriores",
+    "same": "Igual que los 30 días anteriores",
+    "summaryReal": "Medido con visitas reales a tu perfil, últimos 30 días.",
+    "summaryBasic": "Medido con visitas reales a tu perfil, últimos 30 días. Los contactos son parte del plan Promoted.",
+    "summaryCollecting": "Todavía juntamos visitas suficientes para mostrar cifras reales.",
+    "seeInsights": "Ver tus estadísticas",
+    "contactsByMethod": "Cómo te contactaron",
+    "noContactsYet": "Aún no hay contactos en este periodo.",
+    "sources": "De dónde llegaron tus visitantes",
+    "method": {
+      "phone": "Llamadas",
+      "whatsapp": "WhatsApp",
+      "email": "Correo",
+      "website": "Visitas a tu sitio",
+      "directions": "Cómo llegar",
+      "social": "Redes sociales",
+      "other": "Otros"
+    },
+    "channel": {
+      "direct": "Directo o favoritos",
+      "search": "Buscadores",
+      "ai": "Asistentes de IA",
+      "social": "Redes sociales",
+      "whatsapp": "Enlaces por WhatsApp",
+      "email": "Correo y newsletter",
+      "paid": "Anuncios",
+      "referral": "Otros sitios web",
+      "internal": "Directo o favoritos",
+      "unknown": "Otros"
+    },
+    "unknown": "Desconocido",
+    "planLiftTitle": "Desde el {{date}}, cuando empezó tu plan",
+    "planLiftBody": "{{after}} vistas al perfil por día, frente a {{before}} por día en las dos semanas anteriores.",
+    "trend": "Vistas al perfil por día",
+    "exportCsv": "Descargar CSV",
+    "funnel": "De resultado de búsqueda a paciente",
+    "funnelSeen": "Mostrado en resultados",
+    "funnelOpened": "Abierto desde resultados",
+    "funnelViewed": "Vistas al perfil",
+    "funnelContacted": "Te contactaron",
+    "funnelInquired": "Consultas de pacientes",
+    "clickRate": "El {{pct}}% de quienes te vieron en los resultados abrió tu perfil.",
+    "contactRate": "El {{pct}}% de los visitantes te contactó.",
+    "avgPosition": "Posición promedio en los resultados: {{pos}}.",
+    "benchmark": "Estás por delante del {{pct}}% de los {{n}} perfiles de {{specialty}} en tu zona.",
+    "byHour": "Visitas por hora del día (tu hora local)",
+    "byDay": "Visitas por día de la semana",
+    "audience": "Tu audiencia",
+    "country": "País",
+    "device": "Dispositivo",
+    "language": "Idioma del sitio",
+    "deviceName": {
+      "Mobile": "Celular",
+      "Desktop": "Computadora",
+      "Tablet": "Tableta"
+    },
+    "sections": "Qué alcanzan los visitantes en tu perfil",
+    "reached": "llegó",
+    "section": {
+      "photos": "Fotos",
+      "insurance": "Lista de seguros",
+      "inquiry": "Formulario de mensaje",
+      "reviews": "Reseñas",
+      "contact": "Datos de contacto",
+      "services": "Servicios y precios",
+      "map": "Mapa"
+    },
+    "demand": "Qué busca la gente cerca de ti",
+    "demandBody": "Búsquedas de tu especialidad y zona, últimos 30 días. Se cuentan, nunca se leen: no guardamos lo que escribe nadie.",
+    "searches": "Búsquedas",
+    "noResults": "Sin resultados",
+    "topServices": "Servicios más buscados",
+    "filtersUsed": "Filtros que usó la gente:",
+    "filter": {
+      "insurance": "Seguro",
+      "language": "Idioma",
+      "verified": "Solo verificados"
+    },
+    "insights": "Sugerencias para tu perfil",
+    "insightGo": "Arreglarlo",
+    "insight": {
+      "seenNotContacted": "{{views}} personas vieron tu perfil este mes y nadie te contactó. Revisa que tu teléfono y correo sean correctos y que tu perfil dé una forma clara de comunicarse contigo.",
+      "inquiryNotReached": "Solo el {{share}}% de los visitantes baja lo suficiente para ver el formulario de mensaje. Una descripción breve y algunas fotos le dan a la gente un motivo para seguir leyendo.",
+      "visitorsSpanish": "El {{share}}% de tus visitantes navega el sitio en español, pero tu perfil no dice que lo hablas.",
+      "visitorsEnglish": "El {{share}}% de tus visitantes navega el sitio en inglés, pero tu perfil no dice que lo hablas.",
+      "insuranceDemand": "El {{share}}% de las búsquedas de tu especialidad filtra por seguro, y tu perfil no lista ninguno. Mándanos los seguros que aceptas y los agregamos.",
+      "topServiceMissing": "El servicio más buscado en tu especialidad es {{service}} ({{searches}} búsquedas). Si lo ofreces, agrégalo a tu perfil.",
+      "unmetDemand": "El {{share}}% de las {{searches}} búsquedas de tu especialidad y zona no encontró resultados. Hay pacientes buscando lo que tú haces.",
+      "photos": "Tu perfil todavía no tiene fotos propias. Las fotos son lo primero que miran los pacientes.",
+      "peakHours": "El {{share}}% de tus visitas ocurre entre las {{from}}:00 y las {{to}}:00. Es el mejor momento para tener a alguien contestando el teléfono y WhatsApp."
+    },
+    "lock": {
+      "cta": "Ver los planes",
+      "promotedTitle": "Incluido en Promoted",
+      "basicBody": "Mira cuántas personas te contactaron, cómo lo hicieron, de dónde llegaron tus visitantes y cómo cambian tus números de un mes a otro.",
+      "featuredTitle": "Incluido en Featured",
+      "featuredBody": "Una tendencia diaria, el camino de resultado de búsqueda a paciente, cómo te comparas con clínicas similares, tus horas más activas, quién es tu audiencia y qué busca la gente cerca de ti."
+    }
+  },
+  "feedback": {
+    "open": "Comentarios",
+    "openLabel": "Enviar comentarios",
+    "title": "Enviar comentarios",
+    "close": "Cerrar",
+    "kindLabel": "¿Sobre qué es?",
+    "kinds": {
+      "bug": "Algo no funciona",
+      "content": "Información incorrecta",
+      "idea": "Una idea",
+      "other": "Otra cosa"
+    },
+    "messageLabel": "Cuéntanos qué pasó",
+    "placeholder": {
+      "bug": "¿Qué intentaste y qué pasó en su lugar?",
+      "content": "¿Qué está mal y qué debería decir?",
+      "idea": "¿Qué haría que MedSociety te sirviera más?",
+      "other": "Cuéntanos lo que quieras."
+    },
+    "emailLabel": "Correo (opcional, solo si quieres una respuesta)",
+    "privacy": "Por favor, no incluyas datos médicos ni otra información de salud personal.",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "thanks": "Gracias, lo recibimos.",
+    "thanksSub": "Nuestro equipo revisa cada reporte.",
+    "done": "Listo",
+    "errors": {
+      "generic": "No pudimos enviarlo. Inténtalo de nuevo en un momento.",
+      "tooMany": "Ya enviaste varios reportes. Inténtalo más tarde.",
+      "tooShort": "Escribe un poco más (al menos 5 caracteres).",
+      "tooLong": "Es demasiado largo. Usa menos de 2000 caracteres.",
+      "badEmail": "Ese correo no parece válido."
     }
   }
 }

@@ -140,7 +140,7 @@ export function ClinicLookup() {
     return (
         <div className="adm-stack">
             <Card title="Find a clinic" hint="by name, email, phone or website">
-                <input className="adm-input adm-input-lg" placeholder="Start typing a clinic name…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+                <input className="adm-input adm-input-lg" aria-label="Clinic name, email, phone or website" placeholder="Start typing a clinic name…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
                 {term.length >= 2 && !current && <p className="adm-empty">Searching…</p>}
                 {current?.error && <p className="adm-err">{current.error}</p>}
                 {current && !current.error && current.hits.length === 0 && <p className="adm-empty">No clinics match “{term}”.</p>}

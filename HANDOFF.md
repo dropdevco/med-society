@@ -1,277 +1,294 @@
 # HANDOFF.md
 
-## 1. Purpose
+Last rewritten **2026-10-27**. Production (`origin/main`) was at `9cb3e81`; the working branch
+`feat/two-border-regions` was at `b921e2a` (7 commits ahead of main, 1 behind). Live counts below came from
+the production database on the same day. Check `git log origin/main` and the open PRs before trusting
+anything here about "what is deployed".
 
-MedSociety is a bilingual (EN/ES) healthcare-provider directory and lead-generation marketplace for the El Paso, TX / Ciudad Juárez, Mexico border region. It is **search-first**: `/` opens on a segmented search box (specialty/service/name, side of the border or ZIP, insurance) over rows of browsable providers — no map loads until a search actually runs. Once a search is active, a sticky toolbar (collapsed search pill, specialty rail, quick filter chips, a full filter modal) sits above a list/map split, and hovering a result card lights its pin on the map. A `/sales` landing page pitches the product to clinics/providers who would pay to be listed or "promoted" (see the `promoted`/`verified` flags on `Provider`, and the "Get listed free" lead pipeline in section 9). There is no user-facing account system or payment flow in the code yet.
+The planning side (who owns what, decisions, release scoping V1/V2/V3) lives in the **MedSociety Delegation
+Plan** page: <https://claude.ai/artifact/41tMqWdGNYi4GLtXfe3sL3>. This file is the engineering side.
 
-Provider data comes from **two independent ingestion paths** that both write into the same Supabase `providers` table (see section 5.1): an older Google Places seeder, and a newer Doctoralia scrape that did most of the recent growth (757 → 4,067 rows).
+## 1. What this is
 
-## 2. Status
+MedSociety (medsociety.one) is a bilingual (EN/ES) directory and lead marketplace for **cross-border medical
+care**, covering two regions:
 
-- **Active.** Branch `feat/post-meeting-overhaul`, six commits on top of `30a78ff`,
-  acting on the Med Society UI review. Not yet merged to `main`.
-- Two migrations have been **applied to the live project** (`gbfbsecjgjmqoznebwwb`)
-  and are checked in under `supabase/migrations/`:
-  - `0002_provider_tiers.sql` — splits `verified` (paid) from `licensed` (cédula),
-    adds `tier` and `featuredRank`, nulls eight junk `00000` postal codes.
-  - `0003_clinic_accounts.sql` — `provider_owners`, `provider_claims`,
-    `provider_photos`, the `clinic-photos` storage bucket, and the column-grant
-    edit whitelist on `providers`.
-- A demo clinic account exists for testing the portal:
-  `demo-clinic@medsociety.one` / `medsociety-demo-2026`, owner of
-  "Dr. Jose Luis Hernández Batista". Recreate with
-  `npx tsx scripts/seed-demo-clinic.ts`.
+| Region id | Cities | Live listings (27 Oct) |
+|---|---|---|
+| `elpaso-juarez` | El Paso, TX and Ciudad Juárez | 4,063 |
+| `sandiego-tijuana` | San Diego, CA and Tijuana | 8,550 |
 
-### 2.1 What the review changed
+12,613 live listings in total, 1 pending. The region is derived from longitude in the database (west of
+-110 is San Diego–Tijuana) and sits in `src/utils/region.ts`.
 
-| Feedback | Where it landed |
+What exists today:
+
+- **Search-first directory.** Segmented search box over specialty/service/name, side of the border or ZIP,
+  insurance; list/map split once a search runs; a "smart search" that describes a symptom and returns doctors
+  whose own patient reviews match (`api/ai-search.ts`). Always scoped to one region.
+- **Doctor accounts.** Supabase Auth. A doctor claims a listing or publishes a new one (`/borderhealth`
+  survey onboarding, `/claim/:id`), then manages it in `/dashboard`: profile, photos, social links, plan,
+  team, Insights.
+- **Clinic teams.** A clinic links its specialists as their own listings (`clinic_practitioners`) and invites
+  staff. Staff (`provider_owners.role = 'staff'`) can do everything an owner can in the dashboard except act
+  as a clinician (no forum posting as the listing, no forum e-mail).
+- **Paid plans.** Promoted (US$49) and Featured (US$99) sold through GHL payment links, turned into a listing
+  tier by `api/billing.ts` and migration `0029`. Still in GHL **test mode**.
+- **Patient messages.** A signed-in patient sends one-way questions to a clinic (`api/inquiry.ts`). There is
+  no conversation, inbox or reply yet. 0 messages sent in production so far.
+- **Forums.** "Ask a Doctor" (patients) and "Med Society" (clinicians only), deployed but unlisted.
+- **Admin dashboard** at `/admin` (access is decided by the `app_admins` table): Overview, Form traffic,
+  Survey responses, Directory, Accounts & leads, Feedback, Billing, Clinic lookup.
+- **Agent surface.** REST, OpenAPI, MCP server, `llms.txt`, prerendered HTML for crawlers (`api/agent.ts`).
+- **Survey** at `/borderhealth` and `/research` (UTEP / NSF I-Corps study): 24 responses so far.
+
+Not built yet (see the plan page): e-mail that actually sends in production, conversations between accounts,
+appointment booking (ruled out of V1), organization badges, automatic credential checks, doctor websites,
+trip planning.
+
+## 2. Release state
+
+| Piece | State |
 |---|---|
-| Map needs colour, Airbnb-style | `MapView.tsx` `lightMapStyles` / `darkMapStyles`; pins tinted by specialty via `utils/specialtyColors.ts` |
-| Cluster circles disliked, too many pins | Supercluster removed; viewport cull + 80-pin cap |
-| List should follow the visible map area | "Search as I move the map" toggle, on by default, persisted |
-| Scrollable specialty row needs an arrow | `components/search/ScrollRail.tsx` |
-| Remove the border tagline | `discover.heroTitle` replaced; `index.html` title and meta |
-| Good photos hardcoded to the top | `providers.featuredRank`, seeded for 36 rows |
-| Verified reserved for paid tier | `verified` follows `tier`; cédula moved to `licensed` |
-| Providers page → nav CTA | `/sales` → `/pricing`, filled CTA in `Navbar` |
-| Search bar fires on click | `SearchHero.pick()` stages, `submit()` commits |
-| Postal search returns nothing | `utils/postalGeocode.ts`, country-aware |
-| Everything shows 5 stars | `utils/rating.ts`: unrated is not 0, sort is confidence-weighted |
-| Photos missing / no full view | card `onError` fallback, drawer portrait, `PhotoLightbox.tsx` |
-| Fake profile views as a hook | `utils/estimatedViews.ts` — **clinic dashboard only, never public** |
-| What can a clinic do once claimed | `/login`, `/claim/:id`, `/dashboard` |
-| Anything worth taking from pricing.medsociety.one | Three tiers + five add-ons, on `/pricing`, bilingual |
+| Two regions, account-gated messages | In production (PR #1) |
+| Paid plans + PostHog analytics | In production (PRs #4, #5); payments in test mode |
+| Contact lockdown (migrations 0032, 0033) | In production, migrations applied (PRs #6, #7) |
+| Survey state dropdown | In production (`9cb3e81`) |
+| Doctor analytics (Insights, report e-mails) and the agent surface | Open **PR #8**, not deployed. Migration 0031 is already applied to production |
+| `/research` defaults to the Spanish provider survey | Open **PR #9** |
+| Feedback widget + admin tab | Committed on `feat/feedback-widget`; the files also sit uncommitted in this working tree. Migration 0030 is applied. Not deployed |
+| Feedback auto-fix (draft PRs) | Built on `claude/relaxed-raman-6cb1a4`, migration numbered `0033_feedback_autofix.sql`, **not applied**. It clashes with the existing `0033_providers_grant_hardening.sql`, so renumber it before merging. Off until `FEEDBACK_AUTOFIX=on`. See `docs/feedback-autofix.md` on that branch |
+| GHL custom fields for survey answers | Open **PR #2** |
 
-Appointment booking was explicitly out of scope (David's call), and there is
-still no payment flow — upgrading opens the inquiry form.
+Deploys go through GitHub: a push creates a Vercel Preview, a merge to `main` is Production (project
+`medsociety-marketplace`, team `dropdevs-projects-25301cf7`, domain `medsociety.one`, canonical host `www`).
+The Vercel MCP has no access to this project here; use `gh api repos/dropdevco/medora-marketplace/deployments`
+to watch a deploy.
 
 ## 3. Stack
 
-From `package.json` (exact versions as pinned, `^` = minor/patch float allowed by npm):
+- React 19, React Router 7, Vite 8, TypeScript 5.9. Plain CSS with custom properties; no CSS framework.
+- Supabase (project `gbfbsecjgjmqoznebwwb`): Postgres + RLS, Auth, Storage (`clinic-photos`), pgvector for
+  review embeddings. Client `@supabase/supabase-js`.
+- Vercel: static app + serverless functions in `api/`. **11 of the 12 functions the Hobby plan allows are
+  used**, which is why `api/agent.ts` is one 2.7k-line file. Four crons in `vercel.json`.
+- Google Maps JS API, Places and Geocoding. i18next (EN/ES). `@tanstack/react-virtual` for the list.
+- PostHog (product analytics, proxied through `/ingest`), plus Contentsquare and Microsoft Clarity scripts in
+  `index.html`.
+- GoHighLevel (LeadConnector) for the CRM and billing. Resend is what the code uses to send e-mail today, but
+  the team has decided to move every sender to the **GHL e-mail service** (plan task H7). Do not build new
+  Resend code.
+- OpenRouter / OpenAI embeddings and Claude Haiku for smart search and feedback triage.
+- No test framework. Each area has a runnable self-test instead (section 8).
 
-- React `^19.2.4` + React DOM `^19.2.4`, React Router `^7.13.1`
-- Vite `^8.0.0` + `@vitejs/plugin-react` `^6.0.0`, TypeScript `~5.9.3`
-- Supabase JS client `@supabase/supabase-js` `^2.99.2` (Postgres backend + auth-capable, but auth is unused here)
-- `@googlemaps/js-api-loader` `^2.0.2` + `@types/google.maps` `^3.58.1` (Google Maps JS API, Places, Geocoding)
-- `@tanstack/react-virtual` `^3.13.23` (window-virtualized provider list — see `useWindowVirtualizer` in `SearchPage.tsx`)
-- `i18next` `^26.0.4`, `react-i18next` `^17.0.2`, `i18next-browser-languagedetector` `^8.2.1` (EN/ES localization)
-- `lucide-react` `^0.577.0` (icons)
-- `supercluster` `^9.0.0` (marker clustering on the map — only loaded once a search puts the map on screen, see 5.2)
-- Lint: ESLint `^9.39.4` flat config + `typescript-eslint` `^8.56.1`, `eslint-plugin-react-hooks` `^7.0.1`, `eslint-plugin-react-refresh` `^0.5.2`
-- No test framework is present in dependencies.
-- No `.nvmrc` and no `engines` field in `package.json` — Node version is UNKNOWN (checked both, neither exists).
-- Deployed on Vercel (`vercel.json` present with an SPA rewrite rule).
-
-## 4. Setup & Commands
+## 4. Setup
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill in the values (see section 8)
-npm run dev                  # vite dev server, fixed port 5174 (vite.config.ts)
+cp .env.example .env.local   # fill in values, see section 7
+npm run dev                  # Vite on port 5174
 npm run build                # tsc -b && vite build
-npm run lint                 # eslint .
-npm run preview              # serve the production build locally
+npm run lint                 # eslint .; has known errors, see section 10
 ```
 
-- **No test script defined** — `package.json` has no `test` entry and no test framework is installed.
-- Provider data scripts (run with `tsx`/`node` directly, not wired into `npm run`) fall into two families — see section 5.1 for which one actually populated most of the current directory:
-  - **Google Places seeder (older, smaller path):** `scripts/seed-providers.ts` — scrapes Google Places, seeds/upserts into Supabase `providers`, caches raw API responses in `scripts/.cache/` (gitignored). `scripts/list-providers.js`, `scripts/find-clinic.js`, `scripts/find-dentist.js`, `scripts/check-null-ids.js` are ad hoc query/debug utilities against the same table; each hand-parses `.env.local` itself (no dotenv dependency).
-  - **Doctoralia scrape (newer, most of the directory):** `scripts/doctoralia/` — a full scrape → stage → dedupe → promote pipeline, plus two backfills (`backfill-postal.ts`, `backfill-services.ts`) that populate `postalCode`/`services`/`priceFromMxn` on top of it. **Read `scripts/doctoralia/README.md` before touching any of this** — it documents the robots.txt/ToS/personal-data constraints the scraper operates under, and is kept current independently of this file.
-  - `scripts/list-leads.ts` — reads the lead-capture pipeline (section 9) with the service-role key.
+Scripts run with `npx tsx --env-file=.env.local scripts/<name>.ts`. A demo clinic account can be recreated with
+`scripts/seed-demo-clinic.ts`; read the script for the login it creates rather than copying credentials from
+documents.
 
-## 5. Architecture Map
+## 5. Where things are
 
 ```
 src/
-  App.tsx                  Router root: "/" -> SearchPage, "/sales" -> SalesPage
-  main.tsx                 Entry point; initializes i18n before render
-  index.css, App.css        Global styles (plain CSS, CSS custom properties, no CSS framework)
-  types/provider.ts         Provider, Specialty, ProviderFilters, SortMode + SpecialtyLabels (source of truth for the domain model)
-  lib/supabase.ts           Browser Supabase client (anon key only) + dev-time safety check against accidentally using the service-role key
-  data/providers.ts         mockProviders — fallback dataset used when Supabase is unreachable/unconfigured or empty
-  hooks/useProviders.ts     Fetches + normalizes providers from Supabase (paginated past the 1000-row cap, camelCase<->lowercase column fixup), owns ProviderFilters as URL search params, builds the search index/facets/vocabulary, applies filters+sort
-  hooks/useGoogleReviews.ts Loads Google Places reviews for a provider (falls back to mockGoogleReviews)
-  pages/SearchPage.tsx      The whole "/" screen: discover rows before a search, sticky toolbar + list/map split after one. See 5.2.
-  pages/SalesPage.tsx       Marketing/pitch landing page for prospective paying clinics
-  components/search/SearchHero.tsx        The three-segment search box (what / where / insurance); the redesign's centerpiece
-  components/search/SearchPill.tsx        Collapsed one-line restatement of the active search, shown in the sticky toolbar
-  components/search/CategoryRail.tsx      Specialty icon rail (Airbnb-style category shortcuts)
-  components/search/FilterChipRow.tsx     The 4-5 filters people change mid-search, as horizontal chips
-  components/search/FilterModal.tsx       Every filter, in a modal, at every breakpoint — wraps FilterBar
-  components/search/FilterBar.tsx         The actual filter controls (specialty, insurance, language, rating, availability, price) rendered inside FilterModal
-  components/search/FilterSummary.tsx     Result count, sort dropdown, and removable chips for active filters — sits above the results list
-  components/search/SearchBar.tsx         Superseded by SearchHero; currently unreferenced, see section 10
-  components/discover/Discover.tsx        Pre-search browse rows ("Top-rated dentists in Ciudad Juárez", etc.) built by utils/discover.ts
-  components/map/MapView.tsx              Google Maps wrapper; lazy-loaded (see 5.2), Supercluster clustering, light/dark map styles, hover-to-highlight a marker
-  components/provider/ProviderCard.tsx    List row for a provider (results view)
-  components/provider/ProviderTile.tsx    Grid tile for a provider (discover-row view)
-  components/provider/ProviderDrawer.tsx  Detail panel/drawer for a selected provider
-  components/provider/ServiceList.tsx     Renders Provider.services (name/price) inside the drawer
-  components/provider/ReviewCarousel.tsx  Renders GoogleReview[] from useGoogleReviews
-  components/layout/Navbar.tsx            Top nav — route links, EN/ES toggle (always shows both, active one highlighted), light/dark toggle
-  utils/search.ts           Tokenizing + a folded search index (buildSearchIndex/scoreDoc) — accent/case-insensitive matching
-  utils/facets.ts           Suggestion vocabulary for the search box + live facet counts (how many results survive if you add filter X)
-  utils/filters.ts          matchesFilters/applyFilters — the actual filter+sort pass over the provider list; defaultFilters
-  utils/geo.ts              Haversine distanceKm, postal-code pattern/validation, radius options (browser-safe; scripts/doctoralia/load.ts has its own copy to avoid dragging server credentials into the client bundle)
-  utils/discover.ts         Builds the pre-search browse rows from the loaded directory
-  utils/images.ts           portraitUrl() strips the shared Doctoralia "no photo" placeholder image out of Provider.imageUrl (see 5.3); hueOf() gives each provider a stable fallback color
-  utils/analytics.ts        trackProviderClick() — currently a console.log stub, not yet wired to Supabase (see section 10)
-  i18n/index.ts, i18n/locales/{en,es}.json  i18next setup + translation strings
-scripts/
-  doctoralia/                Scrape -> stage -> dedupe -> promote pipeline + postal/services backfills. Own README.md — read it first.
-  seed-providers.ts           Google Places -> Supabase seeder (server-only service-role key)
-  list-providers.js, find-clinic.js, find-dentist.js, check-null-ids.js  One-off Supabase query/debug scripts
-  list-leads.ts                Reads the lead-capture pipeline locally (section 9)
-clinics_export.csv           Tracked in git; a flat export of provider/clinic rows (name, specialty, phone, address, rating, etc.) — public business directory data, not sensitive
-public/                      Static assets served as-is (favicon/logo etc.)
-dist/                        Build output (gitignored territory; present locally from a prior `npm run build`)
+  App.tsx, main.tsx          routes; entry (i18n, PostHog, client error recorder)
+  pages/                     SearchPage, ProviderPage, PricingPage, ContactPage, LoginPage, ClaimPage,
+                             DashboardPage, ForumPage, ForumThreadPage, BorderhealthPage, AdminPage
+  components/search|discover|map|provider   the directory UI (search box, filters, list, map, profile)
+  components/account/        dashboard: profile form, photos, plan panel, StatsPanel (Insights), team
+  components/borderhealth/   survey runner, onboarding (claim/publish), tracking
+  components/forum/          forum UI and clinician gate
+  components/admin/          admin tabs (Billing, Feedback, Directory, Forms, Clinic lookup)
+  components/feedback/       the Feedback widget
+  hooks/useProviders.ts      loads one region, owns filters as URL params, search index and facets
+  lib/                       supabase, auth, billing (payment links), inquiries, forum, providerRead,
+                             adminApi, posthog, clientErrors, webmcp
+  utils/                     region, search, filters, facets, rating, images, searchTerms (analytics
+                             dictionary), structuredData, profileCompleteness
+api/                         see section 6
+supabase/migrations/         0001..0033, applied by hand to production
+scripts/                     doctoralia/ (scrape + load), reviews/ (embeddings), self-tests, one-off tools
+docs/                        agent-integration, doctor-analytics, ghl-billing-workflows,
+                             privacy-policy-analytics-brief
 ```
 
-### 5.1 Two ingestion paths into one table
+### Search and the region model
 
-`providers.source` distinguishes rows by origin (`'google' | 'manual' | 'doctoralia'`):
+`useProviders` loads **one region** from the lean view `provider_list` and keeps `?region=` in the URL.
+Picking a place in the other region switches immediately. Heavy Doctoralia fields live in `provider_details`
+(migration 0020), reviews come from `provider_reviews()` (0027, names abbreviated in SQL). Filters live in the
+URL (`parseFilters` / `serializeFilters`), which decides discover-versus-results mode and makes searches
+shareable; do not add a parallel filter state.
 
-- **`scripts/seed-providers.ts`** (Google Places) is the original seeder — a smaller, older set of rows, mostly `source = 'google'`.
-- **`scripts/doctoralia/`** is a full pipeline (`scrape.ts` → `load.ts stage` → `load.ts match` → `load.ts promote`) that scraped Doctoralia's Ciudad Juárez listings, deduped against the existing Google rows, and promoted the new ones — this is what took the directory from 757 to 4,067 rows. `scripts/doctoralia/enrich.ts` optionally back-fills contact details from Google Places for rows Doctoralia doesn't publish a phone number for (this step costs real money — its own doc block has the estimate). `backfill-postal.ts` and `backfill-services.ts` then ran once, after promotion, to populate `postalCode` (parsed out of `address`) and `services`/`priceFromMxn` (parsed out of scraped price text) — these two are what make ZIP/radius search and price filtering possible today.
-- Read `scripts/doctoralia/README.md` before running any part of this — it documents the robots.txt/ToS scope, the personal-data (LFPDPPP) obligations that come with scraped doctor data, matching/dedupe thresholds, and known gaps (no doctor-level phone numbers, patchy prices, partial reviews).
+Smart search is region-scoped: `match_reviews(query_embedding, p_region, match_count)` (0022), so a Tijuana
+review can never rank for a Juárez query. The API requires `region` and answers 400 `bad_region` otherwise.
+New cities need an entry in `REGIONS`, a `regionOf` rule and postal prefixes.
 
-### 5.2 The search-first split, and why the map is lazy
+### Contact data is not in bulk reads
 
-`SearchPage.tsx` reads `searching = filters.search !== '' || countActiveFilters(filters) > 0` and renders one of two trees:
+Migration 0032 revokes anon `SELECT` on `providers.email`, `phone`, `phone_norm`, `website`, `socials`,
+`updated_by` and on `provider_details.phones`. One provider's full row comes from the `SECURITY DEFINER`
+function `provider_public(p_id)` (per-IP throttle 90/min and 1,500/h, HTTP 429); owners read theirs with
+`my_providers(p_ids)`. The client path is `src/lib/providerRead.ts`. Any new read that needs contact fields must
+go through these, never `select *`.
 
-- **Not searching:** `Discover.tsx` — horizontal browse rows, each a *preview of a real search* (clicking a row's title applies its filters). No map component is even imported on this path.
-- **Searching:** a sticky toolbar (`SearchPill` + `CategoryRail` + `FilterChipRow`, with `FilterModal` behind the "Filtros" button) above a list/map split. `MapView` and `ProviderDrawer` are both `React.lazy()`-loaded — the Google Maps SDK + Supercluster only download once a search actually needs them.
+### Provider data comes from several paths
 
-Hovering (or focusing) a `ProviderCard` calls `onHover(id)`, which flows into `MapView`'s `hoveredId` prop and repaints just that one marker gold — that's the mechanism behind "hovering a result highlights its pin on the map."
+All write into `providers` (`source` = `google | manual | doctoralia`, plus self-listings):
 
-Below ~1180px width the list and map take turns (a floating "Mapa"/"Lista" button toggles `view`) instead of splitting the screen — see the `ms-results` breakpoints in `index.css`. **Gotcha:** the list is unmounted (not `display:none`) while the map has the screen, because a hidden virtualized list still reports its height to `ResizeObserver`, which was previously firing a render loop ("Maximum update depth exceeded") — see the comment above `{view === 'list' && (...)}` in `SearchPage.tsx` before changing that toggle.
+- `scripts/seed-providers.ts`: the original Google Places seeder (Juárez).
+- `scripts/doctoralia/`: scrape, stage, dedupe, promote for Doctoralia (Juárez and `--city=tijuana`), plus
+  backfills for postal code, services, media and extras. **Read `scripts/doctoralia/README.md` first**; it
+  documents the robots.txt / ToS / personal-data (LFPDPPP) limits.
+- `scripts/doctoralia/sweep.ts` and `promote-google.ts --target=san-diego`: Google Places sweep for the San Diego
+  side (about US$42 for the list). San Diego listings have no reviews, so smart search there only
+  recommends Tijuana doctors.
+- Self-listings from `/borderhealth` arrive as `status = 'pending'` and are approved by hand (section 9).
+- Reviews are embedded by `scripts/reviews/enrich.ts` into `review_embeddings`.
 
-### 5.3 Provider photos are mostly a shared placeholder
+## 6. Serverless functions (`api/`)
 
-Roughly two-thirds of scraped rows have `imageUrl` set, but a large share of those all point at the *same* Doctoralia Open Graph banner — the image that site serves when a profile has no real photo. `utils/images.ts`'s `portraitUrl()` filters that placeholder out; anything it rejects falls back to a specialty-tinted monogram tile (`hueOf()` picks a stable color per provider id) in both `ProviderCard` and `ProviderTile`. If provider photos ever look broken or oddly repetitive, check this filter before assuming the scrape failed.
+Every file is **self-contained**: it cannot import from `src/`, so logic that exists in both places is a copy
+(search, rating and filters in `api/agent.ts`; shared helpers repeated per file). When you change the one, change
+the other and run the self-test.
 
-## 6. Entry Points — Read These First
+| File | What it does | Needs |
+|---|---|---|
+| `agent.ts` | REST `/api/v1/*`, OpenAPI, MCP `/mcp`, `llms.txt`, sitemaps, prerendered HTML for `/`, `/providers/:id`, `/pricing`, `/contact` (only for requests without `Sec-Fetch-Dest`). Docs: `docs/agent-integration.md` | anon Supabase key, `AGENT_API_KEYS` optional |
+| `ai-search.ts` | Symptom search: embed, `match_reviews`, one Claude Haiku call to filter, rank | embeddings + LLM keys |
+| `billing.ts` | GHL payment webhook, daily sync cron, tier computation edge | `BILLING_WEBHOOK_SECRET`, `GHL_PIT_*`, `CRON_SECRET` |
+| `borderhealth-lead.ts` | Survey respondent into GHL as a tagged contact | `GHL_PIT_MEDSOCIETY` |
+| `feedback.ts` | Feedback widget intake, evidence-checked triage, e-mail only when corroborated | service role, optional OpenRouter |
+| `form-event.ts` | Survey form analytics into `form_events` | service role, `FORM_EVENT_SALT` |
+| `forum-notify.ts` | Forum e-mails, daily digest cron, unsubscribe | `CRON_SECRET`, sender |
+| `inquiry.ts` | Patient message to a clinic; account required, 5 per 10 min | service role, sender |
+| `lead-notify.ts` | Supabase webhook on `leads` to an e-mail (the webhook was never created) | sender, `LEAD_NOTIFY_*` |
+| `place-photo.ts` | Redirect proxy for a Google Place cover photo | Maps key |
+| `stats.ts` | PostHog to `provider_stats_daily`, then report e-mails (crons 10:00 and 15:00 UTC) | PostHog keys, `CRON_SECRET` |
 
-1. `src/types/provider.ts` — the `Provider` shape is the app's god node; every component, hook, and script depends on its exact fields.
-2. `src/hooks/useProviders.ts` — data source (Supabase vs. mock fallback), URL⇄filters serialization, and where search index/facets/filtering are wired together.
-3. `src/pages/SearchPage.tsx` — composes the whole primary screen and holds the searching/not-searching split; read this before touching layout or the map/list toggle.
-4. `src/utils/filters.ts` and `src/utils/facets.ts` — the actual filter/sort/count logic; almost every UI control in `search/` calls into one of these.
-5. `scripts/doctoralia/README.md` — how most of the current directory got here, and the constraints (legal, rate-limit, data-quality) that shape what you can safely do with it.
-6. `src/lib/supabase.ts` — explains the anon-key/service-role-key security model; read before touching any DB code.
-7. `src/pages/SalesPage.tsx` — the business/monetization pitch; useful for understanding "promoted"/"verified" provider fields.
+Crons (`vercel.json`): forum digest 15:00, billing sync 09:00, stats sync 10:00, stats reports 15:00 (UTC). All
+four refuse to run without `CRON_SECRET`.
 
-## 7. Conventions & Gotchas
+## 7. Environment
 
-- **Postgres lowercases unquoted column names.** `useProviders.ts`'s `normalizeProvider()` manually re-maps `googleplaceid` → `googlePlaceId`, `reviewcount` → `reviewCount`, `imageurl` → `imageUrl`, `postalcode` → `postalCode`, `pricefrommxn` → `priceFromMxn` when reading rows back from Supabase. Adding a new camelCase field to `Provider` needs a matching fallback here or it will silently read as `undefined` from the DB.
-- **Supabase caps a single `select` at 1000 rows.** `useProviders.ts` pages through with `.range()` in a loop — the directory (4,067 rows) is larger than one page. If a "provider count looks wrong" bug ever shows up, check that loop before assuming the query itself is broken.
-- **Filters live in the URL, not in component state.** `useProviders.ts` parses `ProviderFilters` from `useSearchParams()` and serializes back to it on every change (`parseFilters`/`serializeFilters`). This is also what decides discover-vs-results mode (section 5.2) and makes every search shareable/bookmarkable — don't introduce a parallel filter `useState` anywhere.
-- **Two key tiers, don't mix them:** `VITE_*`-prefixed vars are bundled into client JS by Vite and are intentionally public (protected by Google Maps referrer restrictions and Supabase Row Level Security). `SUPABASE_SERVICE_ROLE_KEY` has no `VITE_` prefix on purpose — it bypasses RLS and must only be read via `process.env` in Node scripts, never in browser code. `src/lib/supabase.ts` has a dev-time runtime check that throws if the anon key JWT actually decodes to a `service_role` payload.
-- **Silent fallback to mock data:** if Supabase env vars are missing, the query errors, or the table is empty, `useProviders.ts` silently falls back to `mockProviders` from `src/data/providers.ts` (with a console warning only). A developer debugging "why don't my seeded providers show up" should check the browser console first, not assume the UI reflects the DB.
-- **`trackProviderClick()` is a no-op stub** (`src/utils/analytics.ts`) — it only `console.log`s in dev; it does not persist click counts to Supabase despite `Provider.clicks` existing as a field. Don't assume click analytics are live.
-- **Provider photos are filtered, not raw** — see section 5.3 before assuming `provider.imageUrl` is safe to render directly; use `portraitUrl()`.
-- Inline styles (JS objects), not Tailwind/CSS-in-JS library, are used throughout `SalesPage.tsx`/`SearchPage.tsx`/the `search/` and `discover/` components — CSS custom properties (`var(--navy)`, `var(--gold)`, etc.) defined in `index.css` drive the theme, including the `ms-*` layout classes for the search-first shell.
-- Product/brand name is **"MedSociety"** (see `index.html` `<title>`, `hello@medsociety.one` contact email in `SalesPage.tsx`) while the npm package is named `medsociety-marketplace` and the repository folder is `medora-marketplace` — three different names for the same product; don't assume they're different projects.
-- `index.html` embeds third-party analytics scripts directly (Contentsquare and Microsoft Clarity tags) — not environment-gated, they load in every environment including local dev.
+`.env.example` lists the names. Server-only values go in Vercel as well as `.env.local`. Anything with a
+`VITE_` prefix is bundled into the browser on purpose; `SUPABASE_SERVICE_ROLE_KEY` has no prefix and must never
+reach client code (`src/lib/supabase.ts` throws in dev if the anon key decodes to a service role).
 
-## 8. External Dependencies & Environment
+**Not set in production as of 19 Oct:** `RESEND_API_KEY`, `LEAD_NOTIFY_FROM`, `LEAD_NOTIFY_TO`,
+`LEAD_NOTIFY_SECRET`, `FORUM_NOTIFY_FROM`, `CRON_SECRET`, `BILLING_WEBHOOK_SECRET`. Consequence: no site e-mail
+sends, no cron runs, and the claim and new-listing triggers write `leads` rows that nobody is told about. This is
+workstream H in the plan. Re-check with `vercel env ls production --scope dropdevs-projects-25301cf7` before
+assuming it changed.
 
-- **Supabase** (Postgres + client SDK) — the `providers` table is the primary data store; `leads` (section 9) and the `doctoralia_*` staging tables (section 5.1) live alongside it.
-  - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — browser-side, RLS-protected.
-  - `SUPABASE_SERVICE_ROLE_KEY` — server/script-only, bypasses RLS, used by `scripts/seed-providers.ts`, everything under `scripts/doctoralia/`, `scripts/list-leads.ts`, and the debug scripts.
-- **Google Maps Platform** (Maps JavaScript API, Places API, Geocoding API — all must be enabled in Google Cloud Console).
-  - `VITE_GOOGLE_MAPS_API_KEY` — browser-side; intended to be locked down with HTTP referrer restrictions per the comment in `.env.example`. Only loaded once a search puts `MapView` on screen (section 5.2).
-  - Also reused server-side by `scripts/seed-providers.ts` and `scripts/doctoralia/enrich.ts` (as `process.env.VITE_GOOGLE_MAPS_API_KEY`) to call the Places Text Search / Place Details REST APIs directly. `enrich.ts` is the one that costs real money per run — read its dry-run cost estimate before using `--commit`.
-- **Resend** — transactional email for the lead-notification webhook (section 9). `RESEND_API_KEY`, `LEAD_NOTIFY_SECRET`, `LEAD_NOTIFY_TO`, `LEAD_NOTIFY_FROM` — server-only, set in Vercel, not just `.env.local`.
-- **Contentsquare** and **Microsoft Clarity** — third-party session-analytics scripts hardcoded in `index.html` with embedded tracking IDs (not env vars).
-- **Vercel** — deployment target; `vercel.json` only configures SPA fallback routing, no other Vercel-specific config found.
-- All env var names above are documented with setup instructions in `.env.example`. `.env.local` exists locally and is correctly gitignored (verified not tracked by git); do not commit it. `supabase/.temp/` (Supabase CLI local state) is also gitignored now — see section 10.
+Secrets (GHL tokens, service role) are kept in the team password vault. Never paste them into chat, issues or
+this file.
 
-## 9. Lead Capture Pipeline
+## 8. Self-tests
 
-The "Get listed free" CTAs on `/sales` all open `src/components/sales/InquiryModal.tsx`
-(a plain HTML form, no third-party embed). Flow:
+Run these after touching the area they cover:
+
+```bash
+npx tsx scripts/agent-selftest.ts       # api/agent.ts vs src/utils drift
+npx tsx scripts/billing-selftest.ts     # tier maths, matching, replay safety
+npx tsx scripts/feedback-selftest.ts    # escalation rules
+npx tsx scripts/stats-selftest.ts       # roll-up and report e-mails (not the PostHog queries)
+npx tsx scripts/inquiry-selftest.ts
+npx tsx scripts/images-selftest.ts
+```
+
+## 9. Operations you will actually do
+
+- **Approve a pending listing:** `update providers set status = 'live' where id = '<id>'`. There is no
+  admin queue yet (plan task A2).
+- **Approve a claim by hand:** read `provider_claims where status = 'pending'`, then
+  `insert into provider_owners (provider_id, user_id) values (...)`. A claim is granted instantly only when the
+  confirmed account e-mail equals the listing's e-mail; a phone match is only evidence and goes to review. This
+  depends on Supabase Auth "Confirm email" staying ON.
+- **Read leads:** `npx tsx --env-file=.env.local scripts/list-leads.ts [status]`.
+- **Survey numbers:** `npx tsx --env-file=.env.local scripts/form-stats.ts [daily|sources|audience|visitors|events]`,
+  or the `form_*` views in the Supabase SQL editor.
+- **Billing:** the admin Billing tab shows plans, unmatched payments and test-mode rehearsal. Setup of the two
+  GHL workflows is in `docs/ghl-billing-workflows.md`.
+- **Probe a deploy safely:** POST `{}` to `/api/inquiry`; the new code answers 401, old code 400 `bad_name`.
+  Never POST a valid body to production: it stores a real message and e-mails the team.
+
+## 10. Rules and gotchas
+
+- **Plan access is computed, not event-driven.** Access is `paid_through + 4 days > now`; tier columns are
+  written only by `recompute_provider_plan`. A lost cancel webhook cannot leave anyone on a plan. Matching
+  normalises e-mail (gmail dots and `+tags`) and phone (last 10 digits). Unmatched payments go to an admin
+  queue. Read the header of `api/billing.ts` and migration `0029` before touching tiers.
+- **GHL tags on a paid contact:** `tier-promoted` or `tier-featured`, `medsociety-plan-active` or `-lapsed`,
+  `medsociety-market-us` or `-mx`. The plan decided to drop the `medsociety-` prefix on new tags.
+- **Messaging requires an account.** `api/inquiry.ts` verifies the Supabase token with Auth, refuses anonymous
+  and unconfirmed accounts (401 `auth_required`), and stores `patient_inquiries.user_id`. The patient's draft is
+  kept in localStorage for 48 hours across sign-up.
+- **Feedback escalation is deliberately strict.** A report is only e-mailed when backed by evidence (a recorded
+  error on that page, two or more similar reports in 24 h, or an identical earlier one). A lone report is
+  stored and queued in `/admin`. Change it in `shouldEscalate` / `corroborated` and the matching self-test.
+- **Insights stay hidden** until a listing clears `stats_settings` (50 views in 30 days and 7 days of data), or
+  has a `provider_stats_overrides` row. The search-term dictionary (`src/utils/searchTerms.ts`) holds services
+  only: no conditions, nothing reproductive, sexual or mental-health. The public profile still shows a
+  placeholder view count from `profileViews()`.
+- **Postgres lowercases unquoted column names.** `normalizeProvider` re-maps `googleplaceid`, `reviewcount`,
+  `imageurl`, `postalcode`, `pricefrommxn`. A new camelCase field needs a fallback there.
+- **Supabase caps a select at 1,000 rows;** `useProviders` pages with `.range()`.
+- **Silent fallback to mock data** when Supabase is unreachable or empty (console warning only).
+- **Photos are filtered.** Use `portraitUrl()`; a shared Doctoralia "no photo" banner is rejected there. Legacy
+  Doctoralia S3 paths have `_small` at 68 px, so `src/utils/images.ts` serves larger files only to 2x screens.
+- **The list unmounts, not hides, while the map has the screen** (a hidden virtualized list previously caused a
+  "Maximum update depth" loop). Read the comment in `SearchPage.tsx` before changing the toggle.
+- **Leads fall back to `mailto:`** on any insert failure with only a `console.warn`. After touching RLS, submit a
+  test lead and confirm a row appears.
+- **Migration numbering is untidy:** two files share `0015`, `0016`, `0017` and `0026`. All are applied. Check
+  `supabase_migrations.schema_migrations` in production for what really ran, and renumber the pending
+  auto-fix migration (section 2).
+- **The Supabase project holds unrelated tables** (`clients`, `generations`, `approved_images`, `ha_meetings`,
+  an empty `feedback`). Do not touch them. The widget table is `site_feedback` for that reason.
+- **Three names, one product:** MedSociety (brand), `medsociety-marketplace` (npm and Vercel), `medora-marketplace`
+  (repo and local folder). The repository is public on GitHub; the team keeps a private working copy (plan task
+  A4) because making it private breaks Claude tooling on non-enterprise accounts.
+- **Known debt:** `npm run lint` reports errors (mostly `react-hooks/set-state-in-effect` in data hooks);
+  `SearchBar.tsx` is unreferenced; `estimatedViews.ts` is modelled, not measured; the directory has duplicate
+  rows; `doctoralia_doctors.google_rating` was never enriched; the main bundle is over 500 kB; no automated UI
+  tests.
+
+## 11. Survey links and analytics
+
+Six forms = 3 audiences × 2 languages, all on this site:
 
 ```
-InquiryModal  →  src/lib/leads.ts  →  Supabase public.leads  →  Database Webhook
-                        │                                              │
-                        └─ on any insert error: mailto: fallback       └─ POST /api/lead-notify
-                           to hello@medsociety.one                        → Resend email
+https://medsociety.one/borderhealth?seg=employer|employee|provider&lang=en|es
+https://medsociety.one/research?seg=employer|employee|provider&lang=en|es    (co-branded UTEP / NSF I-Corps)
 ```
 
-- Schema + RLS: `supabase/migrations/0001_leads.sql`. Anon may INSERT only — there is no
-  select policy, so the public key cannot read the pipeline back.
-- Read the pipeline locally: `npx tsx --env-file=.env.local scripts/list-leads.ts [status]`
-  (needs `SUPABASE_SERVICE_ROLE_KEY`; the anon key is deliberately blind here).
-- Notification: `api/lead-notify.ts` — its header comment carries the full Vercel + Supabase
-  webhook setup. Authenticated by an `x-webhook-secret` header, not a signature.
-- **Gotcha:** `submitInquiry()` falls back to `mailto:` on *any* insert failure and only
-  `console.warn`s. A broken table or policy therefore looks like a working site while
-  quietly costing leads — after touching RLS, submit a test lead and confirm a row appears
-  rather than a mail client opening.
+Optional: `&by=<name>` (who shared it), `&utm_source=...&utm_campaign=...`, `&session=test` (dry run, excluded
+from every number). Tracking goes `track.ts` to `api/form-event.ts` to `form_events` (migrations 0010–0012; every
+view has a `form_slug` column, `research` or `borderhealth`). Finished submissions stay in `bh_responses`
+(`answers.utm`, `form_version = 'v2'`, `answers.variant`). The old standalone site at borderhealth.dropdev.co was
+left running on purpose and writes to the same `bh_responses` table.
 
-This pipeline is unaffected by the search-first redesign — no changes here since it was last documented.
+Provider respondents flow into onboarding through RPCs `bh_match_providers`, `bh_claim_provider` and
+`bh_submit_listing` (migration 0005). Email-confirmation resume needs `/borderhealth?resume=1` in the Supabase
+Auth redirect allowlist.
 
-## 10. Known Issues & TODOs
-
-**Added by the post-review work:**
-- `npm run lint` reports 34 errors. 31 predate this branch; the 3 added are all
-  `react-hooks/set-state-in-effect` in data hooks (`useSession`, `useMyClinic`,
-  `ClinicPhotoManager`), the same shape as the pre-existing violations in
-  `useGoogleReviews` / `useGooglePhotos`. Fixing the class properly means a
-  data-fetching library, not a local edit.
-- Claim approval is manual SQL. There is no admin UI:
-  `insert into provider_owners (provider_id, user_id) values (...)` after
-  reading `provider_claims where status = 'pending'`.
-- `estimateViews()` is modelled, not measured. Replace it with real `clicks`
-  once `analytics.ts` persists them, and delete the module.
-- The directory holds duplicate rows (e.g. "International X Dental Clinic"
-  appears twice with identical review counts). Dedupe was out of scope here.
-- `doctoralia_doctors.google_rating` is empty for all 2,794 rows — enrichment
-  never ran. Running it would give real decimal ratings for Doctoralia
-  providers at the cost of ~2,700 Places Details calls.
-- The clinic dashboard cannot edit specialty, hours or insurances yet; the
-  columns are granted, the form does not surface them.
-
-
-
-- `src/utils/analytics.ts` contains an explicit `// TODO: swap with Supabase increment when live` — click tracking is a stub only, not persisted.
-- `src/components/search/SearchBar.tsx` is superseded by `SearchHero.tsx` and is currently unreferenced by anything — a candidate for deletion, left in place only because it wasn't the redesign's job to remove other people's uncommitted work.
-- `README.md` is still the unmodified default Vite/React template README — it documents template boilerplate (ESLint config expansion advice), not this project.
-- No automated tests exist for any part of the app.
-- The production bundle emits a "chunk larger than 500kB" warning from Vite (`index-*.js` is ~585kB raw / ~171kB gzipped) — `MapView` and `ProviderDrawer` are already split out via `React.lazy()` (section 5.2), so further splitting would need to go inside the main bundle (e.g. the i18n locale JSON, or route-level splitting for `/sales`).
-
-## 11. Fast Orientation for a New Agent
+## 12. Fast orientation for an AI agent
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-graphify query "How does provider data flow into the search-first UI?"
-graphify god-nodes --top 15
-cat graphify-out/GRAPH_REPORT.md
+graphify query "How does a provider listing get from the database to the search page?"
+graphify update .        # after changing code
 ```
 
-The graph was refreshed at commit `acc6da7` (this same commit) via `graphify update .` — 688 nodes, 1207 edges. Run `git rev-parse HEAD` and compare to whatever commit `graphify-out/GRAPH_REPORT.md` says it was built from before trusting it deeply; if HEAD has moved since, run `graphify update .` again first.
-
-**Best first questions to ask the graph once it's fresh:** *"What does `Provider` connect to, and which components would break if I changed its shape?"* (still the single highest-degree node — see the `normalizeProvider()` gotcha in section 7) and *"What calls `applyFilters`/`buildFacets`, and what would break if their signature changed?"* (the new choke point introduced by the redesign — nearly every `search/` component and `SearchPage.tsx` itself depends on it).
-
-## Form links and analytics (/borderhealth)
-
-Six forms = 3 audiences x 2 languages, all the same MedSociety page (no external forms):
-
-    https://medsociety.one/borderhealth?seg=employer&lang=en   (and lang=es)
-    https://medsociety.one/borderhealth?seg=employee&lang=en   (and lang=es)
-    https://medsociety.one/borderhealth?seg=provider&lang=en   (and lang=es)
-
-Optional params: `&by=<name>` (who shared it; shows up in the source report),
-`&utm_source=...&utm_campaign=...`, `&session=test` (dry run, excluded from all numbers).
-
-Tracking: src/components/borderhealth/track.ts -> api/form-event.ts -> table `form_events`
-(migration 0010). Needs SUPABASE_SERVICE_ROLE_KEY (and optionally FORM_EVENT_SALT) in Vercel.
-Read it: `npx tsx --env-file=.env.local scripts/form-stats.ts [daily|sources|audience|visitors|events]`
-or the views form_summary, form_step_funnel, form_daily, form_by_source, form_audience,
-form_visitors, form_visits in the Supabase SQL editor. Finished submissions stay in `bh_responses`.
-
-### /research (primary study URL)
-`/research?seg=employer|employee|provider&lang=en|es` is the same in-app survey with Mike Loya Center (UTEP) + NSF I-Corps branding and no MedSociety navbar/onboarding. It is fully tracked: every view (`form_summary`, `form_daily`, `form_by_source`, `form_audience`, `form_step_funnel`, `form_visitors`) has a `form_slug` column (`research` vs `borderhealth`), and `bh_responses.form_slug` marks submissions. Migration `0011_form_slug.sql`. The old vercel.json proxy to borderhealth.dropdev.co was removed.
-
-### UTMs and the employee/patient card
-Native submissions now write `answers.utm`, `answers.form_version = 'v2'` and `answers.variant` (`research`|`medsociety`) into `bh_responses`, so the old per-channel SQL works. `form_visits` / `form_by_source` also carry `utm_medium`, `utm_content`, `utm_term` (migration 0012). The employee card is "Employee or patient" and its industry and work-location questions have a "No trabajo actualmente / I do not currently work" option (key `not_working`).
+The knowledge graph in `graphify-out/` (about 2,300 nodes) is rebuilt from the AST at no API cost. Good first
+questions: what depends on the `Provider` type (`src/types/provider.ts`, the highest-degree node), and what calls
+`applyFilters` / `buildFacets` (`src/utils/filters.ts`, `facets.ts`).

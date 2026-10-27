@@ -7,6 +7,7 @@ import { formatPrice } from '../../utils/currency';
 import { profileViews } from '../../utils/profileViews';
 import { IconStar, IconViews, SpecialtyIcon } from '../icons/Icons';
 import { placeLabel } from '../../utils/place';
+import { isPlainClick } from '../../utils/linkClick';
 
 interface ProviderTileProps {
     provider: Provider;
@@ -46,13 +47,28 @@ export function ProviderTile({ provider, onClick, priority = false }: ProviderTi
     const side = placeLabel(provider);
 
     return (
-        <button
-            onClick={() => onClick(provider)}
+        <a
+            href={`/providers/${provider.id}`}
+            onClick={(e) => {
+                // Plain click opens the in-page modal; modified / middle
+                // clicks fall through to the href (new tab, etc.).
+                if (!isPlainClick(e)) return;
+                e.preventDefault();
+                onClick(provider);
+            }}
             className="ms-tile"
             style={{
                 width: '100%', textAlign: 'left', background: 'none',
                 color: 'var(--white)', padding: 0,
                 display: 'flex', flexDirection: 'column', gap: '0.6rem',
+                // This used to be a <button>, whose UA defaults an <a> lacks.
+                // Pinned so the tile renders exactly as before.
+                boxSizing: 'border-box',
+                fontWeight: 400,
+                lineHeight: 'normal',
+                letterSpacing: 'normal',
+                textDecoration: 'none',
+                textRendering: 'auto',
             }}
         >
             <div
@@ -192,16 +208,18 @@ export function ProviderTile({ provider, onClick, priority = false }: ProviderTi
                     }}>
                         {provider.priceFromMxn != null && (
                             <span style={{ fontWeight: 700 }}>
-                                {t('card.priceFrom', {
-                                    price: formatPrice(provider.priceFromMxn, i18n.language),
-                                    defaultValue: `From ${formatPrice(provider.priceFromMxn, i18n.language)}`,
-                                })}
+                                <data value={provider.priceFromMxn} data-currency="MXN" data-price-from="true">
+                                    {t('card.priceFrom', {
+                                        price: formatPrice(provider.priceFromMxn, i18n.language),
+                                        defaultValue: `From ${formatPrice(provider.priceFromMxn, i18n.language)}`,
+                                    })}
+                                </data>
                             </span>
                         )}
                     </p>
                 )}
             </div>
-        </button>
+        </a>
     );
 }
 

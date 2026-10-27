@@ -1,0 +1,135 @@
+/* Feedback widget: floating button bottom-right + the modal it opens.
+   The button sits above page content (60 = the mobile map/list buttons) and
+   below the navbar (100) and the provider modal (250). */
+
+.fb-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.95rem;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--navy-800);
+  color: var(--white);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s var(--ease-out);
+}
+.fb-fab:hover { background: var(--surface-hover); }
+.fb-fab:active { transform: scale(0.97); }
+.fb-fab:focus-visible,
+.fb-send:focus-visible,
+.fb-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fb-fab.is-open { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+
+/* Phones: icon only, so it never competes with the page's own bottom buttons. */
+@media (max-width: 640px) {
+  .fb-fab { padding: 0; width: 44px; }
+  .fb-fab-text { display: none; }
+}
+
+/* Same layering and look as the provider modal (.ms-pm): above the navbar,
+   below the photo lightbox, blurred backdrop, panel centred. */
+.fb-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.fb-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 13, 20, 0.46);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+  animation: ms-pm-fade 0.26s ease both;
+}
+.fb-panel {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 1.1rem 1.3rem 1.3rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 10px);
+  background: var(--navy);
+  color: var(--white);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.12);
+  animation: ms-pm-in 0.42s cubic-bezier(0.22, 1.18, 0.36, 1) both;
+}
+
+.fb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.fb-head h2 { margin: 0; font-size: 1.05rem; letter-spacing: -0.01em; }
+.fb-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; margin-right: -6px;
+  border: 0; border-radius: var(--radius-pill); background: none; color: var(--gray-400); cursor: pointer;
+}
+.fb-x:hover { background: var(--surface-hover); color: var(--white); }
+
+.fb-kinds { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.5rem; padding: 0; border: 0; }
+.fb-kinds legend { padding: 0; margin-bottom: 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--gray-400); }
+.fb-kinds label {
+  position: relative;
+  display: inline-flex; align-items: center; min-height: 34px; padding: 0 0.75rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+  font-size: 0.84rem; cursor: pointer;
+}
+.fb-kinds label.is-on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.fb-kinds input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.fb-kinds label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.fb-field { display: block; margin: 0.55rem 0 0.25rem; font-size: 0.8rem; font-weight: 600; color: var(--gray-400); }
+.fb-panel textarea,
+.fb-panel input[type='email'] {
+  width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--navy); color: var(--white);
+  font: inherit; font-size: 16px; /* 16px stops iOS zooming the page on focus */
+}
+.fb-panel textarea { resize: vertical; min-height: 84px; }
+.fb-panel textarea:focus-visible,
+.fb-panel input[type='email']:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.fb-panel textarea[aria-invalid='true'] { border-color: var(--red); }
+
+.fb-hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+.fb-hint { margin: 0.5rem 0 0; font-size: 0.78rem; line-height: 1.4; color: var(--gray-400); }
+.fb-err { margin: 0.5rem 0 0; font-size: 0.84rem; color: var(--red); }
+
+.fb-send {
+  width: 100%; min-height: 44px; margin-top: 0.65rem; padding: 0 1rem;
+  border: 0; border-radius: var(--radius-pill);
+  background: var(--brand); color: var(--on-brand);
+  font: inherit; font-size: 0.92rem; font-weight: 700; cursor: pointer;
+}
+.fb-send:disabled { opacity: 0.6; cursor: progress; }
+
+.fb-sent { text-align: center; padding: 0.4rem 0 0; }
+.fb-sent-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%; background: var(--accent-dim); color: var(--accent);
+}
+.fb-sent-title { margin: 0.7rem 0 0.2rem; font-weight: 700; }
+.fb-sent-sub { margin: 0; font-size: 0.86rem; color: var(--gray-400); }
+
+@media (max-width: 640px) {
+  .fb-modal { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fb-panel, .fb-backdrop { animation: none; }
+  .fb-fab { transition: none; }
+}

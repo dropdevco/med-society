@@ -10,7 +10,11 @@
     "languageGroup": "Language",
     "listYourClinic": "List your clinic",
     "signIn": "Sign in",
-    "myClinic": "My clinic"
+    "myClinic": "My clinic",
+    "primaryNav": "Main",
+    "skipToContent": "Skip to main content",
+    "resultsHeading": "Provider search results",
+    "resultsRegion": "Search results"
   },
   "search": {
     "placeholder": "Search doctors, specialties, services or ZIP",
@@ -271,7 +275,7 @@
     }
   },
   "discover": {
-    "heroTitle": "Trusted medical care on both sides of the border",
+    "heroTitle": "Trusted medical care on both sides of the border",
     "heroSubtitle": "Compare ratings, prices and credentials before you cross, in English or Spanish.",
     "scrollBack": "Show previous",
     "scrollOn": "Show more",
@@ -314,13 +318,13 @@
     "promotedF1": "Everything in Basic",
     "promotedF2": "Promoted pin on the map and priority in search",
     "promotedF3": "Included in the weekly patient newsletter",
-    "promotedF4": "Monthly report of profile views and contacts",
+    "promotedF4": "Monthly report: views, contacts and where your visitors came from",
     "promotedCta": "Get promoted",
     "featuredTier": "Featured",
     "featuredAlt": "about $99 USD",
     "featuredF1": "Everything in Promoted",
     "featuredF2": "First position in your category",
-    "featuredF3": "Full analytics dashboard",
+    "featuredF3": "Full analytics dashboard, weekly digest and CSV export",
     "featuredF4": "Quarterly SEO and AI visibility audit, plus priority support",
     "featuredCta": "Get featured",
     "terms": "No setup fee, no contract, cancel whenever you want.",
@@ -359,7 +363,8 @@
         "priceMxn": "about $5,100 MXN",
         "body": "Where you show up in search, maps and AI assistants, how you compare with the clinics near you, and what to fix first. Included quarterly with Featured."
       }
-    }
+    },
+    "basicF5": "A monthly email with how many people viewed your profile"
   },
   "account": {
     "communityBody": "Ask your question free and get answers from verified doctors and clinics in El Paso – Ciudad Juárez and San Diego – Tijuana.",
@@ -404,6 +409,7 @@
     "findYourClinic": "Find your clinic",
     "tab": {
       "overview": "Overview",
+      "insights": "Insights",
       "profile": "Profile",
       "photos": "Photos",
       "plan": "Plan"
@@ -411,7 +417,7 @@
     "statViews": "Profile views, last 30 days",
     "statContacts": "Contacts, last 30 days",
     "statRating": "Rating",
-    "statsDisclaimer": "Views and contacts are estimates, modelled from search demand for your specialty and area — not measured traffic. We will replace them with real figures as soon as tracking is live.",
+    "statsDisclaimer": "Measured from real visits to your profile.",
     "gapTitle": "People are finding you and leaving",
     "gapBody": "We estimate around {{views}} people looked at this listing in the last month, and none of them had a contact button to press. A promoted listing adds one.",
     "fieldName": "Clinic or practitioner name",
@@ -747,6 +753,150 @@
       "gateClaim": "Find and claim your listing",
       "gateSignIn": "Already verified? Sign in",
       "gatePatients": "Looking for answers as a patient? Ask a Doctor"
+    }
+  },
+  "analytics": {
+    "loadError": "We couldn't load your statistics right now. Try again in a moment.",
+    "period": "Last 30 days",
+    "collectingTitle": "We're collecting your numbers",
+    "collectingBody": "Your statistics show up here once your profile has had enough visits to mean something. We started counting on {{date}}. We'd rather show you nothing than a number that is mostly noise.",
+    "collectingBodyNoDate": "Your statistics show up here once your profile has had enough visits to mean something. We'd rather show you nothing than a number that is mostly noise.",
+    "views": "Profile views",
+    "visitors": "Unique visitors",
+    "contacts": "Contacts",
+    "inquiries": "Patient inquiries",
+    "up": "▲ {{pct}}% vs the 30 days before",
+    "down": "▼ {{pct}}% vs the 30 days before",
+    "same": "Same as the 30 days before",
+    "summaryReal": "Measured from real visits to your profile, last 30 days.",
+    "summaryBasic": "Measured from real visits to your profile, last 30 days. Contacts are part of the Promoted plan.",
+    "summaryCollecting": "We're still collecting enough visits to show real numbers.",
+    "seeInsights": "See your insights",
+    "contactsByMethod": "How people contacted you",
+    "noContactsYet": "No contacts yet in this period.",
+    "sources": "Where visitors came from",
+    "method": {
+      "phone": "Calls",
+      "whatsapp": "WhatsApp",
+      "email": "Email",
+      "website": "Website visits",
+      "directions": "Directions",
+      "social": "Social profiles",
+      "other": "Other"
+    },
+    "channel": {
+      "direct": "Direct or bookmarks",
+      "search": "Search engines",
+      "ai": "AI assistants",
+      "social": "Social media",
+      "whatsapp": "WhatsApp shares",
+      "email": "Email and newsletter",
+      "paid": "Ads",
+      "referral": "Other websites",
+      "internal": "Direct or bookmarks",
+      "unknown": "Other"
+    },
+    "unknown": "Unknown",
+    "planLiftTitle": "Since {{date}}, when your plan started",
+    "planLiftBody": "{{after}} profile views a day, compared with {{before}} a day in the two weeks before.",
+    "trend": "Profile views per day",
+    "exportCsv": "Download CSV",
+    "funnel": "From search result to patient",
+    "funnelSeen": "Shown in search results",
+    "funnelOpened": "Opened from results",
+    "funnelViewed": "Profile views",
+    "funnelContacted": "Contacted you",
+    "funnelInquired": "Patient inquiries",
+    "clickRate": "{{pct}}% of people who saw you opened your profile.",
+    "contactRate": "{{pct}}% of visitors contacted you.",
+    "avgPosition": "Average position in results: {{pos}}.",
+    "benchmark": "You're ahead of {{pct}}% of the {{n}} {{specialty}} listings in your area.",
+    "byHour": "Visits by hour of day (your local time)",
+    "byDay": "Visits by weekday",
+    "audience": "Your audience",
+    "country": "Country",
+    "device": "Device",
+    "language": "Site language",
+    "deviceName": {
+      "Mobile": "Phone",
+      "Desktop": "Computer",
+      "Tablet": "Tablet"
+    },
+    "sections": "What visitors reach on your profile",
+    "reached": "reached it",
+    "section": {
+      "photos": "Photos",
+      "insurance": "Insurance list",
+      "inquiry": "Message form",
+      "reviews": "Reviews",
+      "contact": "Contact details",
+      "services": "Services and prices",
+      "map": "Map"
+    },
+    "demand": "What people search for near you",
+    "demandBody": "Searches in your specialty and area, last 30 days. Counted, never read: we don't keep what anyone typed.",
+    "searches": "Searches",
+    "noResults": "Found no results",
+    "topServices": "Most searched services",
+    "filtersUsed": "Filters people used:",
+    "filter": {
+      "insurance": "Insurance",
+      "language": "Language",
+      "verified": "Verified only"
+    },
+    "insights": "Suggestions for your profile",
+    "insightGo": "Fix it",
+    "insight": {
+      "seenNotContacted": "{{views}} people viewed your profile this month and nobody contacted you. Check that your phone number and email are right, and that your profile gives a clear way to reach you.",
+      "inquiryNotReached": "Only {{share}}% of visitors scroll far enough to see the message form. A short description and a few photos give people a reason to keep reading.",
+      "visitorsSpanish": "{{share}}% of your visitors browse the site in Spanish, but your profile doesn't say you speak it.",
+      "visitorsEnglish": "{{share}}% of your visitors browse the site in English, but your profile doesn't say you speak it.",
+      "insuranceDemand": "{{share}}% of searches in your specialty filter by insurance, and your profile lists none. Send us the insurers you accept and we'll add them.",
+      "topServiceMissing": "The service people search for most in your specialty is {{service}} ({{searches}} searches). If you offer it, add it to your profile.",
+      "unmetDemand": "{{share}}% of the {{searches}} searches in your specialty and area found no results. There are patients looking for what you do.",
+      "photos": "Your profile has no photos of its own yet. Photos are the first thing patients look at.",
+      "peakHours": "{{share}}% of your visits happen between {{from}}:00 and {{to}}:00. That's the best time to have someone answering the phone and WhatsApp."
+    },
+    "lock": {
+      "cta": "See the plans",
+      "promotedTitle": "Included in Promoted",
+      "basicBody": "See how many people contacted you, how they reached you, where your visitors came from, and how your numbers change month to month.",
+      "featuredTitle": "Included in Featured",
+      "featuredBody": "A daily trend, the path from search result to patient, how you compare with similar clinics, your busiest hours, who your audience is, and what people search for near you."
+    }
+  },
+  "feedback": {
+    "open": "Feedback",
+    "openLabel": "Send feedback",
+    "title": "Send feedback",
+    "close": "Close",
+    "kindLabel": "What is this about?",
+    "kinds": {
+      "bug": "Something is broken",
+      "content": "Wrong information",
+      "idea": "An idea",
+      "other": "Something else"
+    },
+    "messageLabel": "Tell us what happened",
+    "placeholder": {
+      "bug": "What did you try, and what happened instead?",
+      "content": "What is wrong, and what should it say?",
+      "idea": "What would make MedSociety better for you?",
+      "other": "Tell us anything."
+    },
+    "emailLabel": "Email (optional, only if you'd like a reply)",
+    "privacy": "Please don't include medical details or other personal health information.",
+    "send": "Send",
+    "sending": "Sending…",
+    "thanks": "Thank you, we've got it.",
+    "thanksSub": "Our team reviews every report.",
+    "done": "Done",
+    "errors": {
+      "generic": "We couldn't send that. Please try again in a moment.",
+      "tooMany": "You've sent a few reports already. Please try again later.",
+      "tooShort": "Please write a little more (at least 5 characters).",
+      "tooLong": "That's too long. Please keep it under 2000 characters.",
+      "badEmail": "That email address doesn't look right."
     }
   }
 }

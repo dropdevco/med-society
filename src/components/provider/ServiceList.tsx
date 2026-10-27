@@ -105,7 +105,16 @@ export function ServiceList({ services, collapsible = true }: ServiceListProps) 
                                 fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap',
                                 color: s.priceMxn != null ? 'var(--white)' : 'var(--gray-500)',
                             }}>
-                                {priceLabel(s, i18n.language, t)}
+                                {s.priceMxn != null ? (
+                                    // Machine-readable amount (always MXN as stored); the text is the localised display.
+                                    <data
+                                        value={s.priceMxn}
+                                        data-currency="MXN"
+                                        data-price-from={s.isFrom ? 'true' : undefined}
+                                    >
+                                        {priceLabel(s, i18n.language, t)}
+                                    </data>
+                                ) : priceLabel(s, i18n.language, t)}
                             </span>
                         )}
                     </li>

@@ -16,6 +16,47 @@
     <meta name="twitter:title" content="MedSociety — Medical care across the US–Mexico border" />
     <meta name="twitter:description" content="Dentists, surgeons and specialists in El Paso – Ciudad Juárez and San Diego – Tijuana. Compare ratings, published prices and licenses before you cross." />
 
+    <meta property="og:image" content="https://www.medsociety.one/logo.png" />
+
+    <!--
+      Machine-readable interfaces. The pages below are client-rendered, so a
+      script or AI agent that does not run JavaScript should start here: a JSON
+      API (OpenAPI), an MCP server and a plain-text guide, none needing a key.
+      Where the server can, it also answers page URLs with readable HTML.
+    -->
+    <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json" />
+    <link rel="api-catalog" href="/.well-known/api-catalog" />
+    <link rel="alternate" type="text/markdown" href="/llms.txt" title="MedSociety guide for AI agents" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://www.medsociety.one/#website",
+            "url": "https://www.medsociety.one/",
+            "name": "MedSociety",
+            "description": "A bilingual (English/Spanish) directory of dentists, surgeons and specialists on both sides of the US-Mexico border.",
+            "inLanguage": ["en", "es"],
+            "publisher": { "@id": "https://www.medsociety.one/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": { "@type": "EntryPoint", "urlTemplate": "https://www.medsociety.one/?q={search_term_string}&list=1" },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://www.medsociety.one/#organization",
+            "name": "MedSociety",
+            "url": "https://www.medsociety.one/",
+            "logo": "https://www.medsociety.one/logo.png",
+            "email": "hello@medsociety.one"
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
@@ -67,6 +108,7 @@
     </script>
   </head>
   <body>
+    <noscript>MedSociety needs JavaScript for its interactive search. A readable version of every page, a JSON API and an MCP server are described at /llms.txt.</noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

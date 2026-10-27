@@ -84,15 +84,17 @@ export function SpecialtyTag({ specialty }: { specialty: string | null }) {
     return <span className="forum-tag">{t(`specialties.${specialty}`, { defaultValue: specialty })}</span>;
 }
 
-export function SpecialtySelect({ value, onChange, allLabel, id }: {
+export function SpecialtySelect({ value, onChange, allLabel, id, ariaLabel }: {
     value: string;
     onChange: (v: string) => void;
     allLabel: string;
     id?: string;
+    /** For a select with no visible label of its own (a wrapping <label> already names it otherwise). */
+    ariaLabel?: string;
 }) {
     const { t } = useTranslation();
     return (
-        <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+        <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel}>
             <option value="">{allLabel}</option>
             {SPECIALTIES.map((s) => <option key={s} value={s}>{t(`specialties.${s}`)}</option>)}
         </select>

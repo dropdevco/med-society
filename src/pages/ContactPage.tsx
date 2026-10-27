@@ -28,7 +28,7 @@ export function ContactPage() {
     }, []);
 
     return (
-        <div style={{ paddingTop: 68 }}>
+        <main id="main-content" style={{ paddingTop: 68 }}>
             <section
                 style={{
                     maxWidth: 640,
@@ -79,6 +79,6 @@ export function ContactPage() {
                     />
                 </div>
             </section>
-        </div>
+        </main>
     );
 }

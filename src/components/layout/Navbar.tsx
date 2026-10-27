@@ -33,6 +33,7 @@ export function Navbar() {
     return (
         <nav
             className="ms-nav"
+            aria-label={t('nav.primaryNav')}
             style={{
                 position: 'fixed',
                 top: 0, left: 0, right: 0,
@@ -48,6 +49,22 @@ export function Navbar() {
                 borderBottom: '1px solid var(--nav-border)',
             }}
         >
+            {/* Invisible until it takes keyboard focus (see .ms-skip-link). */}
+            <a
+                href="#main-content"
+                className="ms-skip-link"
+                onClick={(e) => {
+                    const main = document.getElementById('main-content');
+                    if (!main) return;
+                    e.preventDefault();
+                    main.setAttribute('tabindex', '-1');
+                    main.focus();
+                    main.scrollIntoView();
+                }}
+            >
+                {t('nav.skipToContent')}
+            </a>
+
             {/* On a phone the wordmark is hidden and the shield alone is 34px.
                 The padding grows the tap target to 44px; the negative margin
                 keeps the layout where it was. */}

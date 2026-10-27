@@ -11,6 +11,7 @@ import {
     IconVerified, IconViews, SpecialtyIcon, CountryIcon,
 } from '../icons/Icons';
 import { placeLabel } from '../../utils/place';
+import { isPlainClick } from '../../utils/linkClick';
 
 interface ProviderCardProps {
     provider: Provider;
@@ -82,12 +83,27 @@ export function ProviderCard({
     const providerViews = profileViews(provider);
 
     return (
-        <button
-            onClick={() => onClick(provider)}
-            aria-pressed={selected}
+        <a
+            href={`/providers/${provider.id}`}
+            onClick={(e) => {
+                // Plain click opens the in-page modal; modified / middle
+                // clicks fall through to the href (new tab, etc.).
+                if (!isPlainClick(e)) return;
+                e.preventDefault();
+                onClick(provider);
+            }}
+            aria-current={selected ? 'true' : undefined}
             style={{
                 width: '100%',
                 textAlign: 'left',
+                // This used to be a <button>, whose UA defaults an <a> lacks.
+                // Pinned so the card renders exactly as before.
+                boxSizing: 'border-box',
+                fontWeight: 400,
+                lineHeight: 'normal',
+                letterSpacing: 'normal',
+                textDecoration: 'none',
+                textRendering: 'auto',
                 padding: '0.9rem 1rem',
                 borderRadius: 'var(--radius)',
                 background: selected ? 'var(--accent-dim)' : 'var(--navy-800)',
@@ -265,10 +281,12 @@ export function ProviderCard({
                     }}>
                         {provider.priceFromMxn != null && (
                             <Badge bg="var(--gold-dim)" fg="var(--gold)">
-                                {t('card.priceFrom', {
-                                    price: formatPrice(provider.priceFromMxn, i18n.language),
-                                    defaultValue: `From ${formatPrice(provider.priceFromMxn, i18n.language)}`,
-                                })}
+                                <data value={provider.priceFromMxn} data-currency="MXN" data-price-from="true">
+                                    {t('card.priceFrom', {
+                                        price: formatPrice(provider.priceFromMxn, i18n.language),
+                                        defaultValue: `From ${formatPrice(provider.priceFromMxn, i18n.language)}`,
+                                    })}
+                                </data>
                             </Badge>
                         )}
                         {insurances.slice(0, INSURANCE_CHIPS).map((name) => (
@@ -288,7 +306,7 @@ export function ProviderCard({
             <span style={{ color: 'var(--gray-500)', flexShrink: 0, alignSelf: 'center', display: 'flex' }}>
                 <IconChevronRight size={18} />
             </span>
-        </button>
+        </a>
     );
 }
 

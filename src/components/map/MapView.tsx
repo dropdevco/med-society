@@ -847,6 +847,7 @@ export function MapView({
                         key={p.id}
                         onClick={() => onProviderSelect(p)}
                         title={p.name}
+                        aria-label={p.name}
                         className="press"
                         style={{
                             position: 'absolute',

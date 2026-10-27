@@ -319,7 +319,7 @@ function digestMail(c: Clinician, questions: ThreadRow[]): Mail {
 async function unsubscribe(req: Req, res: Res, url: URL) {
     const token = url.searchParams.get('t') ?? '';
     const k = url.searchParams.get('k') ?? 'all';
-    const kind = (['prompts', 'digest', 'answers', 'all'] as const).find((x) => x === k) ?? 'all';
+    const kind = (['prompts', 'digest', 'answers', 'reports', 'all'] as const).find((x) => x === k) ?? 'all';
     const valid = UUID.test(token);
 
     if (req.method === 'POST') {

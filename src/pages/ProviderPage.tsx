@@ -34,20 +34,20 @@ export function ProviderPage() {
 
     if (loading) {
         return (
-            <div className="ms-page" style={{ paddingTop: NAV_HEIGHT }}>
+            <main className="ms-page" id="main-content" style={{ paddingTop: NAV_HEIGHT }}>
                 <div style={{ maxWidth: 1080, margin: '0 auto', padding: '2rem 1.25rem' }}>
                     <div className="skeleton" style={{ width: 140, height: 30, borderRadius: 8, marginBottom: '1.5rem' }} />
                     <div className="skeleton" style={{ width: '100%', height: 180, borderRadius: 'var(--radius)', marginBottom: '1.25rem' }} />
                     <div className="skeleton" style={{ width: '60%', height: 28, borderRadius: 8, marginBottom: '0.75rem' }} />
                     <div className="skeleton" style={{ width: '40%', height: 18, borderRadius: 8 }} />
                 </div>
-            </div>
+            </main>
         );
     }
 
     if (!provider) {
         return (
-            <div className="ms-page" style={{ paddingTop: NAV_HEIGHT }}>
+            <main className="ms-page" id="main-content" style={{ paddingTop: NAV_HEIGHT }}>
                 <div style={{
                     maxWidth: 480, margin: '0 auto', padding: '4rem 1.25rem', textAlign: 'center',
                 }}>
@@ -73,12 +73,12 @@ export function ProviderPage() {
                         {t('providerPage.backToDirectory')}
                     </Link>
                 </div>
-            </div>
+            </main>
         );
     }
 
     return (
-        <div className="ms-page" style={{ paddingTop: NAV_HEIGHT }}>
+        <main className="ms-page" id="main-content" style={{ paddingTop: NAV_HEIGHT }}>
             <div style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem 1.25rem 4rem' }}>
                 <button
                     onClick={goBack}
@@ -93,6 +93,6 @@ export function ProviderPage() {
                 </button>
                 <ProviderView provider={provider} />
             </div>
-        </div>
+        </main>
     );
 }
