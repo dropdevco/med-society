@@ -18,6 +18,7 @@ import { ProviderModal } from './components/provider/ProviderModal';
 import { AnalyticsBridge } from './components/AnalyticsBridge';
 import { RouteMeta } from './components/RouteMeta';
 import { AgentBridge } from './components/AgentBridge';
+import { FeedbackWidget } from './components/feedback/FeedbackWidget';
 import './index.css';
 
 /**
@@ -111,6 +112,7 @@ export default function App() {
       <SiteNavbar />
       <AppRoutes />
       <SiteFooter />
+      <FeedbackWidget />
     </BrowserRouter>
   );
 }

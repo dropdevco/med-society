@@ -44,7 +44,7 @@ function placePhotoDevMiddleware(mode: string): Plugin {
             // .env* files itself; process.env already holds shell-exported
             // vars, so we only fill in what isn't already set.
             const env = loadEnv(mode, process.cwd(), '')
-            for (const key of ['GOOGLE_PLACES_SERVER_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY', 'LEAD_NOTIFY_TO', 'LEAD_NOTIFY_FROM', 'OPENROUTER_API_KEY', 'FORUM_NOTIFY_FROM', 'CRON_SECRET', 'PUBLIC_SITE_URL']) {
+            for (const key of ['GOOGLE_PLACES_SERVER_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY', 'LEAD_NOTIFY_TO', 'LEAD_NOTIFY_FROM', 'OPENROUTER_API_KEY', 'FORUM_NOTIFY_FROM', 'CRON_SECRET', 'PUBLIC_SITE_URL', 'FORM_EVENT_SALT', 'FEEDBACK_NOTIFY_TO']) {
                 if (!process.env[key] && env[key]) process.env[key] = env[key]
             }
 
@@ -79,7 +79,7 @@ function placePhotoDevMiddleware(mode: string): Plugin {
             })
             server.middlewares.use((req, res, next) => {
                 // Same shim serves every dev-mapped function (api/<name>.ts).
-                const match = /^\/api\/(place-photo|inquiry|ai-search|forum-notify|agent)(?:[/?]|$)/.exec(req.url ?? '')
+                const match = /^\/api\/(place-photo|inquiry|ai-search|forum-notify|agent|feedback)(?:[/?]|$)/.exec(req.url ?? '')
                 if (!match) return next()
 
                 server
