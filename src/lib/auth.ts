@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { track } from './posthog';
 
 /**
  * Sign-in, sign-up and claiming, as four functions that never throw.
@@ -18,6 +19,7 @@ const NOT_CONFIGURED = 'Sign-in is unavailable: Supabase is not configured.';
 export async function signIn(email: string, password: string): Promise<AuthResult> {
     if (!supabase) return { error: NOT_CONFIGURED };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    track('sign_in', { ok: !error });
     return { error: error?.message ?? null };
 }
 
@@ -36,10 +38,12 @@ export async function signUp(email: string, password: string, redirectTo?: strin
         // confirmation click lands where the person was going.
         options: { emailRedirectTo: redirectTo ?? `${window.location.origin}/dashboard` },
     });
+    track('sign_up', { ok: !error, redirect: redirectTo ? new URL(redirectTo, window.location.origin).pathname : 'dashboard' });
     return { error: error?.message ?? null };
 }
 
 export async function signOut(): Promise<void> {
+    track('sign_out');
     await supabase?.auth.signOut();
 }
 
@@ -65,5 +69,6 @@ export async function submitClaim(
             { onConflict: 'provider_id,user_id' },
         );
 
+    track('claim_submitted', { provider_id: providerId, ok: !error });
     return { error: error?.message ?? null };
 }

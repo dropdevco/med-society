@@ -23,6 +23,8 @@ import {
 } from '../icons/Icons';
 import { SOCIAL_ICONS, SOCIAL_ORDER } from '../icons/socialMap';
 import { placeLabel } from '../../utils/place';
+import { contactMethodOf, providerProps } from '../../utils/analytics';
+import { track } from '../../lib/posthog';
 import { languageName } from '../../utils/languages';
 
 /** The map is the heaviest thing on a provider profile — never pay for it before it scrolls into view. */
@@ -59,9 +61,17 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
             + (provider.googlePlaceId ? `&destination_place_id=${encodeURIComponent(provider.googlePlaceId)}` : '')
         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(provider.address)}`;
 
+    // One listener for every phone, email, website, directions and social link
+    // on the profile, classified by href, so a new link is counted for free.
+    const trackContact = (e: React.MouseEvent) => {
+        const a = (e.target as Element).closest('a[href]');
+        const method = a ? contactMethodOf(a.getAttribute('href') ?? '') : null;
+        if (method) track('provider_contact_click', providerProps(provider, { method }));
+    };
+
     return (
         <>
-                <div className="ms-provider-layout">
+                <div className="ms-provider-layout" onClickCapture={trackContact}>
                     {/* ── Main column ── */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', minWidth: 0 }}>
                         {/* Header */}
@@ -136,13 +146,6 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             />
                         </div>
 
-                        {provider.priceFromMxn != null && (
-                            <p style={{ fontSize: '0.95rem' }}>
-                                <span style={{ color: 'var(--gray-400)' }}>{t('providerPage.pricesFrom')} </span>
-                                <strong style={{ color: 'var(--gold)' }}>{formatPrice(provider.priceFromMxn, i18n.language)}</strong>
-                            </p>
-                        )}
-
                         {/* Languages — only ever a stated fact, never a guess. */}
                         <DetailRow
                             icon={<IconLanguage size={17} />}
@@ -158,7 +161,8 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
 
                         <InsuranceList insurances={provider.insurances ?? []} />
 
-                        <ServiceList services={provider.services ?? []} collapsible={false} />
+                        {/* Messaging is the page's main action, so it sits in the wide column. */}
+                        <InquiryForm provider={provider} />
 
                         {/* Latest first, whatever the rating: a sample picked by stars would flatter the clinic. */}
                         <ReviewCarousel
@@ -244,8 +248,6 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                                 </a>
                             )}
 
-                            <InquiryForm provider={provider} />
-
                             {provider.website && (
                                 <a
                                     href={provider.website}
@@ -279,6 +281,18 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                             </a>
 
                             <SocialLinks socials={provider.socials} name={provider.name} />
+
+                            {(provider.priceFromMxn != null || (provider.services?.length ?? 0) > 0) && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', borderTop: '1px solid var(--border)', paddingTop: '0.9rem' }}>
+                                    {provider.priceFromMxn != null && (
+                                        <p style={{ fontSize: '0.9rem', margin: 0 }}>
+                                            <span style={{ color: 'var(--gray-400)' }}>{t('providerPage.pricesFrom')} </span>
+                                            <strong style={{ color: 'var(--gold)' }}>{formatPrice(provider.priceFromMxn, i18n.language)}</strong>
+                                        </p>
+                                    )}
+                                    <ServiceList services={provider.services ?? []} />
+                                </div>
+                            )}
 
                             <div style={{ height: 200, borderRadius: 'var(--radius)', overflow: 'hidden' }}>
                                 {hasCoords ? (

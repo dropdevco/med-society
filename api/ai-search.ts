@@ -42,6 +42,7 @@ const EMBED_DIMS = 1024;
 const TRIAGE_MODEL = 'anthropic/claude-haiku-4.5';
 const CANDIDATES = 40;
 const MAX_DOCTORS = 4;
+const MAX_SPECIALTIES = 3;
 const QUOTES_PER_DOCTOR = 2;
 
 /**
@@ -62,6 +63,7 @@ const SPECIALTIES = [
     'dentist', 'orthodontist', 'plastic_surgery', 'aesthetician', 'obgyn', 'physical_therapy',
     'massage', 'optometry', 'general', 'pediatrics', 'cardiology', 'urgent_care',
     'mental_health', 'pharmacy', 'telehealth', 'neurology', 'otolaryngology', 'orthopedics',
+    'gastroenterology',
 ] as const;
 
 const OUTCOME_WEIGHT: Record<string, number> = { resolved: 1.3, improved: 1.15, unclear: 1, not_helped: 0.4 };
@@ -110,6 +112,9 @@ export interface AiSearchResult {
     /** False when the query is a name, a specialty or not health-related: the UI shows nothing. */
     isConcern: boolean;
     emergency: boolean;
+    /** Every kind of doctor worth seeing for this, best fit first (up to MAX_SPECIALTIES). */
+    specialties: (typeof SPECIALTIES)[number][];
+    /** `specialties[0]`, kept for clients that predate the list. */
     specialty: (typeof SPECIALTIES)[number] | null;
     guidance: string;
     doctors: AiDoctor[];
@@ -175,8 +180,8 @@ Reply with ONLY a JSON object:
 {
   "is_concern": true if the patient describes a health problem, symptom, condition or need; false if it is just a doctor/clinic name, a bare specialty word, or not health-related,
   "emergency": true only if it suggests a possible emergency (chest pain, trouble breathing, stroke signs, heavy bleeding, suicidal thoughts, severe injury, loss of consciousness, etc.),
-  "specialty": the single best fit from [${SPECIALTIES.join(', ')}], or null,
-  "guidance": ${lang === 'es' ? 'in SPANISH' : 'in ENGLISH'}, at most 2 short sentences and under 35 words: which kind of doctor usually handles this and why. Never diagnose, never name a condition the patient has, never suggest medication. If emergency, tell them to call 911 now (it works on both sides of the border) or go to the nearest emergency room / urgencias.,
+  "specialties": the kinds of doctor worth seeing for this, best fit first, 1 to ${MAX_SPECIALTIES} items chosen ONLY from [${SPECIALTIES.join(', ')}] ([] if none fit). Include a second or third only when a patient would genuinely consider it (e.g. primary care first, then the specialist),
+  "guidance": ${lang === 'es' ? 'in SPANISH' : 'in ENGLISH'}, at most 2 short sentences and under 35 words: which kinds of doctor usually handle this and why. Name ONLY kinds of doctor that are in your "specialties" list, and name every one of them, so the text and the buttons shown under it always agree. Never diagnose, never name a condition the patient has, never suggest medication. If emergency, tell them to call 911 now (it works on both sides of the border) or go to the nearest emergency room / urgencias.,
   "relevant": the numbers of the reviews in which a patient describes being seen for the SAME or a closely related problem or body area. Exclude reviews that only praise manners, listening, punctuality or price, and reviews that merely share a word (e.g. "me escuchó" is not about ears). [] if none.
 }`;
 }
@@ -239,12 +244,16 @@ export async function aiSearch(query: string, lang: 'en' | 'es', region: RegionI
             ? parsed.relevant.filter((n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < candidates.length)
             : [],
     );
-    const specialty = SPECIALTIES.includes(parsed.specialty) ? parsed.specialty : null;
+    // `specialty` (singular) is accepted too, in case a model reply still uses it.
+    const asked: unknown[] = Array.isArray(parsed.specialties) ? parsed.specialties : [parsed.specialty];
+    const specialties = [...new Set(asked.filter((s): s is (typeof SPECIALTIES)[number] =>
+        typeof s === 'string' && (SPECIALTIES as readonly string[]).includes(s)))].slice(0, MAX_SPECIALTIES);
 
     return {
         isConcern: parsed.is_concern === true,
         emergency: parsed.emergency === true,
-        specialty,
+        specialties,
+        specialty: specialties[0] ?? null,
         guidance: clean(parsed.guidance, 400),
         // An emergency gets the 911 line and nothing else to read past it.
         doctors: parsed.is_concern === true && parsed.emergency !== true

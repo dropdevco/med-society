@@ -159,7 +159,8 @@
     "telehealth": "Telehealth",
     "neurology": "Neurology",
     "otolaryngology": "Ear, Nose & Throat",
-    "orthopedics": "Orthopedics & Trauma"
+    "orthopedics": "Orthopedics & Trauma",
+    "gastroenterology": "Gastroenterology"
   },
   "sales": {
     "heroEyebrow": "For clinics and practices",
@@ -244,6 +245,16 @@
     "ctaBannerBtn": "Get listed free",
     "footer": "© {{year}} MedSociety · Medical care across the US–Mexico border"
   },
+  "contact": {
+    "title": "Contact us"
+  },
+  "footer": {
+    "copyright": "© {{year}} MedSociety · Medical care across the US–Mexico border",
+    "navLabel": "Legal and contact",
+    "contact": "Contact",
+    "terms": "Terms and Conditions",
+    "privacy": "Privacy Policy"
+  },
   "languages": {
     "en": "English",
     "es": "Spanish"
@@ -261,7 +272,7 @@
   },
   "discover": {
     "heroTitle": "Trusted medical care on both sides of the border",
-    "heroSubtitle": "Dentists, surgeons and specialists in El Paso – Ciudad Juárez and San Diego – Tijuana. Compare ratings, published prices, licenses and insurance, in English or Spanish, before you cross.",
+    "heroSubtitle": "Compare ratings, prices and credentials before you cross, in English or Spanish.",
     "scrollBack": "Show previous",
     "scrollOn": "Show more",
     "dentistsJuarez": "Top-rated dentists in Ciudad Juárez",
@@ -296,8 +307,9 @@
     "basicF4": "WhatsApp button on your profile",
     "basicCta": "Start free",
     "perMonth": "USD/month",
+    "perMonthMxn": "MXN/month",
     "promotedTier": "Promoted",
-    "promotedMxn": "about $850 MXN",
+    "promotedAlt": "about $49 USD",
     "promotedBadge": "Most popular",
     "promotedF1": "Everything in Basic",
     "promotedF2": "Promoted pin on the map and priority in search",
@@ -305,12 +317,12 @@
     "promotedF4": "Monthly report of profile views and contacts",
     "promotedCta": "Get promoted",
     "featuredTier": "Featured",
-    "featuredMxn": "about $1,700 MXN",
+    "featuredAlt": "about $99 USD",
     "featuredF1": "Everything in Promoted",
     "featuredF2": "First position in your category",
     "featuredF3": "Full analytics dashboard",
     "featuredF4": "Quarterly SEO and AI visibility audit, plus priority support",
-    "featuredCta": "Talk to us",
+    "featuredCta": "Get featured",
     "terms": "No setup fee, no contract, cancel whenever you want.",
     "addonsEyebrow": "Add-ons",
     "addonsTitle": "Fill the schedule, not just the listing",
@@ -423,6 +435,19 @@
     "currentPlan": "Current plan",
     "upgrade": "Upgrade my listing",
     "seeAllPlans": "See all plans and add-ons",
+    "planActiveUntil": "Active until {{date}}",
+    "planCanceledUntil": "Cancelled. Your plan stays on until {{date}}.",
+    "planEnded": "Your last plan ended. Subscribe again to turn it back on.",
+    "choosePlan": "Choose a plan",
+    "subscribe": "Subscribe",
+    "subscribeBusy": "Opening secure payment…",
+    "subscribeFor": "{{plan}} for {{clinic}}",
+    "securePay": "You pay on our secure payment page. Keep the email {{email}} so your plan switches on automatically.",
+    "paidWaiting": "Payment received. We are switching your plan on, which usually takes under a minute.",
+    "paidDone": "Your {{plan}} plan is active. Thank you!",
+    "paidSlow": "Your payment has not shown up yet. It can take a few minutes. If your plan is not active within the hour, write to hello@medsociety.one and we will fix it right away.",
+    "cancelHelp": "To cancel or change your plan, contact us. It takes effect at the end of the month you have paid for.",
+    "checkoutFailed": "Could not open the payment page. Please try again.",
     "plan": {
       "listing": "Listing in the directory and on the map",
       "manage": "Edit your own profile, photos and hours",
@@ -586,11 +611,6 @@
     "messageLabel": "Your question",
     "messagePlaceholder": "Write your message…",
     "counter": "{{count}} / {{max}}",
-    "timeLabel": "Best time to reach you (optional)",
-    "timeMorning": "Morning",
-    "timeAfternoon": "Afternoon",
-    "timeEvening": "Evening",
-    "timeAny": "Any time",
     "submit": "Send message",
     "sending": "Sending…",
     "privacy": "Only MedSociety sees your details. We share them with the clinic only to answer your question.",
@@ -628,7 +648,7 @@
     "label": "Smart search",
     "new": "New",
     "placeholder": "Describe what you feel, e.g. \"my ear has felt strange since yesterday\"",
-    "hint": "Tell us your problem in your own words. We match it with what patients said about doctors who helped them with something similar.",
+    "hint": "Describe it in your own words. We match it to what patients said about doctors who helped.",
     "submit": "Search",
     "modeLabel": "Search type",
     "modeRegular": "Search",

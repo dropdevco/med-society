@@ -329,7 +329,7 @@ export function SurveyRunner({ lang, useUrlSeg, onSubmitted, research = false }:
                 name: str(a, 'c_name'), org: str(a, 'c_org'), email: str(a, 'c_email'),
                 phone: phoneOrWa, whatsapp: str(a, 'c_whatsapp'),
                 follow_up_key: str(a, 'follow_up') || undefined,
-                industry, city, follow_up: followed,
+                industry, city: [city, answers.state].filter(Boolean).join(', ') || null, follow_up: followed,
                 submission_key: submissionKey,
                 answers,
             });
@@ -523,6 +523,31 @@ function QuestionView({ qd, seg, a, lang, tt, err, onSingle, onMulti, onOther, o
                     )}
                     <ErrLine tt={tt} err={err} />
                 </fieldset>
+            </div>
+        );
+    }
+
+    if (qd.type === 'select') {
+        const groups = Object.keys(qd.groups || {});
+        return (
+            <div className={cls} data-q={qd.id}>
+                <label className="bh-lab" htmlFor={'f_' + qd.id}>{label}</label>
+                <select
+                    id={'f_' + qd.id}
+                    className="bh-input bh-select"
+                    value={str(a, qd.id)}
+                    onChange={(e) => onText(e.target.value)}
+                >
+                    <option value="">{tt.choose}</option>
+                    {groups.map((g) => (
+                        <optgroup key={g} label={qd.groups?.[g]?.[lang]}>
+                            {(qd.opts || []).filter((op) => op.g === g).map((op) => (
+                                <option key={op.v} value={op.v}>{op[lang]}</option>
+                            ))}
+                        </optgroup>
+                    ))}
+                </select>
+                <ErrLine tt={tt} err={err} />
             </div>
         );
     }

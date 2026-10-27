@@ -254,6 +254,7 @@ const es: Strings = {
         neurology: 'Neurología',
         otolaryngology: 'Otorrinolaringología',
         orthopedics: 'Ortopedia y traumatología',
+        gastroenterology: 'Gastroenterología',
     },
 };
 
@@ -392,6 +393,7 @@ const en: Strings = {
         neurology: 'Neurology',
         otolaryngology: 'Ear, nose & throat',
         orthopedics: 'Orthopedics & trauma',
+        gastroenterology: 'Gastroenterology',
     },
 };
 

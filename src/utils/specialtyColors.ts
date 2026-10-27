@@ -32,6 +32,7 @@ export const SPECIALTY_COLORS: Record<string, string> = {
     neurology: '#5b5fb8',
     otolaryngology: '#2f8f8f',
     orthopedics: '#8a6a3f',
+    gastroenterology: '#9a8330',
 };
 
 /** The colour for a specialty key, or the house accent for anything unknown. */

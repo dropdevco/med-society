@@ -47,6 +47,12 @@ interface SearchHeroProps {
      * WherePopover. The typed query and any chosen specialties stay in the box.
      */
     onRegionChange?: (patch: Partial<ProviderFilters>) => void;
+    /**
+     * A tap anywhere outside the box, or Escape with no popover open. The
+     * results toolbar collapses back to its pill on it; the home page leaves
+     * it unset, because there the box is the page.
+     */
+    onDismiss?: () => void;
 }
 
 /** The WHERE segment's draft: region, side and postal code. */
@@ -76,6 +82,7 @@ function draftFrom(f: ProviderFilters): Draft {
  */
 export function SearchHero({
     filters, vocabulary, insurers, onSubmit, onProvider, autoFocus, onWhereChange, onRegionChange,
+    onDismiss,
 }: SearchHeroProps) {
     const { t } = useTranslation();
     const [draft, setDraft] = useState<Draft>(() => draftFrom(filters));
@@ -157,10 +164,39 @@ export function SearchHero({
         };
     }, [open]);
 
+    useEffect(() => {
+        if (!onDismiss) return;
+        // On click, not mousedown: collapsing shrinks the toolbar, and on a
+        // phone the tap's click would then land on whatever slid up under the
+        // finger. And by the path, not contains(): a click that removes its
+        // own target (a chip's ×, a suggestion row) is no longer inside the
+        // box by the time it bubbles up here.
+        const onClick = (e: MouseEvent) => {
+            if (wrapRef.current && !e.composedPath().includes(wrapRef.current)) onDismiss();
+        };
+        // Attached a task later: the tap that opened the box is still on its
+        // way up to the document, and would close it again on arrival.
+        const timer = window.setTimeout(() => document.addEventListener('click', onClick));
+        return () => {
+            window.clearTimeout(timer);
+            document.removeEventListener('click', onClick);
+        };
+    }, [onDismiss]);
+
     const suggestions = useMemo(
         () => (open === 'what' ? suggest(vocabulary, draft.text) : []),
         [open, draft.text, vocabulary],
     );
+
+    // The first Escape closes a showing popover; the next one closes the box.
+    // A focused WHAT with no suggestions is "open" but shows nothing.
+    const popoverShown = open === 'where' || open === 'cover' || suggestions.length > 0;
+    useEffect(() => {
+        if (!onDismiss || popoverShown) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [onDismiss, popoverShown]);
 
     const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
@@ -259,7 +295,10 @@ export function SearchHero({
             : t('search.coverCount', { count: draft.insurances.length });
 
     return (
-        <div ref={wrapRef} className="ms-hero-wrap">
+        <div
+            ref={wrapRef}
+            className="ms-hero-wrap"
+        >
             <div className={`ms-hero${open ? ' is-open' : ''}`} role="search">
                 {/* ── What ── */}
                 <div

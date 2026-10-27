@@ -8,6 +8,7 @@ import { SERIES, fmt, pct, type Series } from '../components/admin/format';
 import { TrafficPanel, ResponsesPanel } from '../components/admin/FormsPanel';
 import { DirectoryPanel, AccountsPanel } from '../components/admin/SitePanel';
 import { ClinicLookup } from '../components/admin/ClinicLookup';
+import { BillingPanel } from '../components/admin/BillingPanel';
 import { SEGMENTS, SEGMENT_LABEL, regionName } from '../components/admin/labels';
 import '../components/admin/admin.css';
 
@@ -17,6 +18,7 @@ const TABS = [
     ['responses', 'Survey responses'],
     ['directory', 'Directory'],
     ['accounts', 'Accounts & leads'],
+    ['billing', 'Billing'],
     ['clinic', 'Clinic lookup'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -91,13 +93,14 @@ export function AdminPage() {
             </nav>
 
             {error && <p className="adm-err" role="alert">Could not load data: {error}</p>}
-            {!error && tab !== 'clinic' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
+            {!error && tab !== 'clinic' && tab !== 'billing' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
 
             {forms && site && tab === 'overview' && <Overview forms={forms} site={site} go={(t) => setParams({ tab: t }, { replace: true })} />}
             {forms && tab === 'traffic' && <TrafficPanel data={forms} />}
             {forms && tab === 'responses' && <ResponsesPanel data={forms} />}
             {site && tab === 'directory' && <DirectoryPanel site={site} />}
             {site && tab === 'accounts' && <AccountsPanel site={site} />}
+            {tab === 'billing' && <BillingPanel />}
             {tab === 'clinic' && <ClinicLookup />}
         </main>
     );

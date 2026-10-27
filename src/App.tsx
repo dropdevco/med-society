@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
+import { Footer } from './components/layout/Footer';
 import { SearchPage } from './pages/SearchPage';
 import { PricingPage } from './pages/PricingPage';
+import { ContactPage } from './pages/ContactPage';
 import { LoginPage } from './pages/LoginPage';
 import { ClaimPage } from './pages/ClaimPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -13,6 +15,7 @@ import { ForumPage } from './pages/ForumPage';
 import { ForumThreadPage } from './pages/ForumThreadPage';
 import { FORUM_PATH } from './lib/forumRoutes';
 import { ProviderModal } from './components/provider/ProviderModal';
+import { AnalyticsBridge } from './components/AnalyticsBridge';
 import './index.css';
 
 /**
@@ -46,6 +49,7 @@ function AppRoutes() {
       <Routes location={background || location}>
         <Route path="/" element={<SearchPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/claim/:providerId" element={<ClaimPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
@@ -89,11 +93,20 @@ function SiteNavbar() {
   return pathname.startsWith('/research') ? null : <Navbar />;
 }
 
+/** Same hide rules as the nav; admin keeps a clean chrome without site chrome. */
+function SiteFooter() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/research') || pathname.startsWith('/admin')) return null;
+  return <Footer />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <AnalyticsBridge />
       <SiteNavbar />
       <AppRoutes />
+      <SiteFooter />
     </BrowserRouter>
   );
 }

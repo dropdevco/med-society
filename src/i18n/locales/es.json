@@ -159,7 +159,8 @@
     "telehealth": "Telemedicina",
     "neurology": "Neurología",
     "otolaryngology": "Otorrinolaringología",
-    "orthopedics": "Ortopedia y Traumatología"
+    "orthopedics": "Ortopedia y Traumatología",
+    "gastroenterology": "Gastroenterología"
   },
   "sales": {
     "heroEyebrow": "Para clínicas y consultorios",
@@ -244,6 +245,16 @@
     "ctaBannerBtn": "Registrarme gratis",
     "footer": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos"
   },
+  "contact": {
+    "title": "Contáctanos"
+  },
+  "footer": {
+    "copyright": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos",
+    "navLabel": "Legal y contacto",
+    "contact": "Contacto",
+    "terms": "Términos y Condiciones",
+    "privacy": "Política de Privacidad"
+  },
   "languages": {
     "en": "Inglés",
     "es": "Español"
@@ -261,7 +272,7 @@
   },
   "discover": {
     "heroTitle": "Atención médica de confianza en ambos lados de la frontera",
-    "heroSubtitle": "Dentistas, cirujanos y especialistas en El Paso – Ciudad Juárez y San Diego – Tijuana. Compara calificaciones, precios publicados, cédulas profesionales y seguros, en español o inglés, antes de cruzar.",
+    "heroSubtitle": "Compara calificaciones, precios y cédulas antes de cruzar, en español o inglés.",
     "scrollBack": "Ver anteriores",
     "scrollOn": "Ver más",
     "dentistsJuarez": "Dentistas mejor calificados en Ciudad Juárez",
@@ -296,8 +307,9 @@
     "basicF4": "Botón de WhatsApp en tu perfil",
     "basicCta": "Empieza gratis",
     "perMonth": "/mes",
+    "perMonthMxn": "MXN/mes",
     "promotedTier": "Promovido",
-    "promotedMxn": "aprox. $850 MXN",
+    "promotedAlt": "aprox. $49 USD",
     "promotedBadge": "El más elegido",
     "promotedF1": "Todo lo de Básico",
     "promotedF2": "Pin promovido en el mapa y prioridad en las búsquedas",
@@ -305,12 +317,12 @@
     "promotedF4": "Reporte mensual de vistas y contactos",
     "promotedCta": "Quiero promoverme",
     "featuredTier": "Destacado",
-    "featuredMxn": "aprox. $1,700 MXN",
+    "featuredAlt": "aprox. $99 USD",
     "featuredF1": "Todo lo de Promovido",
     "featuredF2": "Primer lugar en tu categoría",
     "featuredF3": "Panel de analíticas completo",
     "featuredF4": "Auditoría trimestral de SEO y visibilidad en IA, más soporte prioritario",
-    "featuredCta": "Hablemos",
+    "featuredCta": "Quiero ser destacado",
     "terms": "Sin cuota de instalación, sin contrato, cancela cuando quieras.",
     "addonsEyebrow": "Servicios adicionales",
     "addonsTitle": "Llena la agenda, no solo el perfil",
@@ -423,6 +435,19 @@
     "currentPlan": "Plan actual",
     "upgrade": "Mejorar mi perfil",
     "seeAllPlans": "Ver todos los planes y servicios",
+    "planActiveUntil": "Activo hasta el {{date}}",
+    "planCanceledUntil": "Cancelado. Tu plan sigue activo hasta el {{date}}.",
+    "planEnded": "Tu último plan terminó. Suscríbete de nuevo para reactivarlo.",
+    "choosePlan": "Elige un plan",
+    "subscribe": "Suscribirme",
+    "subscribeBusy": "Abriendo el pago seguro…",
+    "subscribeFor": "{{plan}} para {{clinic}}",
+    "securePay": "Pagas en nuestra página de pago segura. Conserva el correo {{email}} para que tu plan se active automáticamente.",
+    "paidWaiting": "Pago recibido. Estamos activando tu plan, normalmente tarda menos de un minuto.",
+    "paidDone": "Tu plan {{plan}} está activo. ¡Gracias!",
+    "paidSlow": "Tu pago todavía no aparece. Puede tardar unos minutos. Si tu plan no se activa en una hora, escribe a hello@medsociety.one y lo resolvemos de inmediato.",
+    "cancelHelp": "Para cancelar o cambiar tu plan, contáctanos. Aplica al terminar el mes que ya pagaste.",
+    "checkoutFailed": "No se pudo abrir la página de pago. Inténtalo de nuevo.",
     "plan": {
       "listing": "Perfil en el directorio y en el mapa",
       "manage": "Edita tu perfil, tus fotos y tus horarios",
@@ -586,11 +611,6 @@
     "messageLabel": "Tu pregunta",
     "messagePlaceholder": "Escribe tu mensaje…",
     "counter": "{{count}} / {{max}}",
-    "timeLabel": "Mejor horario para contactarte (opcional)",
-    "timeMorning": "Mañana",
-    "timeAfternoon": "Tarde",
-    "timeEvening": "Noche",
-    "timeAny": "Cualquiera",
     "submit": "Enviar mensaje",
     "sending": "Enviando…",
     "privacy": "Solo MedSociety ve tus datos. Los compartimos con la clínica únicamente para responder tu pregunta.",
@@ -628,7 +648,7 @@
     "label": "Búsqueda inteligente",
     "new": "Nuevo",
     "placeholder": "Describe lo que sientes, ej. \"siento raro el oído desde ayer\"",
-    "hint": "Cuéntanos tu problema con tus palabras. Lo comparamos con lo que dijeron pacientes de doctores que los ayudaron con algo similar.",
+    "hint": "Descríbelo con tus palabras. Lo comparamos con lo que dijeron pacientes de doctores que los ayudaron.",
     "submit": "Buscar",
     "modeLabel": "Tipo de búsqueda",
     "modeRegular": "Buscar",
