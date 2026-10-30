@@ -39,8 +39,10 @@ interface State {
 /**
  * Boot state: a live draft wins unless the link asks for a different (valid)
  * audience. An unknown `?seg=` is ignored, so it can never cost a draft.
+ * `defaultSeg` is the audience a bare link opens on (the /research study page
+ * opens on providers); without it a bare link shows the audience picker.
  */
-function initialState(search: string, useUrlSeg: boolean): { s: State; restored: boolean } {
+function initialState(search: string, useUrlSeg: boolean, defaultSeg: BhSegment | null = null): { s: State; restored: boolean } {
     const rawSeg = useUrlSeg ? (new URLSearchParams(search).get('seg') || '').toLowerCase() : '';
     const segParam = isSeg(rawSeg) ? rawSeg : '';
     const draft = loadDraft();
@@ -53,6 +55,7 @@ function initialState(search: string, useUrlSeg: boolean): { s: State; restored:
         };
     }
     if (isSeg(segParam)) return { s: { seg: segParam, step: 0, a: {}, startedAt: Date.now() }, restored: false };
+    if (defaultSeg) return { s: { seg: defaultSeg, step: 0, a: {}, startedAt: Date.now() }, restored: false };
     return { s: { seg: null, step: 0, a: {}, startedAt: null }, restored: false };
 }
 
@@ -89,7 +92,7 @@ export function SurveyRunner({ lang, useUrlSeg, onSubmitted, research = false }:
     onSubmitted: (r: SurveyResult) => void;
 }) {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [boot] = useState(() => initialState(window.location.search, useUrlSeg));
+    const [boot] = useState(() => initialState(window.location.search, useUrlSeg, research ? 'provider' : null));
     const [S, setS] = useState<State>(boot.s);
     const [showRestored, setShowRestored] = useState(boot.restored);
     const [errors, setErrors] = useState<Errors>({});
