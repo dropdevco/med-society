@@ -1,7 +1,22 @@
 # MedSociety: a public directory. Search engines and AI agents are welcome.
 # Machine-readable interfaces: https://www.medsociety.one/llms.txt
 
+# SEO-tool crawlers walk every listing and each page costs several database
+# reads; they add load and no patients. Blocked to protect database IO.
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
 User-agent: *
+Crawl-delay: 10
 Allow: /
 Allow: /api/v1/
 Disallow: /api/
