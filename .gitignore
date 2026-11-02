@@ -39,6 +39,9 @@ scripts/doctoralia/.cache
 scripts/doctoralia/out
 scripts/doctoralia/.cache-web
 
+# Source pipeline runs (doctor data from outside directories; never commit)
+scripts/sources/.data
+
 # Supabase CLI local state
 supabase/.temp
 

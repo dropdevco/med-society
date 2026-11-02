@@ -28,10 +28,10 @@ From each card (`.blog-card.secondary_blog_card`):
 | Field | Where | Notes |
 |---|---|---|
 | External id | slug in the "Ver más" link, `/medico/<slug>` | Stable key for this source |
-| Name and title | `h6`, e.g. "Dr. …", "Dra. …" | Title split off |
+| Name and title | `h6`, e.g. "Dr. …", "Dra. …", "Lic. …" | Title split off; "Lic." marks non-physician staff (4 on 2 Nov) |
 | Specialty | `.especialidad` | Several specialties are comma-separated |
 | Hospital(s) | each `.hospital-pill`: text, `data-dir` (address), `data-torre`, `data-cons` (office) | A doctor can list more than one hospital |
-| Photo | `.blog-card-thumb img` | Stored as a URL only |
+| Photo | `.blog-card-thumb img` | Stored as a URL only. The generic `directorio-medico.jpg` (85 doctors) is stored as no photo |
 
 **No cédula.** Every match from this source goes to human review. The profile page (`/medico/<slug>`) adds only the hospital switchboard number and extension, so it is not fetched.
 

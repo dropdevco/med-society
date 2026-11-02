@@ -1,0 +1,12 @@
+# Source pipeline (docs/adr/0006).
+#   docker compose run --rm sources --source=hospital-angeles
+#   docker compose run --rm sources --list
+services:
+  sources:
+    build: .
+    image: medsociety-sources
+    volumes:
+      - ./scripts/sources/.data:/data
+    env_file:
+      - path: .env.local
+        required: false

@@ -11,7 +11,7 @@ Every phase ends with a demo and a go/no-go. Nothing is applied to production, p
 | Phase | What | Done when | Status |
 |---|---|---|---|
 | 0 | Decisions and docs: [ADRs](../adr/README.md), [sources register](../sources/README.md) | ADRs approved; Carlos decides [0005](../adr/0005-meaning-of-verified.md) | ADRs written, waiting for review |
-| 1 | Pipeline core + Hospital Ángeles reader, Docker | Self-test passes; a dry run finds ~151 + 243 doctors, green, locally and in Docker | **In progress** |
+| 1 | Pipeline core + Hospital Ángeles reader, Docker | Self-test passes; a dry run finds ~151 + 243 doctors, green, locally and in Docker | **Built 2 Nov**: 151 + 243 = 394, green locally and in Docker, second run +0 −0. Waiting for review |
 | 2 | Database tables + matching ([0003](../adr/0003-affiliation-data-model.md), [0004](../adr/0004-matching-and-freshness.md)) | Dry run reports matched / queued / unmatched; a second run changes nothing | Waiting for phase 1 and DB access |
 | 3 | Star Médica Juárez reader (Playwright, per-specialty to beat the 100-result cap) | Union of specialty searches > 100 and stable; cédula matches confirm | Waiting for permission letter |
 | 4 | Review queue: Verification and Sources tabs in `/admin` | One click decides a match; reviewer and time stored | Not started |
