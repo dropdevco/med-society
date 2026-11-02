@@ -3,16 +3,18 @@
  * database tables exist (docs/adr/0003) this is the pipeline's memory: the
  * last green run is what the next one is compared against.
  */
+import { randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import type { Permission, SourceEntry } from './types';
+import type { ObservedEntry, Permission } from './types';
 import type { TargetOutcome } from './judge';
 
 export const DATA_DIR = process.env.SOURCES_DATA_DIR
     ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.data');
 
 export interface RunRecord {
+    /** UUIDv7: unique across sources, machines and time, and ordered by when the run started. */
     id: string;
     source: string;
     startedAt: string;
@@ -24,18 +26,33 @@ export interface RunRecord {
     counts: { entries: number; added: number; removed: number };
     added: string[];
     removed: string[];
-    entries: SourceEntry[];
+    entries: ObservedEntry[];
 }
 
 const runsDir = (source: string) => path.join(DATA_DIR, source, 'runs');
 
-/** Sortable and safe in a file name on Windows: 2026-11-02T18-30-05Z. */
-export const runId = (d: Date) => d.toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
+/**
+ * A UUIDv7 (RFC 9562): 48 bits of Unix milliseconds, then random bits.
+ * Unique without coordination between machines, and time-ordered, so it
+ * sorts and indexes well when there are millions of rows behind it.
+ */
+export function uuidv7(ms = Date.now()): string {
+    const b = randomBytes(16);
+    b.writeUIntBE(ms, 0, 6);
+    b[6] = (b[6] & 0x0f) | 0x70; // version 7
+    b[8] = (b[8] & 0x3f) | 0x80; // RFC 9562 variant
+    const h = b.toString('hex');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/** The run file's name: start time first so a directory listing reads in order, then the run ID. */
+export const runFileName = (run: Pick<RunRecord, 'id' | 'startedAt'>) =>
+    `${run.startedAt.replace(/\.\d+Z$/, 'Z').replace(/:/g, '-')}_${run.id}.json`;
 
 export function writeRun(run: RunRecord): string {
     const dir = runsDir(run.source);
     fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, `${run.id}.json`);
+    const file = path.join(dir, runFileName(run));
     const tmp = `${file}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(run, null, 2));
     fs.renameSync(tmp, file);

@@ -8,7 +8,7 @@
 import { parseDirectory } from './adapters/hospital-angeles';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { isAllowed } from './lib/robots';
-import { diffIds, runId } from './lib/snapshot';
+import { diffIds, runFileName, uuidv7 } from './lib/snapshot';
 import type { SourceEntry, Target } from './lib/types';
 
 let failures = 0;
@@ -96,7 +96,20 @@ check('comments ignored', !isAllowed('User-agent: * # all\nDisallow: /private # 
 // ── Snapshots ────────────────────────────────────────────────────────────────
 const d = diffIds(['a', 'b', 'c'], ['b', 'c', 'd']);
 check('diff finds added and removed', d.added.join() === 'd' && d.removed.join() === 'a', d);
-check('run id is file-name safe and sortable', runId(new Date('2026-11-02T18:30:05.123Z')) === '2026-11-02T18-30-05Z');
+
+// ── Run IDs: every run and every record it produces carries one ─────────────
+const UUID7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const t0 = Date.parse('2026-11-02T18:30:05.123Z');
+const id1 = uuidv7(t0);
+check('run id is a UUIDv7', UUID7.test(id1), id1);
+check('run id encodes its start time', parseInt(id1.replace(/-/g, '').slice(0, 12), 16) === t0, id1);
+check('later runs sort after earlier ones', uuidv7(t0) < uuidv7(t0 + 1) && uuidv7(t0 + 1000) < uuidv7(t0 + 60_000));
+const many = new Set(Array.from({ length: 10_000 }, () => uuidv7(t0)));
+check('10,000 ids in the same millisecond are all unique', many.size === 10_000, many.size);
+check('run file name: start time, then run id',
+    runFileName({ id: id1, startedAt: '2026-11-02T18:30:05.123Z' }) === `2026-11-02T18-30-05Z_${id1}.json`);
+const stamped = mergeEntries([{ ...e('a'), runId: id1, observedAt: '2026-11-02T18:30:07.000Z' }]);
+check('merged entries keep their run id and observedAt', stamped[0].runId === id1 && stamped[0].observedAt === '2026-11-02T18:30:07.000Z');
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

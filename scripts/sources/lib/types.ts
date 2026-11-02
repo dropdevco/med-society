@@ -40,6 +40,18 @@ export interface SourceEntry {
     photoUrl: string | null;
 }
 
+/**
+ * An entry as one run saw it. Every record the pipeline keeps carries the run
+ * that produced it, so any row can be traced back to its run, however large
+ * the history grows.
+ */
+export interface ObservedEntry extends SourceEntry {
+    /** The run's UUIDv7. */
+    runId: string;
+    /** When the page this entry came from was fetched (ISO 8601, UTC). */
+    observedAt: string;
+}
+
 /** What a permission letter allows. Never the letter itself or the signers' names. */
 export interface Permission {
     grantedOn: string;

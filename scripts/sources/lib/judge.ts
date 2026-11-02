@@ -9,6 +9,8 @@ export interface TargetOutcome {
     url: string;
     ok: boolean;
     count: number;
+    /** When the request for this target finished (ISO 8601, UTC). */
+    fetchedAt?: string;
     error?: string;
 }
 
@@ -50,8 +52,8 @@ export function judgeRun(
  * One entry per externalId. A doctor listed twice (or on two targets) keeps
  * the first card's name and the union of sites, specialties and cédulas.
  */
-export function mergeEntries(entries: SourceEntry[]): SourceEntry[] {
-    const byId = new Map<string, SourceEntry>();
+export function mergeEntries<T extends SourceEntry>(entries: T[]): T[] {
+    const byId = new Map<string, T>();
     for (const e of entries) {
         const seen = byId.get(e.externalId);
         if (!seen) {

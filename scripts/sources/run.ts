@@ -13,8 +13,8 @@ import { ADAPTERS } from './adapters';
 import { BlockedError, politeGet } from './lib/http';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { robotsVerdict } from './lib/robots';
-import { diffIds, lastGoodRun, runId, writeRun, type RunRecord } from './lib/snapshot';
-import type { SourceAdapter, SourceEntry } from './lib/types';
+import { diffIds, lastGoodRun, uuidv7, writeRun, type RunRecord } from './lib/snapshot';
+import type { ObservedEntry, SourceAdapter, SourceEntry } from './lib/types';
 
 function arg(name: string): string | true | undefined {
     for (const a of process.argv.slice(2)) {
@@ -26,8 +26,9 @@ function arg(name: string): string | true | undefined {
 
 export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecord; file: string }> {
     const started = new Date();
+    const id = uuidv7(started.getTime());
     const targets: TargetOutcome[] = [];
-    const parsed: SourceEntry[] = [];
+    const parsed: ObservedEntry[] = [];
     const reasons: string[] = [];
 
     const robots = await robotsVerdict(adapter.targets.map((t) => t.url));
@@ -37,15 +38,16 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
         for (const t of adapter.targets) {
             try {
                 const page = await politeGet(t.url);
-                const rows = adapter.parse(page.body, t);
-                parsed.push(...rows);
-                targets.push({ key: t.key, url: t.url, ok: true, count: new Set(rows.map((r) => r.externalId)).size });
+                const fetchedAt = new Date().toISOString();
+                const rows: SourceEntry[] = adapter.parse(page.body, t);
+                parsed.push(...rows.map((r) => ({ ...r, runId: id, observedAt: fetchedAt })));
+                targets.push({ key: t.key, url: t.url, ok: true, count: new Set(rows.map((r) => r.externalId)).size, fetchedAt });
             } catch (err) {
                 const blocked = err instanceof BlockedError;
                 const error = blocked
                     ? `${(err as Error).message}; do not retry with other tools, ask the organization (docs/adr/0002)`
                     : (err as Error).message;
-                targets.push({ key: t.key, url: t.url, ok: false, count: 0, error });
+                targets.push({ key: t.key, url: t.url, ok: false, count: 0, fetchedAt: new Date().toISOString(), error });
                 if (blocked) break; // one "no" is enough; don't knock on the other doors
             }
         }
@@ -62,7 +64,7 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
         : { added: entries.map((e) => e.externalId), removed: [] };
 
     const run: RunRecord = {
-        id: runId(started),
+        id,
         source: adapter.slug,
         startedAt: started.toISOString(),
         finishedAt: new Date().toISOString(),
@@ -100,6 +102,7 @@ async function main() {
 
     const { run, file } = await runSource(adapter);
     console.log(`${run.source}: ${run.status.toUpperCase()}  ${run.counts.entries} entries  +${run.counts.added} -${run.counts.removed}`);
+    console.log(`  run ${run.id}  started ${run.startedAt}`);
     for (const t of run.targets) console.log(`  ${t.key.padEnd(14)} ${t.ok ? `${t.count} entries` : `FAILED ${t.error}`}`);
     for (const r of run.reasons) console.log(`  red: ${r}`);
     console.log(`  run written to ${file}`);

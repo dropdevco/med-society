@@ -24,6 +24,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 - **Contact data never comes from bulk reads.** Provider e-mail, phone, website and socials are revoked from the anon key (migration 0032); read one provider through `provider_public(p_id)` or `src/lib/providerRead.ts`. Never `select *` for contact fields.
 - **Secrets stay out.** `SUPABASE_SERVICE_ROLE_KEY` and anything without a `VITE_` prefix never reach client code or this public repository. Never print a secret's value.
 - **Outside sources follow [ADR 0002](docs/adr/0002-source-access-policy.md):** read a source only when it is open or written permission is recorded in [`docs/sources/README.md`](docs/sources/README.md); identify as `MedSocietyBot`; never work around a CAPTCHA, login, robots.txt rule or block.
+- **Every source run has a UUIDv7 run ID, and every record it writes carries that ID and a UTC timestamp** (`runId`/`observedAt` in run files, `run_id` columns in the database). See [`scripts/sources/README.md`](scripts/sources/README.md#run-ids).
 - **Doctor data from sources never lands in git.** Run output lives in `scripts/sources/.data/` (ignored). Self-test fixtures are synthetic.
 - **Change one copy, change the other.** Search, rating and filter logic exists in both `src/utils/` and `api/agent.ts`; run `npx tsx scripts/agent-selftest.ts` after touching either.
 - **Stage named paths only** (never `git add -A`); `docs/proposals/` holds third-party logos and screenshots and must not be committed.

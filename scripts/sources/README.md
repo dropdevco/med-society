@@ -27,7 +27,11 @@ Exit codes: `0` green, `2` red (the run is still written), `1` could not run.
 3. **Fetch** each target with `lib/http.ts`: identifies as `MedSocietyBot/1.0 (+https://www.medsociety.one; info@dropdev.co)`, waits ~3–4 s between requests, backs off on 429/5xx. A 401/403 ends the run red as **blocked**; nothing retries it with other tools ([ADR 0002](../../docs/adr/0002-source-access-policy.md)).
 4. **Parse** with the adapter, then merge duplicates by external id.
 5. **Judge** green or red against the last good run ([ADR 0004](../../docs/adr/0004-matching-and-freshness.md)): a failed or empty target, a drop over 30%, or mostly nameless rows make it red.
-6. **Write** the run to `.data/<source>/runs/<run-id>.json`, with entries, per-target counts, and doctors added and removed since the last good run. A red run is kept for inspection but never becomes the baseline.
+6. **Write** the run to `.data/<source>/runs/<started-at>_<run-id>.json`, with entries, per-target counts, and doctors added and removed since the last good run. A red run is kept for inspection but never becomes the baseline.
+
+## Run IDs
+
+Every run gets a **UUIDv7** run ID the moment it starts (`lib/snapshot.ts`, `uuidv7()`), and **every record carries it**: each entry in a run file has `runId` and `observedAt` (when its page was fetched), each target has `fetchedAt`, and the run has `startedAt` and `finishedAt`. In the database the same ID becomes `source_runs.id` and the `run_id` on every row the run writes ([ADR 0003](../../docs/adr/0003-affiliation-data-model.md)). Never generate a record without it: it is how any row, at any volume, is traced back to the run, the time and the source that produced it.
 
 Loading into the database and matching to listings (`--commit`) arrive with roadmap phase 2.
 
