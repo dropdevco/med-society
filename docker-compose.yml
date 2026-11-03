@@ -1,12 +1,33 @@
 # Source pipeline (docs/adr/0006).
+#   docker compose up -d scheduler dashboard        # weekly timer + http://localhost:5180
 #   docker compose run --rm sources --source=hospital-angeles
-#   docker compose run --rm sources --list
+#   docker compose run --rm sources --all
+x-sources: &sources
+  build: .
+  image: medsociety-sources
+  volumes:
+    - ./scripts/sources/.data:/data
+  env_file:
+    - path: .env.local
+      required: false
+
 services:
+  # One-off runs.
   sources:
-    build: .
-    image: medsociety-sources
-    volumes:
-      - ./scripts/sources/.data:/data
-    env_file:
-      - path: .env.local
-        required: false
+    <<: *sources
+
+  # The weekly timer: Mondays 06:00 America/Mexico_City unless SOURCES_RUN_DAY / SOURCES_RUN_TIME / SOURCES_TZ say otherwise.
+  scheduler:
+    <<: *sources
+    entrypoint: ["node", "--import", "tsx", "scripts/sources/schedule.ts"]
+    restart: unless-stopped
+
+  # Read-only health page. Published on this machine's loopback only, never the network.
+  dashboard:
+    <<: *sources
+    entrypoint: ["node", "--import", "tsx", "scripts/sources/dashboard/server.ts"]
+    environment:
+      SOURCES_DASHBOARD_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:5180:5180"
+    restart: unless-stopped

@@ -8,6 +8,7 @@
 import { parseDirectory } from './adapters/hospital-angeles';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { isAllowed } from './lib/robots';
+import { DEFAULT_SCHEDULE, nextRunAt, previousRunAt, scheduleFromEnv } from './lib/schedule';
 import { diffIds, runFileName, uuidv7 } from './lib/snapshot';
 import type { SourceEntry, Target } from './lib/types';
 
@@ -110,6 +111,28 @@ check('run file name: start time, then run id',
     runFileName({ id: id1, startedAt: '2026-11-02T18:30:05.123Z' }) === `2026-11-02T18-30-05Z_${id1}.json`);
 const stamped = mergeEntries([{ ...e('a'), runId: id1, observedAt: '2026-11-02T18:30:07.000Z' }]);
 check('merged entries keep their run id and observedAt', stamped[0].runId === id1 && stamped[0].observedAt === '2026-11-02T18:30:07.000Z');
+
+// ── Weekly timer ─────────────────────────────────────────────────────────────
+// Mexico City has no daylight saving since 2022: 06:00 there is always 12:00 UTC.
+const iso = (ms: number) => new Date(ms).toISOString();
+const S = DEFAULT_SCHEDULE;
+check('Sunday → next day, Monday 06:00 CDMX', iso(nextRunAt(Date.parse('2026-11-01T18:00:00Z'), S)) === '2026-11-02T12:00:00.000Z', iso(nextRunAt(Date.parse('2026-11-01T18:00:00Z'), S)));
+check('Monday 05:59 CDMX → same morning', iso(nextRunAt(Date.parse('2026-11-02T11:59:00Z'), S)) === '2026-11-02T12:00:00.000Z');
+check('Monday 06:00 exactly → the following week', iso(nextRunAt(Date.parse('2026-11-02T12:00:00Z'), S)) === '2026-11-09T12:00:00.000Z');
+check('Monday evening → next Monday', iso(nextRunAt(Date.parse('2026-11-03T01:00:00Z'), S)) === '2026-11-09T12:00:00.000Z');
+check('Sunday 11pm CDMX is already Monday in UTC, still → Monday', iso(nextRunAt(Date.parse('2026-11-09T05:00:00Z'), S)) === '2026-11-09T12:00:00.000Z');
+check('previous slot from Wednesday is Monday', iso(previousRunAt(Date.parse('2026-11-04T15:00:00Z'), S)) === '2026-11-02T12:00:00.000Z');
+// Tijuana keeps US daylight saving: 06:00 is 13:00 UTC in July, 14:00 UTC in November.
+const TJ = { day: 1, time: '06:00', timeZone: 'America/Tijuana' };
+check('Tijuana summer (PDT, UTC−7)', iso(nextRunAt(Date.parse('2026-07-05T00:00:00Z'), TJ)) === '2026-07-06T13:00:00.000Z', iso(nextRunAt(Date.parse('2026-07-05T00:00:00Z'), TJ)));
+check('Tijuana winter (PST, UTC−8)', iso(nextRunAt(Date.parse('2026-11-08T00:00:00Z'), TJ)) === '2026-11-09T14:00:00.000Z', iso(nextRunAt(Date.parse('2026-11-08T00:00:00Z'), TJ)));
+check('env: day name and time', JSON.stringify(scheduleFromEnv({ SOURCES_RUN_DAY: 'wed', SOURCES_RUN_TIME: '22:30', SOURCES_TZ: 'America/Chihuahua' }))
+    === JSON.stringify({ day: 3, time: '22:30', timeZone: 'America/Chihuahua' }));
+let threw = 0;
+for (const bad of [{ SOURCES_RUN_DAY: 'funday' }, { SOURCES_RUN_TIME: '6am' }, { SOURCES_TZ: 'Mars/Olympus' }]) {
+    try { scheduleFromEnv(bad); } catch { threw++; }
+}
+check('env: nonsense day, time or zone is refused', threw === 3, threw);
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

@@ -18,7 +18,20 @@ docker compose build sources
 docker compose run --rm sources --source=hospital-angeles
 ```
 
-Exit codes: `0` green, `2` red (the run is still written), `1` could not run.
+Exit codes: `0` green, `2` red (the run is still written), `1` could not run. `--all` runs every source and returns the worst code.
+
+## Weekly timer and health dashboard
+
+```bash
+docker compose up -d scheduler dashboard     # timer + http://localhost:5180, restart with Docker
+docker compose stop scheduler dashboard      # stop both
+npm run sources:schedule                     # the timer in the foreground; add -- --now to run a cycle at once
+npm run sources:dashboard                    # the dashboard without Docker
+```
+
+**Timer** (`schedule.ts`): sleeps until the next slot, **Mondays 06:00 America/Mexico_City** by default, then runs every source one after another. One failing source never stops the others. If the machine was off at the slot, a source with no run since the last slot is caught up at start-up; a manual run counts. Change the slot with `SOURCES_RUN_DAY` (`0`–`6` or `MON`…`SUN`), `SOURCES_RUN_TIME` (`HH:MM`) and `SOURCES_TZ` (IANA zone). It writes `schedule.json` in the data folder (next run, heartbeat every 10 minutes, last cycle with each source's run ID).
+
+**Dashboard** (`dashboard/`): read-only, bound to this machine only (`127.0.0.1:5180`). Shows the timer with a live countdown and the last cycle; per source its status, the reasons for a red run, the last good run still in use, each website it reads with its last fetch, entries per run, added/removed, run history with run IDs, and the **full contents of the last scrape** with search. It reads what runs have written and never contacts a source. It calls the scheduler stopped after 30 minutes without a heartbeat. Today it reads the run files; when runs are loaded into Supabase (phase 2), `lib/history.ts` reads the database instead and the page stays the same.
 
 ## What a run does
 
@@ -39,7 +52,12 @@ Loading into the database and matching to listings (`--commit`) arrive with road
 
 ```
 run.ts                      CLI and the run loop
+schedule.ts                 the weekly timer
+dashboard/server.ts         local health dashboard (read-only)
+dashboard/index.html        its page
 lib/types.ts                SourceAdapter, SourceEntry, Target
+lib/schedule.ts             weekly slot maths in a named time zone
+lib/history.ts              past runs for the dashboard (files now, Supabase later)
 lib/http.ts                 polite, honest GET; BlockedError
 lib/robots.ts               robots.txt reader (RFC 9309)
 lib/judge.ts                green/red rules; duplicate merging
@@ -63,3 +81,8 @@ selftest.ts                 synthetic fixtures only
 |---|---|---|
 | `SOURCES_DATA_DIR` | `scripts/sources/.data` (`/data` in Docker) | Where runs are written |
 | `SOURCES_MIN_DELAY_MS` | `3000` | Minimum wait between requests |
+| `SOURCES_RUN_DAY` | `1` (Monday) | Timer day, `0`–`6` or `MON`…`SUN` |
+| `SOURCES_RUN_TIME` | `06:00` | Timer time, 24-hour |
+| `SOURCES_TZ` | `America/Mexico_City` | Time zone the day and time are read in |
+| `SOURCES_DASHBOARD_HOST` | `127.0.0.1` (`0.0.0.0` inside Docker, published to loopback only) | Dashboard bind address |
+| `SOURCES_DASHBOARD_PORT` | `5180` | Dashboard port |

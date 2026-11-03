@@ -20,6 +20,15 @@
         "--strictPort"
       ],
       "port": 5175
+    },
+    {
+      "name": "sources-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "sources:dashboard"
+      ],
+      "port": 5180
     }
   ]
 }

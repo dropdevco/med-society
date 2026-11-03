@@ -38,6 +38,7 @@ npm run build                # tsc -b && vite build
 npm run lint                 # has known errors, see HANDOFF.md section 10
 npm run sources:selftest     # source pipeline checks, no network
 npm run sources -- --source=hospital-angeles   # one source, dry run
+docker compose up -d scheduler dashboard       # weekly timer + health page on http://localhost:5180
 ```
 
 There is no test framework; each area has a runnable self-test in `scripts/*-selftest.ts` (HANDOFF.md section 8).

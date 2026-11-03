@@ -3,9 +3,11 @@
  * judge green or red against the last good run, and write the run to disk.
  *
  *   npm run sources -- --source=hospital-angeles
+ *   npm run sources -- --all
  *   npm run sources -- --list
  *
  * Exit code: 0 green, 2 red (the run is still written), 1 could not run.
+ * With --all, the worst of the sources' codes.
  * Loading into the database (--commit) arrives with roadmap phase 2.
  */
 import { pathToFileURL } from 'url';
@@ -80,6 +82,24 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
     return { run, file: writeRun(run) };
 }
 
+/** docs/adr/0002: a source that needs permission does not run until the letter is recorded. */
+export const mayRun = (a: SourceAdapter) => a.access === 'open' || !!a.permission;
+
+/** Run one source and print its summary. Returns the exit code for that source. */
+export async function runAndReport(adapter: SourceAdapter): Promise<number> {
+    if (!mayRun(adapter)) {
+        console.error(`${adapter.slug} needs written permission recorded before it runs (docs/adr/0002).`);
+        return 1;
+    }
+    const { run, file } = await runSource(adapter);
+    console.log(`${run.source}: ${run.status.toUpperCase()}  ${run.counts.entries} entries  +${run.counts.added} -${run.counts.removed}`);
+    console.log(`  run ${run.id}  started ${run.startedAt}`);
+    for (const t of run.targets) console.log(`  ${t.key.padEnd(14)} ${t.ok ? `${t.count} entries` : `FAILED ${t.error}`}`);
+    for (const r of run.reasons) console.log(`  red: ${r}`);
+    console.log(`  run written to ${file}`);
+    return run.status === 'green' ? 0 : 2;
+}
+
 async function main() {
     if (arg('list')) {
         for (const a of Object.values(ADAPTERS)) console.log(`${a.slug}\t${a.access}\t${a.name}`);
@@ -89,24 +109,18 @@ async function main() {
         console.error('--commit loads into the database, which arrives with roadmap phase 2. Run without it for now.');
         process.exit(1);
     }
+    if (arg('all')) {
+        let worst = 0;
+        for (const a of Object.values(ADAPTERS)) worst = Math.max(worst, await runAndReport(a));
+        process.exit(worst);
+    }
     const slug = arg('source');
     const adapter = typeof slug === 'string' ? ADAPTERS[slug] : undefined;
     if (!adapter) {
-        console.error(`Usage: npm run sources -- --source=<slug>. Known: ${Object.keys(ADAPTERS).join(', ')}`);
+        console.error(`Usage: npm run sources -- --source=<slug> | --all | --list. Known: ${Object.keys(ADAPTERS).join(', ')}`);
         process.exit(1);
     }
-    if (adapter.access === 'permission' && !adapter.permission) {
-        console.error(`${adapter.slug} needs written permission recorded before it runs (docs/adr/0002).`);
-        process.exit(1);
-    }
-
-    const { run, file } = await runSource(adapter);
-    console.log(`${run.source}: ${run.status.toUpperCase()}  ${run.counts.entries} entries  +${run.counts.added} -${run.counts.removed}`);
-    console.log(`  run ${run.id}  started ${run.startedAt}`);
-    for (const t of run.targets) console.log(`  ${t.key.padEnd(14)} ${t.ok ? `${t.count} entries` : `FAILED ${t.error}`}`);
-    for (const r of run.reasons) console.log(`  red: ${r}`);
-    console.log(`  run written to ${file}`);
-    process.exit(run.status === 'green' ? 0 : 2);
+    process.exit(await runAndReport(adapter));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

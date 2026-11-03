@@ -16,7 +16,7 @@ Every phase ends with a demo and a go/no-go. Nothing is applied to production, p
 | 3 | Star Médica Juárez reader (Playwright, per-specialty to beat the 100-result cap) | Union of specialty searches > 100 and stable; cédula matches confirm | Waiting for permission letter |
 | 4 | Review queue: Verification and Sources tabs in `/admin` | One click decides a match; reviewer and time stored | Not started |
 | 5 | Show badges: card, profile, `/api/v1`, JSON-LD, "member of" filter | A confirmed test affiliation shows everywhere in EN and ES | Waiting for 0005 |
-| 6 | Weekly runs on a Hetzner VM ([0006](../adr/0006-pipeline-runtime.md)) | Two unattended weekly runs, green in `/admin` | Not started |
+| 6 | Weekly runs on a Hetzner VM ([0006](../adr/0006-pipeline-runtime.md)) | Two unattended weekly runs, green in `/admin` | **Timer and local health dashboard built 2 Nov** (`docker compose up -d scheduler dashboard`); VM not set up yet |
 | 7+ | Next sources: Sectur, COEPRIS, CMCPER, CLUES, colegios, associations, then consejos as letters arrive | Per source | Not started |
 
 ## Badge design
