@@ -2,6 +2,8 @@
 
 Status: Proposed (applies from roadmap phase 2) · Owner: Emilio · 2 Nov 2026
 
+> **Revised by [0007](0007-people-and-person-badges.md) (proposed):** affiliations attach to a person, not a listing. `provider_affiliations` below becomes `people`, `person_identifiers`, `entry_matches`, `provider_people` and `person_affiliations`. The run-ID rules here are unchanged. The full draft is in [`docs/roadmap/phase-2-database-proposal.md`](../roadmap/phase-2-database-proposal.md).
+
 ## Context
 
 A doctor can belong to several hospitals, consejos, colegios and associations, each confirmed by a different source, on a different date, with its own validity and review decision. A clinic or hospital can also be a MedSociety listing itself.

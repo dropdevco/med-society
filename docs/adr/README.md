@@ -10,5 +10,6 @@ One file per decision that had a real alternative. Each has: Context, Decision, 
 | [0004](0004-matching-and-freshness.md) | Cédula confirms, a name alone goes to review; keep the last good result; lapse after two missed runs | Proposed |
 | [0005](0005-meaning-of-verified.md) | What the "Verified" badge means | Proposed, needs Carlos |
 | [0006](0006-pipeline-runtime.md) | The pipeline ships as one Docker image and runs weekly on a Hetzner VM | Proposed |
+| [0007](0007-people-and-person-badges.md) | Badges belong to people (our own person ID), not listings; revises 0003 | Proposed, for review with Carlos |
 
 Status values: Proposed, Accepted, Superseded by NNNN. A decision that contradicts an accepted one supersedes it explicitly; never edit an accepted record to mean something else.
