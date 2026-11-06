@@ -41,11 +41,12 @@ export function providerJsonLd(p: Provider): Record<string, unknown> {
     const image = httpUrl(p.imageUrl) ?? (p.imageUrl?.startsWith('//') ? `https:${p.imageUrl}` : null);
     const description = (p as Provider & { description?: string }).description;
     const badges = p.badges ?? [];
-    const memberOf = badges.filter((b) => b.kind !== 'consejo').map((b) => ({ '@type': 'Organization', name: b.label || b.name, ...(httpUrl(b.url) ? { url: httpUrl(b.url) } : {}) }));
-    const hasCredential = badges.filter((b) => b.kind === 'consejo').map((b) => ({
+    const isCredential = (b: { kind: string }) => ['consejo', 'regulator', 'accreditor'].includes(b.kind);
+    const memberOf = badges.filter((b) => !isCredential(b)).map((b) => ({ '@type': 'Organization', name: b.label || b.name, ...(httpUrl(b.url) ? { url: httpUrl(b.url) } : {}) }));
+    const hasCredential = badges.filter(isCredential).map((b) => ({
         '@type': 'EducationalOccupationalCredential',
         name: b.label,
-        credentialCategory: 'Board certification',
+        credentialCategory: b.kind === 'consejo' ? 'Board certification' : 'Health registration',
         recognizedBy: { '@type': 'Organization', name: b.facts?.consejo ?? b.name },
         ...(b.valid_to ? { expires: b.valid_to } : {}),
     }));

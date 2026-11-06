@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs migration 0035 in a throwaway local Postgres 17 (never production) with made-up data.
+# Runs migrations 0035 and 0036 in a throwaway local Postgres 17 (never production) with made-up data.
 #   bash supabase/tests/0035/run.sh
 set -euo pipefail
 export MSYS_NO_PATHCONV=1   # Git Bash: keep /sql paths inside the container as written
@@ -12,7 +12,7 @@ for _ in $(seq 1 40); do docker exec ms-0035-test pg_isready -U postgres -q && b
 sleep 2
 psql() { docker exec ms-0035-test psql -U postgres -v ON_ERROR_STOP=1 -q -X "$@"; }
 psql -f /sql/stubs.sql
-psql -f /migrations/0035_doctors_sources_badges.sql && echo "migration applied"
+psql -f /migrations/0035_doctors_sources_badges.sql && psql -f /migrations/0036_facility_badges.sql && echo "migrations applied"
 out="$(psql -f /sql/exercise.sql 2>&1)"
 echo "$out"
 if echo "$out" | grep -qE ' \| f$'; then echo "FAILED: a check returned false"; exit 1; fi

@@ -113,6 +113,7 @@
     "type": "Type",
     "consejo": "Consejo",
     "certificate": "Certificate",
+    "register": "Register number",
     "verifiedOn": "Verified on",
     "validFrom": "Valid from",
     "validTo": "Valid to",

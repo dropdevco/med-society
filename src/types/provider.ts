@@ -17,7 +17,7 @@ export interface ProviderBadge {
   confirmed_at: string | null;
   valid_from: string | null;
   valid_to: string | null;
-  facts?: { consejo?: string; certificate?: string };
+  facts?: { consejo?: string; certificate?: string; register?: string };
 }
 
 export type ProviderTier = 'basic' | 'promoted' | 'featured';

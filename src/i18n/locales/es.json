@@ -117,6 +117,7 @@
     "validFrom": "Vigente desde",
     "validTo": "Vigente hasta",
     "rechecked": "Se revisa cada semana",
+    "register": "Número de registro",
     "source": "Ver la fuente",
     "about": "¿Qué es {{name}}?",
     "more_one": "+{{count}} más",

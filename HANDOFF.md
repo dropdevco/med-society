@@ -198,6 +198,7 @@ Run these after touching the area they cover:
 
 ```bash
 npx tsx scripts/agent-selftest.ts       # api/agent.ts vs src/utils drift
+npm run badges:selftest                 # all six organization badges, end to end
 npx tsx scripts/billing-selftest.ts     # tier maths, matching, replay safety
 npx tsx scripts/feedback-selftest.ts    # escalation rules
 npx tsx scripts/stats-selftest.ts       # roll-up and report e-mails (not the PostHog queries)

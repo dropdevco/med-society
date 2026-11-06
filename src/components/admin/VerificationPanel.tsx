@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { confirmExactMatches, decideMatch, fetchMatchQueue, fetchSources, type MatchItem, type MatchQueue, type SourceOverview } from '../../lib/adminApi';
+import { confirmExactMatches, decideFacility, decideMatch, fetchFacilityQueue, fetchMatchQueue, fetchSources, type FacilityItem, type FacilityQueue, type MatchItem, type MatchQueue, type SourceOverview } from '../../lib/adminApi';
 import { Card, Kpi } from './charts';
 import { fmt } from './format';
 
@@ -14,6 +14,7 @@ const percent = (n: number | null) => (n == null ? '—' : `${Math.round(n * 100
 export function VerificationPanel() {
     const [sources, setSources] = useState<SourceOverview[] | null>(null);
     const [queue, setQueue] = useState<MatchQueue | null>(null);
+    const [facilities, setFacilities] = useState<FacilityQueue | null>(null);
     const [source, setSource] = useState<string | null>(null);
     const [offset, setOffset] = useState(0);
     const [busy, setBusy] = useState<string | null>(null);
@@ -21,9 +22,10 @@ export function VerificationPanel() {
 
     const load = useCallback(async () => {
         try {
-            const [s, q] = await Promise.all([fetchSources(), fetchMatchQueue(source, PAGE, offset)]);
+            const [s, q, f] = await Promise.all([fetchSources(), fetchMatchQueue(source, PAGE, offset), fetchFacilityQueue()]);
             setSources(s);
             setQueue(q);
+            setFacilities(f);
             setError(null);
         } catch (e) {
             setError((e as Error).message);
@@ -36,6 +38,18 @@ export function VerificationPanel() {
         setBusy(item.external_id);
         try {
             await decideMatch(item.source_slug, item.external_id, decision, doctor);
+            await load();
+        } catch (e) {
+            setError((e as Error).message);
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const decideClinic = async (item: FacilityItem, decision: 'confirm' | 'reject', provider?: string) => {
+        setBusy(item.external_id);
+        try {
+            await decideFacility(item.source_slug, item.external_id, decision, provider);
             await load();
         } catch (e) {
             setError((e as Error).message);
@@ -59,7 +73,7 @@ export function VerificationPanel() {
     };
 
     if (error && !sources) {
-        return <p className="adm-empty">Verification isn’t available yet. If this is the first time, apply supabase/migrations/0035_doctors_sources_badges.sql, then refresh. ({error})</p>;
+        return <p className="adm-empty">Verification isn’t available yet. If this is the first time, apply supabase/migrations/0035_doctors_sources_badges.sql and 0036_facility_badges.sql, then refresh. ({error})</p>;
     }
     if (!sources || !queue) return <p className="adm-empty">Loading data…</p>;
 
@@ -95,7 +109,40 @@ export function VerificationPanel() {
                     </div>
                 )}
             </Card>
+
+            <Card title="Clinics to review" hint={`${fmt(facilities?.total ?? 0)} waiting`}>
+                {!facilities?.items.length && <p className="adm-empty">Nothing to review.</p>}
+                {facilities?.items.map((f) => <Clinic key={`${f.source_slug}:${f.external_id}`} f={f} busy={busy !== null} decide={decideClinic} />)}
+            </Card>
         </div>
+    );
+}
+
+/** A clinic record that only matched by name. A register number would have confirmed it (docs/adr/0008). */
+function Clinic({ f, busy, decide }: { f: FacilityItem; busy: boolean; decide: (f: FacilityItem, d: 'confirm' | 'reject', provider?: string) => Promise<void> }) {
+    return (
+        <article className="adm-fb">
+            <div className="adm-fb-top">
+                <span className="adm-badge">{f.source_slug}</span>
+                <span className="adm-badge">{`name ${percent(f.confidence)}`}</span>
+                {f.url && <a href={f.url} target="_blank" rel="noreferrer">source ↗</a>}
+            </div>
+            <p className="adm-fb-msg"><strong>{f.name}</strong></p>
+            <div className="adm-fb-top">
+                {f.facts?.register && <span>register {f.facts.register}</span>}
+                {f.valid_to && <span>valid to {f.valid_to}</span>}
+            </div>
+            {f.candidates.map((c) => (
+                <div key={c.provider_id} className="adm-fb-acts">
+                    <button type="button" className="adm-btn" disabled={busy} onClick={() => void decide(f, 'confirm', c.provider_id)}>Same clinic</button>
+                    <span>{c.name} · {percent(c.similarity)}</span>
+                    <a href={`/providers/${c.provider_id}`} target="_blank" rel="noreferrer">listing ↗</a>
+                </div>
+            ))}
+            <div className="adm-fb-acts">
+                <button type="button" className="adm-btn ghost" disabled={busy} onClick={() => void decide(f, 'reject')}>Not this clinic</button>
+            </div>
+        </article>
     );
 }
 

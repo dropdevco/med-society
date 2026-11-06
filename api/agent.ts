@@ -370,7 +370,7 @@ interface Row {
     organizations: OrganizationBadge[];
 }
 
-/** A confirmed organization badge: a hospital affiliation or a board certification. */
+/** A confirmed organization badge: a hospital affiliation, a board certification or a health registration. */
 interface OrganizationBadge {
     organization: string;
     kind: string;
@@ -1423,7 +1423,7 @@ async function metaEnvelope() {
                 'listing.sponsored': 'True for clinics on a paid Promoted or Featured plan. They rank first by default.',
                 'listing.verified_badge': 'The gold "Verified" badge is part of a paid plan. It is not a credential check; use credentials.license_published for that.',
                 'credentials.license_published': 'The provider\'s professional licence (cédula profesional) is published on their source profile.',
-                'credentials.organizations': 'Hospitals and certifying boards that list this doctor, confirmed against that organization\'s own directory. valid_until is the end of a board certification; confirmed_at is when we last saw it there.',
+                'credentials.organizations': 'Hospitals, certifying boards and health registers that list this doctor or clinic, confirmed against that organization\'s own directory. valid_until is the end of a board certification; confirmed_at is when we last saw it there.',
                 'price_from': 'The cheapest published service price in MXN. Many providers publish none, so null means "no price published", not free.',
             },
             interfaces: interfaceLinks(),
@@ -1703,7 +1703,7 @@ function openApiSpec(): Record<string, unknown> {
                         price_from: { type: ['object', 'null'], properties: { amount_mxn: { type: 'number' }, approx_usd: { type: 'integer' }, note: { type: 'string' } } },
                         languages: { type: 'object', description: LANGUAGE_FIELD_NOTE, properties: { codes: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['stated_by_clinic', 'unknown'] } } },
                         insurances: { type: 'array', items: { type: 'string' } },
-                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations and board certifications.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
+                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations, board certifications and health registrations.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
                         listing: { type: 'object', properties: { tier: { type: 'string', enum: ['basic', 'promoted', 'featured'] }, sponsored: { type: 'boolean' }, verified_badge: { type: 'boolean', description: 'A paid-plan badge, not a credential check.' } } },
                         photo_url: { type: ['string', 'null'] },
                         distance_km: { type: 'number', description: 'Present when a location was given.' },
@@ -2741,6 +2741,6 @@ export default async function handler(req: Req, res: Res) {
 
 /** Exported for scripts/agent-selftest.ts, which checks these against the site's own src/utils. */
 export const __test = {
-    tokenize, scoreDoc, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown,
+    tokenize, scoreDoc, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
     openApiSpec, languageCodes, expandTerm, fold, SEARCH_PARAMS, MCP_TOOLS, providerJsonLd, rpcHandle,
 };

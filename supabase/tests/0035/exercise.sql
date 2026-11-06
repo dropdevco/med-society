@@ -118,3 +118,121 @@ do $$ begin perform 1 from public.doctors; raise exception 'user read doctors'; 
 do $$ begin update public.providers set badges = '[]'; raise exception 'user wrote badges'; exception when insufficient_privilege then raise notice 'ok: signed-in users cannot write badges'; end $$;
 select 'onboarding lookup finds the listings' as check, (select count(*) from public.listings_for_cedula('123 4567')) = 2 as ok;
 reset role;
+
+-- ── Clinics (migration 0036, docs/adr/0008). Made-up centers. ────────────────
+\set R4 '''01a00000-0000-7000-8000-000000000004'''
+\set R5 '''01a00000-0000-7000-8000-000000000005'''
+\set R6 '''01a00000-0000-7000-8000-000000000006'''
+\set R7 '''01a00000-0000-7000-8000-000000000007'''
+\set R8 '''01a00000-0000-7000-8000-000000000008'''
+insert into public.providers (id, name, region) values
+  ('00000000-0000-4000-8000-0000000000c1', 'Casa Prueba Recovery', 'sandiego-tijuana'),
+  ('00000000-0000-4000-8000-0000000000c2', 'Casa Vencida Recovery', 'sandiego-tijuana'),
+  ('00000000-0000-4000-8000-0000000000c3', 'Casa Prueba Recovery', 'elpaso-juarez');
+insert into public.source_runs (id, source_slug, started_at, status) values
+  (:R4, 'coepris-bc', now(), 'green'), (:R5, 'padron-salud-bc', now(), 'green'), (:R6, 'baja-health-cluster', now(), 'green'), (:R7, 'hospital-angeles', now(), 'green');
+
+select 'six organizations, CONACEM the only one with no doctor links' as check,
+  (select count(*) = 6 from public.data_sources where organization_id is not null)
+  and (select array_agg(slug) = '{conacem}' from public.data_sources where organization_id is not null and not doctor_links) as ok;
+select 'three sources describe facilities' as check, (select count(*) = 3 from public.data_sources where entity = 'facility') as ok;
+select 'name candidates stay in the region' as check,
+  (select count(*) = 1 and min(similarity) = 1 from public.facility_name_candidates('Casa Prueba Recovery', 'sandiego-tijuana')) as ok;
+select 'something unlike any listing finds nothing' as check,
+  (select count(*) = 0 from public.facility_name_candidates('Zzz Qqq Www', 'sandiego-tijuana')) as ok;
+
+insert into public.source_entries (source_slug, external_id, name, label, url, valid_from, valid_to, facts, first_seen_run_id, last_seen_run_id) values
+  ('coepris-bc', '20260000001', 'Casa Prueba Recovery', 'REPSSABI', 'https://bajahealthtourism.com/catalogo/casa-prueba', '2026-09-03', '2028-09-03', '{"register":"20260000001"}', :R4, :R4),
+  ('coepris-bc', '20200000002', 'Casa Vencida Recovery', 'REPSSABI', 'https://example.test/v', '2018-01-01', '2020-01-01', '{"register":"20200000002"}', :R4, :R4),
+  ('padron-salud-bc', 'casa-prueba', 'Casa Prueba Recovery', 'Padrón Estatal de Salud', 'https://bajahealthtourism.com/catalogo/casa-prueba', null, '2028-09-03', '{"register":"20260000001"}', :R5, :R5),
+  ('baja-health-cluster', 'casa-prueba', 'Casa Prueba Recovery', 'Recovery centers', 'https://bajahealthcluster.mx/institucion/casa-prueba/', null, null, '{}', :R6, :R6),
+  ('baja-health-cluster', 'otra', 'Otra Casa', 'Recovery centers', 'https://bajahealthcluster.mx/institucion/otra/', null, null, '{}', :R6, :R6);
+insert into public.facility_source_ids (source_slug, external_id, provider_id, status, tier, confidence, first_run_id, last_run_id) values
+  ('coepris-bc', '20260000001', '00000000-0000-4000-8000-0000000000c1', 'probable', 3, 1, :R4, :R4),
+  ('coepris-bc', '20200000002', '00000000-0000-4000-8000-0000000000c2', 'probable', 3, 1, :R4, :R4),
+  ('baja-health-cluster', 'casa-prueba', '00000000-0000-4000-8000-0000000000c1', 'probable', 3, 1, :R6, :R6),
+  ('baja-health-cluster', 'otra', '00000000-0000-4000-8000-0000000000c1', 'probable', 3, 0.5, :R6, :R6);
+select 'a name match gives no badge' as check, (select badges = '[]'::jsonb from public.providers where id = '00000000-0000-4000-8000-0000000000c1') as ok;
+
+set role authenticated;
+select set_config('test.uid', '00000000-0000-4000-8000-00000000bbbb', false);
+do $$ begin perform public.admin_facility_queue(); raise exception 'non-admin read the clinic queue'; exception when insufficient_privilege then raise notice 'ok: non-admin cannot read the clinic queue'; end $$;
+do $$ begin perform public.admin_facility_decide('coepris-bc', '20260000001', 'confirm'); raise exception 'non-admin decided'; exception when insufficient_privilege then raise notice 'ok: non-admin cannot decide a clinic'; end $$;
+select set_config('test.uid', '00000000-0000-4000-8000-00000000aaaa', false);
+select 'admin sees the 4 clinics waiting' as check, (select (q->>'total')::int = 4 from public.admin_facility_queue() q) as ok;
+select public.admin_facility_decide('coepris-bc', '20260000001', 'confirm');
+select public.admin_facility_decide('coepris-bc', '20200000002', 'confirm');
+select public.admin_facility_decide('baja-health-cluster', 'casa-prueba', 'confirm');
+select public.admin_facility_decide('baja-health-cluster', 'otra', 'reject');
+select 'the queue is empty after deciding' as check, (select (q->>'total')::int = 0 from public.admin_facility_queue() q) as ok;
+do $$ begin perform public.admin_facility_decide('coepris-bc', '20260000001', 'maybe'); raise exception 'odd decision taken'; exception when raise_exception then raise notice 'ok: only confirm or reject'; end $$;
+reset role;
+
+select 'confirming makes the badge, with register, expiry and page' as check,
+  (select count(*) = 1 from public.providers p, jsonb_array_elements(p.badges) b
+   where p.id = '00000000-0000-4000-8000-0000000000c1' and b->>'org' = 'coepris-bc' and b->>'kind' = 'regulator' and b->>'label' = 'REPSSABI'
+     and b->'facts'->>'register' = '20260000001' and b->>'valid_to' = '2028-09-03' and b->>'url' = 'https://bajahealthtourism.com/catalogo/casa-prueba') as ok;
+select 'a rejected match gives no badge and stays rejected' as check,
+  (select status = 'rejected' from public.facility_source_ids where external_id = 'otra')
+  and (select jsonb_array_length(badges) = 2 from public.providers where id = '00000000-0000-4000-8000-0000000000c1') as ok;
+select 'an expired registration never shows' as check, (select badges = '[]'::jsonb from public.providers where id = '00000000-0000-4000-8000-0000000000c2') as ok;
+select 'the same-named listing in another region is untouched' as check, (select badges = '[]'::jsonb from public.providers where id = '00000000-0000-4000-8000-0000000000c3') as ok;
+
+-- The Padrón confirmed by register number, as the loader does, then synced.
+insert into public.facility_source_ids (source_slug, external_id, provider_id, status, tier, confidence, first_run_id, last_run_id)
+  values ('padron-salud-bc', 'casa-prueba', '00000000-0000-4000-8000-0000000000c1', 'confirmed', 1, 1, :R5, :R5);
+select 'sync renews the confirmed record' as check, (public.sync_facility_badges('padron-salud-bc', :R5, true)->>'renewed')::int = 1 as ok;
+select 'sync twice changes nothing' as check,
+  (public.sync_facility_badges('padron-salud-bc', :R5, true)->>'renewed')::int = 1
+  and (select count(*) = 1 from public.listing_affiliations where source_slug = 'padron-salud-bc') as ok;
+select 'a clinic carries all three, registers before the cluster' as check,
+  (select array_agg(b->>'org' order by ord) = '{coepris-bc,padron-salud-bc,baja-health-cluster}'
+   from public.providers p, jsonb_array_elements(p.badges) with ordinality x(b, ord) where p.id = '00000000-0000-4000-8000-0000000000c1') as ok;
+select 'each clinic badge says what the organization is' as check,
+  (select bool_and(b->>'info_url' like 'https://%') from public.providers p, jsonb_array_elements(p.badges) b where p.id = '00000000-0000-4000-8000-0000000000c1') as ok;
+
+-- All six on one listing: the doctor's three kinds and a clinic's, without one wiping the other.
+-- The Star Médica badge lapsed in the test above, so the doctor is seen again first.
+update public.source_entries set missed_runs = 0, last_seen_run_id = :R3 where source_slug = 'starmedica';
+select public.sync_source_badges('starmedica', :R3, true);
+insert into public.source_entries (source_slug, external_id, name, label, url, first_seen_run_id, last_seen_run_id)
+  values ('hospital-angeles', 'mario-prueba', 'Mario Prueba Uno', 'Hospital Angeles Ciudad Juárez', 'https://hospitalangeles.com/medico/mario-prueba', :R7, :R7);
+insert into public.doctor_source_ids (source_slug, external_id, doctor_id, status, tier, confidence, first_run_id, last_run_id)
+  values ('hospital-angeles', 'mario-prueba', '00000000-0000-4000-8000-000000000001', 'confirmed', 3, 1, :R7, :R7);
+select public.sync_source_badges('hospital-angeles', :R7, true);
+insert into public.listing_affiliations (provider_id, organization_id, label, status, source_slug, created_run_id, last_confirmed_run_id, last_confirmed_at, url)
+  select '00000000-0000-4000-8000-0000000000a1', o.id, x.label, 'confirmed', o.slug, r.id, r.id, now(), x.url
+  from (values ('coepris-bc', 'REPSSABI', 'https://example.test/1'), ('padron-salud-bc', 'Padrón Estatal de Salud', 'https://example.test/2'), ('baja-health-cluster', 'Recovery centers', 'https://example.test/3')) x (slug, label, url)
+  join public.organizations o on o.slug = x.slug join public.source_runs r on r.source_slug = x.slug;
+select public.refresh_listing_badges(array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select 'one listing can show all six' as check,
+  (select count(distinct b->>'org') = 6 from public.providers p, jsonb_array_elements(p.badges) b where p.id = '00000000-0000-4000-8000-0000000000a1') as ok;
+select public.refresh_provider_badges(array['00000000-0000-4000-8000-000000000001'::uuid]);
+select 'rebuilding from the doctor keeps the clinic badges' as check,
+  (select count(distinct b->>'org') = 6 from public.providers p, jsonb_array_elements(p.badges) b where p.id = '00000000-0000-4000-8000-0000000000a1') as ok;
+select 'each of the six has the right link' as check,
+  (select count(*) = 6 from (select distinct b->>'org' as org, b->>'url' as url, b->>'info_url' as info
+     from public.providers p, jsonb_array_elements(p.badges) b where p.id = '00000000-0000-4000-8000-0000000000a1') x
+   where (org = 'conacem' and url is null and info = 'https://conacem.org.mx/quienes-somos') or (org <> 'conacem' and url like 'https://%')) as ok;
+
+-- Two missed green runs lapse a clinic's badge, as for doctors.
+update public.source_entries set missed_runs = 1 where source_slug = 'padron-salud-bc';
+select 'one missed run changes nothing' as check, (public.sync_facility_badges('padron-salud-bc', :R5, true)->>'lapsed')::int = 0 as ok;
+update public.source_entries set missed_runs = 2 where source_slug = 'padron-salud-bc';
+insert into public.source_runs (id, source_slug, started_at, status) values (:R8, 'padron-salud-bc', now(), 'green');
+select 'two missed runs lapse it' as check, (public.sync_facility_badges('padron-salud-bc', :R8, true)->>'lapsed')::int = 1 as ok;
+select 'the lapsed badge leaves the listing, the others stay' as check,
+  (select count(*) = 2 and bool_and(b->>'org' <> 'padron-salud-bc') from public.providers p, jsonb_array_elements(p.badges) b where p.id = '00000000-0000-4000-8000-0000000000c1') as ok;
+
+select 'the sources overview counts clinic badges' as check,
+  (select (x->>'badges')::int = 3 from (select public.admin_sources_overview() as all_sources) y, jsonb_array_elements(y.all_sources) x where x->>'slug' = 'coepris-bc') as ok
+  from (select set_config('test.uid', '00000000-0000-4000-8000-00000000aaaa', false)) z;
+
+set role anon;
+select 'anon reads clinic badges through provider_list' as check, (select count(*) = 1 from public.provider_list where id = '00000000-0000-4000-8000-0000000000c1' and jsonb_array_length(badges) = 2) as ok;
+do $$ begin perform 1 from public.facility_source_ids; raise exception 'anon read matches'; exception when insufficient_privilege then raise notice 'ok: anon cannot read clinic matches'; end $$;
+do $$ begin perform 1 from public.listing_affiliations; raise exception 'anon read affiliations'; exception when insufficient_privilege then raise notice 'ok: anon cannot read clinic affiliations'; end $$;
+do $$ begin perform public.refresh_listing_badges(array[]::uuid[]); raise exception 'anon ran refresh'; exception when insufficient_privilege then raise notice 'ok: anon cannot rebuild listings'; end $$;
+do $$ begin perform public.facility_name_candidates('x', 'x'); raise exception 'anon ran candidates'; exception when insufficient_privilege then raise notice 'ok: anon cannot search clinics'; end $$;
+do $$ begin perform public.sync_facility_badges('coepris-bc', '01a00000-0000-7000-8000-000000000004', false); raise exception 'anon ran sync'; exception when insufficient_privilege then raise notice 'ok: anon cannot sync clinics'; end $$;
+reset role;

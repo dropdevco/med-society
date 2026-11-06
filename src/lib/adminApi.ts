@@ -129,8 +129,14 @@ export interface MatchItem {
     valid_to: string | null; facts: { consejo?: string; certificate?: string } | null;
 }
 export interface MatchQueue { total: number; exact: number; items: MatchItem[] }
+export interface FacilityCandidate { provider_id: string; name: string; similarity: number; region: string | null }
+export interface FacilityItem {
+    source_slug: string; external_id: string; provider_id: string | null; confidence: number | null; candidates: FacilityCandidate[];
+    name: string; label: string; region: string | null; url: string | null; valid_to: string | null; facts: { register?: string } | null;
+}
+export interface FacilityQueue { total: number; items: FacilityItem[] }
 export interface SourceOverview {
-    slug: string; name: string; access: string; permission_granted_on: string | null;
+    slug: string; name: string; access: string; entity: 'doctor' | 'facility'; permission_granted_on: string | null;
     last_run: { id: string; started_at: string; status: 'green' | 'red'; reasons: string[]; counts: Record<string, number> } | null;
     matches: Record<string, number>;
     badges: number;
@@ -141,6 +147,9 @@ export const fetchMatchQueue = (source: string | null, limit: number, offset: nu
 export const decideMatch = (source: string, external: string, decision: 'confirm' | 'reject', doctor?: string) =>
     rpc<void>('admin_match_decide', { p_source: source, p_external: external, p_decision: decision, p_doctor: doctor ?? null });
 export const confirmExactMatches = (source: string) => rpc<number>('admin_match_confirm_exact', { p_source: source });
+export const fetchFacilityQueue = () => rpc<FacilityQueue>('admin_facility_queue', { p_limit: 200, p_offset: 0 });
+export const decideFacility = (source: string, external: string, decision: 'confirm' | 'reject', provider?: string) =>
+    rpc<void>('admin_facility_decide', { p_source: source, p_external: external, p_decision: decision, p_provider: provider ?? null });
 
 export interface BillingSub {
     id: string; provider_id: string; provider_name: string; city: string | null; plan: string; market: string | null;

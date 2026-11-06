@@ -39,6 +39,7 @@ npm run dev                  # Vite on port 5174
 npm run build                # tsc -b && vite build
 npm run lint                 # has known errors, see HANDOFF.md section 10
 npm run sources:selftest     # source pipeline checks, no network
+npm run badges:selftest      # organization badges: links, card layout, API, both languages
 npm run sources -- --source=hospital-angeles   # one source, dry run
 docker compose up -d scheduler dashboard       # weekly timer + health page on http://localhost:5180
 ```

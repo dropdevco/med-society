@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "badges:selftest": "tsx scripts/badges-selftest.ts",
     "sources": "tsx scripts/sources/run.ts",
     "sources:selftest": "tsx scripts/sources/selftest.ts",
     "sources:schedule": "tsx scripts/sources/schedule.ts",

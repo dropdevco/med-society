@@ -48,3 +48,9 @@
 .ms-orgdetail dt { color: var(--gray-500); }
 .ms-orgdetail dd { margin: 0; overflow-wrap: anywhere; }
 .ms-orgdetail a { color: var(--accent); font-weight: 700; text-decoration: none; }
+
+/* A phone card is too narrow for two columns, and tiles wrap, so a separator would dangle. */
+@media (max-width: 560px) {
+    .ms-orgdetail dl > div { grid-template-columns: minmax(0, 1fr); gap: 0; margin-bottom: 0.2rem; }
+    .ms-orgsep { display: none; }
+}

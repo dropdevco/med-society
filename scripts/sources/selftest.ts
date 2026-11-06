@@ -5,12 +5,16 @@
  *
  *   npm run sources:selftest
  */
+import { ADAPTERS } from './adapters';
+import { parseDirectory as parseDirectory2 } from './adapters/baja-health-cluster';
+import { isRecoveryCenter, parseFeed, validationUrl, type RepssabiRecord } from './adapters/coepris-bc';
 import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
+import { dmyToIso, parseDetail, parseList } from './adapters/padron-salud-bc';
 import { doctorUrl, parseCard } from './adapters/starmedica';
 import { cedulasOf, groupPeople, type DoctoraliaRow } from './backfill-doctors';
 import { entryRow } from './lib/load';
-import { decide, type NameCandidate } from './lib/match';
+import { decide, decideFacility, type NameCandidate } from './lib/match';
 import { nameKey, parseName } from './lib/names';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { isAllowed } from './lib/robots';
@@ -223,6 +227,72 @@ for (const bad of [{ SOURCES_RUN_DAY: 'funday' }, { SOURCES_RUN_TIME: '6am' }, {
     try { scheduleFromEnv(bad); } catch { threw++; }
 }
 check('env: nonsense day, time or zone is refused', threw === 3, threw);
+
+// ── Recovery centers: COEPRIS, the Padrón, the Baja Health Cluster ───────────
+const reg = (over: Partial<RepssabiRecord>): RepssabiRecord => ({ Fecha: '01/02/2026', NumRegistro: '20260000001', NoExpediente: 'E-1', RazonSocial: ' Casa  Prueba Recovery ', Municipio: 'Tijuana',
+    Direccion: 'Av. Ejemplo 100, Tijuana', Clasificacion: '623111 Residencia con cuidados de enfermeria (centros de recuperacion)', Emision: '03/09/2026', Vigencia: '03/09/2028', Estatus: 'ACTIVO', ...over });
+const feed = JSON.stringify({ mensaje: 'ok', datos: [reg({}), reg({ NumRegistro: '2', Municipio: 'Mexicali' }), reg({ NumRegistro: '3', Clasificacion: '621211 Consultorios dentales' }), reg({ NumRegistro: '4', Estatus: 'INACTIVO' }), reg({ NumRegistro: 5, Municipio: 'Playas de Rosarito' })] });
+const cof = parseFeed(feed, new Map([['20260000001', 'https://bajahealthtourism.com/catalogo/casa-prueba']]));
+check('COEPRIS: recovery class, our area, active only', cof.map((e) => e.externalId).join() === '20260000001,5', cof.map((e) => e.externalId));
+check('COEPRIS: name cleaned, register kept as text', cof[0].name === 'Casa Prueba Recovery' && cof[1].extra?.register === '5');
+check('COEPRIS: dates turned from day first to ISO', cof[0].extra?.validFrom === '2026-09-03' && cof[0].extra?.validTo === '2028-09-03', cof[0].extra);
+check('COEPRIS: links to the state page where one exists', cof[0].url === 'https://bajahealthtourism.com/catalogo/casa-prueba');
+check('COEPRIS: otherwise to its own validation page', cof[1].url.startsWith('https://www.coeprisbc.gob.mx/repssabi_validacion.php?') && cof[1].url.includes('numregistro=5'), cof[1].url);
+check('COEPRIS: no phone kept', !JSON.stringify(cof[0]).includes('Telefono'));
+check('COEPRIS: validation link is built from the record', validationUrl(reg({})).includes('vigencia=03%2F09%2F2028'));
+check('COEPRIS: a recovery class outside our area is out', !isRecoveryCenter(reg({ Municipio: 'Ensenada' })));
+let badFeed = false;
+try { parseFeed('{"mensaje":"error"}', new Map()); } catch { badFeed = true; }
+check('COEPRIS: a changed feed fails loudly instead of reading as empty', badFeed);
+
+check('dates: a bad date is dropped, not guessed', dmyToIso('2028-09-03') === null && dmyToIso('') === null && dmyToIso('03/09/2028') === '2028-09-03');
+const padronList = '<a href="https://bajahealthtourism.com/catalogo/casa-prueba-1">Perfil</a><a href="https://bajahealthtourism.com/catalogo/casa-prueba-1">x</a><a href="https://bajahealthtourism.com/catalogo?tipo=hotels">y</a><a href="https://bajahealthtourism.com/catalogo/otra">z</a>';
+check('Padrón: one slug per record, filters ignored', parseList(padronList).join() === 'casa-prueba-1,otra', parseList(padronList));
+const padronPage = (status: string, loc = 'Av. Ejemplo 100, Tijuana') => `<h1 class="dp-name"> Casa Prueba Recovery </h1><p class="dp-loc"><i></i><span>${loc}</span></p>
+    <div class="min-w-0"><p class="font-bold">Repssabi <span>${status}</span></p><p class="text-xs">No. 20260000001</p><p class="text-xs">Vigencia: 03/09/2028</p></div>`;
+const pe = parseDetail(padronPage('Vigente'), 'casa-prueba-1');
+check('Padrón: name, address, page', pe?.name === 'Casa Prueba Recovery' && pe?.sites[0]?.address === 'Av. Ejemplo 100, Tijuana' && pe?.url === 'https://bajahealthtourism.com/catalogo/casa-prueba-1', pe);
+check('Padrón: register number and expiry while current', pe?.extra?.register === '20260000001' && pe?.extra?.validTo === '2028-09-03', pe?.extra);
+check('Padrón: no expiry claimed when not current', parseDetail(padronPage('Vencido'), 'x')?.extra?.validTo === null && parseDetail(padronPage('No vigente'), 'x')?.extra?.validTo === null);
+check('Padrón: a record outside our regions is out', parseDetail(padronPage('Vigente', 'Calle 1, Mexicali'), 'x') === null);
+check('Padrón: a page with no name is out', parseDetail('<p>nada</p>', 'x') === null);
+const none = parseDetail('<h1 class="dp-name">Sin Registro</h1>', 'y');
+check('Padrón: a center without REPSSABI keeps no number', none?.extra?.register === null && none?.extra?.validTo === null, none?.extra);
+
+const clusterTarget: Target = { key: 'recovery-centers', label: 'x', url: 'https://bajahealthcluster.mx/general-directory/recovery-centers/', region: 'sandiego-tijuana' };
+const clusterCard = (slug: string, name: string) => `<div class="card"><div class="img"><a href="https://bajahealthcluster.mx/institucion/${slug}/"><img src="a.jpg"></a></div><h3 class="t">${name}</h3><div><a href="https://bajahealthcluster.mx/institucion/${slug}/">More Information</a></div></div>`;
+const ch = parseDirectory2(`<section>${clusterCard('casa-prueba-2', 'Casa &amp; Prueba Recovery')}${clusterCard('otra-casa', 'Otra Casa')}</section>`, clusterTarget);
+check('Cluster: one entry per center, each with its own name', ch.map((e) => e.name).join() === 'Casa & Prueba Recovery,Otra Casa', ch.map((e) => e.name));
+check('Cluster: links to the center page', ch[0].url === 'https://bajahealthcluster.mx/institucion/casa-prueba-2/' && ch[0].externalId === 'casa-prueba-2');
+
+const place = { provider_id: 'p1', name: 'Casa Prueba', similarity: 1, region: 'sandiego-tijuana' };
+check('facility match: a register number we hold confirms', decideFacility({ registerListing: 'p9', candidates: [place] }).status === 'confirmed' && decideFacility({ registerListing: 'p9', candidates: [place] }).providerId === 'p9');
+check('facility match: an exact name alone waits for a person', decideFacility({ registerListing: null, candidates: [place] }).status === 'probable');
+check('facility match: best name first', decideFacility({ registerListing: null, candidates: [{ ...place, provider_id: 'low', similarity: 0.6 }, place] }).providerId === 'p1');
+check('facility match: nothing similar is unmatched', decideFacility({ registerListing: null, candidates: [] }).status === 'unmatched');
+
+// ── Every source, as the badge will read ─────────────────────────────────────
+const run = { runId: 'r', observedAt: 't' };
+const badgeRows = {
+    angeles: entryRow({ externalId: 'x', name: 'Ana', title: null, specialties: ['Pediatría'], cedulas: [], sites: [{ name: 'Hospital Angeles Tijuana', address: null, tower: null, office: null }], region: 'sandiego-tijuana', url: 'https://hospitalangeles.com/medico/x', photoUrl: null, ...run }, 'hospital-angeles'),
+    star: entryRow({ ...sm!, ...run }, 'starmedica'),
+    conacem: entryRow({ ...ce, ...run }, 'conacem'),
+    coepris: entryRow({ ...cof[0], ...run }, 'coepris-bc'),
+    padron: entryRow({ ...pe!, ...run }, 'padron-salud-bc'),
+    cluster: entryRow({ ...ch[0], ...run }, 'baja-health-cluster'),
+};
+check('label: Hospital Ángeles shows the hospital', badgeRows.angeles.label === 'Hospital Angeles Tijuana', badgeRows.angeles.label);
+check('label: Star Médica shows the hospital', badgeRows.star.label === 'Star Médica Ciudad Juárez', badgeRows.star.label);
+check('label: CONACEM shows the specialty, with the certificate', badgeRows.conacem.label === 'Radiología e Imagen' && badgeRows.conacem.facts.certificate === '9999' && badgeRows.conacem.valid_to === '2029-01-01', badgeRows.conacem);
+check('label: COEPRIS shows the register and number', badgeRows.coepris.label === 'REPSSABI' && badgeRows.coepris.facts.register === '20260000001' && badgeRows.coepris.valid_to === '2028-09-03', badgeRows.coepris);
+check('label: the Padrón keeps the number that ties it to COEPRIS', badgeRows.padron.label === 'Padrón Estatal de Salud' && badgeRows.padron.facts.register === '20260000001', badgeRows.padron);
+check('label: the cluster says what list it is', badgeRows.cluster.label === 'Recovery centers' && badgeRows.cluster.valid_to === null, badgeRows.cluster);
+
+const slugs = Object.keys(ADAPTERS);
+check('all six sources run', slugs.length === 6 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster'].every((s) => slugs.includes(s)), slugs);
+check('facilities are marked, doctors are not', slugs.filter((s) => ADAPTERS[s].entity === 'facility').length === 3);
+check('COEPRIS loads before the sources that match on its numbers', slugs.indexOf('coepris-bc') < slugs.indexOf('padron-salud-bc'));
+check('no source runs without open access or a recorded letter', Object.values(ADAPTERS).every((a) => a.access === 'open' || !!a.permission));
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
