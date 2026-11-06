@@ -447,6 +447,7 @@
     "planCanceledUntil": "Cancelled. Your plan stays on until {{date}}.",
     "planEnded": "Your last plan ended. Subscribe again to turn it back on.",
     "choosePlan": "Choose a plan",
+    "currencyLocked": "Your plan is billed in {{currency}}. Upgrades use the same currency.",
     "subscribe": "Subscribe",
     "subscribeBusy": "Opening secure payment…",
     "subscribeFor": "{{plan}} for {{clinic}}",

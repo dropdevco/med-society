@@ -61,7 +61,10 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     const [status, setStatus] = useState<PlanStatusRow[]>([]);
     const [gaveUp, setGaveUp] = useState(false);
     const [overrideMarket, setOverrideMarket] = useState<Market | null>(null);
+    const [statusFor, setStatusFor] = useState<string | null>(null);
     const rank = RANK[clinic.tier];
+    const statusKey = `${clinic.id}:${clinic.tier}`;
+    const statusLoaded = statusFor === statusKey;
 
     // Latest refresh callback without restarting the poll every render.
     const refreshRef = useRef(onRefresh);
@@ -69,9 +72,13 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
 
     useEffect(() => {
         let cancelled = false;
-        void fetchPlanStatus(clinic.id).then((rows) => { if (!cancelled) setStatus(rows); });
+        void fetchPlanStatus(clinic.id).then((rows) => {
+            if (cancelled) return;
+            setStatus(rows);
+            setStatusFor(statusKey);
+        });
         return () => { cancelled = true; };
-    }, [clinic.id, clinic.tier]);
+    }, [clinic.id, statusKey]);
 
     const handleMarketChange = (newMarket: Market) => {
         setOverrideMarket(newMarket);
@@ -104,7 +111,11 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     }, []);
 
     const current = status.find((s) => s.access && s.plan === clinic.tier) ?? status.find((s) => s.access);
-    const market = overrideMarket ?? current?.market ?? readSavedMarket() ?? marketForLanguage(i18n.language);
+    // Stripe refuses a second currency on a customer with an active subscription,
+    // so an upgrade has to stay in the currency the current plan is billed in.
+    const lockedMarket = current?.market ?? null;
+    const market = lockedMarket ?? overrideMarket ?? readSavedMarket() ?? marketForLanguage(i18n.language);
+    const blocked = busy !== null || !statusLoaded;
 
     const subscribe = async (plan: PlanKey) => {
         setBusy(plan);
@@ -205,8 +216,13 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
                         <p style={{ fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gray-500)', margin: 0 }}>
                             {t('account.choosePlan')}
                         </p>
-                        <CurrencyPicker value={market} onChange={handleMarketChange} />
+                        <CurrencyPicker value={market} onChange={handleMarketChange} disabled={!statusLoaded || lockedMarket !== null} />
                     </div>
+                    {lockedMarket && (
+                        <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', lineHeight: 1.55 }}>
+                            {t('account.currencyLocked', { currency: lockedMarket === 'us' ? 'USD' : 'MXN' })}
+                        </p>
+                    )}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem' }}>
                         {offered.map((plan) => (
                             <div
@@ -230,13 +246,13 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
                                 )}
                                 <button
                                     onClick={() => void subscribe(plan)}
-                                    disabled={busy !== null}
+                                    disabled={blocked}
                                     className="press"
                                     style={{
                                         marginTop: 'auto', padding: '0.8rem 1.2rem', borderRadius: 'var(--radius-pill)',
                                         background: 'var(--brand)', color: 'var(--on-brand)', border: 'none',
                                         fontWeight: 700, fontSize: '0.92rem',
-                                        opacity: busy !== null ? 0.65 : 1, cursor: busy !== null ? 'progress' : 'pointer',
+                                        opacity: blocked ? 0.65 : 1, cursor: blocked ? 'progress' : 'pointer',
                                     }}
                                 >
                                     {busy === plan ? t('account.subscribeBusy') : t('account.subscribe')}

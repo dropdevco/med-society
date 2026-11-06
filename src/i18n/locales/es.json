@@ -447,6 +447,7 @@
     "planCanceledUntil": "Cancelado. Tu plan sigue activo hasta el {{date}}.",
     "planEnded": "Tu último plan terminó. Suscríbete de nuevo para reactivarlo.",
     "choosePlan": "Elige un plan",
+    "currencyLocked": "Tu plan se cobra en {{currency}}. Las mejoras usan la misma moneda.",
     "subscribe": "Suscribirme",
     "subscribeBusy": "Abriendo el pago seguro…",
     "subscribeFor": "{{plan}} para {{clinic}}",

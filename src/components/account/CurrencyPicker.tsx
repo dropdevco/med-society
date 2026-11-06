@@ -5,9 +5,10 @@ interface CurrencyPickerProps {
     value: Market;
     onChange: (market: Market) => void;
     id?: string;
+    disabled?: boolean;
 }
 
-export function CurrencyPicker({ value, onChange, id }: CurrencyPickerProps) {
+export function CurrencyPicker({ value, onChange, id, disabled = false }: CurrencyPickerProps) {
     const { t } = useTranslation();
 
     return (
@@ -29,6 +30,7 @@ export function CurrencyPicker({ value, onChange, id }: CurrencyPickerProps) {
                 type="button"
                 className="press"
                 aria-pressed={value === 'us'}
+                disabled={disabled}
                 onClick={() => onChange('us')}
                 style={{
                     display: 'inline-flex',
@@ -38,11 +40,11 @@ export function CurrencyPicker({ value, onChange, id }: CurrencyPickerProps) {
                     borderRadius: 'var(--radius-pill)',
                     fontSize: '0.8rem',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
                     border: 'none',
                     transition: 'var(--transition)',
                     background: value === 'us' ? 'var(--navy-800)' : 'transparent',
-                    color: value === 'us' ? 'var(--white)' : 'var(--gray-400)',
+                    color: value === 'us' ? 'var(--white)' : disabled ? 'var(--gray-500)' : 'var(--gray-400)',
                     boxShadow: value === 'us' ? 'var(--shadow-sm)' : 'none',
                 }}
             >
@@ -52,6 +54,7 @@ export function CurrencyPicker({ value, onChange, id }: CurrencyPickerProps) {
                 type="button"
                 className="press"
                 aria-pressed={value === 'mx'}
+                disabled={disabled}
                 onClick={() => onChange('mx')}
                 style={{
                     display: 'inline-flex',
@@ -61,11 +64,11 @@ export function CurrencyPicker({ value, onChange, id }: CurrencyPickerProps) {
                     borderRadius: 'var(--radius-pill)',
                     fontSize: '0.8rem',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
                     border: 'none',
                     transition: 'var(--transition)',
                     background: value === 'mx' ? 'var(--navy-800)' : 'transparent',
-                    color: value === 'mx' ? 'var(--white)' : 'var(--gray-400)',
+                    color: value === 'mx' ? 'var(--white)' : disabled ? 'var(--gray-500)' : 'var(--gray-400)',
                     boxShadow: value === 'mx' ? 'var(--shadow-sm)' : 'none',
                 }}
             >
