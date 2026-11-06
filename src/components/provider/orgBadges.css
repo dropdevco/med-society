@@ -4,18 +4,18 @@
 .ms-orgbadges.is-profile h3 { font-size: 1rem; font-weight: 700; margin: 0; }
 
 .ms-orgrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
-.ms-orgsep { width: 1px; height: 20px; background: var(--border-strong); margin: 0 0.1rem; }
+.ms-orgsep { width: 1px; height: 30px; background: var(--border-strong); margin: 0 0.1rem; }
 
 /* White in both themes: logos are drawn for a white ground. */
 .ms-orgtile {
     --ring: var(--affil);
     display: inline-flex; align-items: center; justify-content: center;
-    min-width: 30px; height: 30px; max-width: 84px; padding: 0 5px;
-    border: 0; border-radius: 8px; background: #fff; color: #14161a;
+    min-width: 44px; height: 44px; max-width: 120px; padding: 3px 6px;
+    border: 0; border-radius: 10px; background: #fff; color: #14161a;
     box-shadow: 0 0 0 1.5px var(--ring);
     font: 700 0.64rem/1 var(--font-ui); letter-spacing: 0.02em; cursor: pointer;
 }
-.ms-orgtile img { max-height: 22px; max-width: 74px; object-fit: contain; display: block; }
+.ms-orgtile img { max-height: 38px; max-width: 108px; object-fit: contain; display: block; }
 .ms-orgtile.is-credential { --ring: var(--accent); }
 .ms-orgtile.is-affiliation { --ring: var(--affil); }
 .ms-orgtile.is-facility { --ring: var(--facility); }

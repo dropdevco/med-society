@@ -47,3 +47,6 @@ supabase/.temp
 
 # Claude Code local runtime state
 .claude/scheduled_tasks.lock
+
+# Organization logos: local test build until each organization's OK is recorded (docs/badges.md)
+public/logos/orgs
