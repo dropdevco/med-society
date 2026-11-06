@@ -16,6 +16,9 @@ Received 4 Nov 2026: display the data, obtained by whatever means works, because
 - **A name is required**: there is no browsable list. So this is a **lookup source**: each run asks CONACEM about every doctor in the latest good runs of the hospital sources (Hospital Ángeles, Star Médica), by their two surnames with accents removed. The search ignores accents and case. Up to 3 pages per lookup.
 - The firewall refuses non-browser clients and headless Chromium's default identity. Under the permission the adapter uses a real browser with a standard Chrome identity, loads the search page once, and calls the endpoint from inside it, a few seconds apart, sending an `X-Client: MedSocietyBot` header.
 - A lookup that returns fewer certificates than last week is not a drop: lookup runs are not compared to a baseline. A 403 on any lookup stops the run red.
+- **CONACEM limits queries.** After about 30 minutes (roughly 420 lookups) on 6 Nov it answered HTTP 429, "Demasiadas consultas, intenta más tarde", with no retry header. At the first 429 the run stops and the next run picks up; a run that answers nothing is red.
+- **Answers are kept for 30 days** (`run.lookups`), so each doctor is asked about monthly. Skipped lookups carry their certificates over, keeping the run ID and date of the run that really saw them.
+- **The search returns current certifications only** (its own heading asks for "certificación vigente"; all 2,190 certificates on 6 Nov were in date). So finding nothing does **not** mean expired: it may mean never certified, lapsed, or a different spelling. No badge is removed for that; a badge ends when its `valid_to` passes.
 
 ## Fields per certificate
 
@@ -38,4 +41,4 @@ Results come back for whoever shares a surname pair, so a lookup can return cert
 npm run sources -- --source=conacem      # needs a good run of hospital-angeles and/or starmedica first
 ```
 
-Roughly one lookup per doctor at the hospital sources, a few seconds apart: 30–40 minutes for ~550 doctors.
+First run on 6 Nov: 515 surname pairs from 531 hospital doctors, 2,190 certificates across 46 consejos, 32 minutes. Later runs ask only what is due. Each lookup can return other doctors who share the surnames; matching sorts that out.
