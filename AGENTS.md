@@ -18,6 +18,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 | `docs/adr/` | Architecture decision records |
 | `docs/roadmap/` | Roadmaps with phase status |
 | `docs/sources/` | Data-source permissions register and one page per source |
+| `docs/badges.md` | How organization badges work, end to end |
 
 ## Hard rules
 
@@ -25,6 +26,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 - **Secrets stay out.** `SUPABASE_SERVICE_ROLE_KEY` and anything without a `VITE_` prefix never reach client code or this public repository. Never print a secret's value.
 - **Outside sources follow [ADR 0002](docs/adr/0002-source-access-policy.md):** read a source only when it is open or written permission is recorded in [`docs/sources/README.md`](docs/sources/README.md); identify as `MedSocietyBot`; never work around a CAPTCHA, login, robots.txt rule or block.
 - **Every source run has a UUIDv7 run ID, and every record it writes carries that ID and a UTC timestamp** (`runId`/`observedAt` in run files, `run_id` columns in the database). See [`scripts/sources/README.md`](scripts/sources/README.md#run-ids).
+- **`doctors.id` is internal.** No form, page or message ever asks a doctor for it; doctors are found by cédula or name. Page URLs stay on `providers.id`, which must never change.
 - **Doctor data from sources never lands in git.** Run output lives in `scripts/sources/.data/` (ignored). Self-test fixtures are synthetic.
 - **Change one copy, change the other.** Search, rating and filter logic exists in both `src/utils/` and `api/agent.ts`; run `npx tsx scripts/agent-selftest.ts` after touching either.
 - **Stage named paths only** (never `git add -A`); `docs/proposals/` holds third-party logos and screenshots and must not be committed.

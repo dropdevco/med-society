@@ -1,8 +1,8 @@
 # 0003. Affiliations in their own tables
 
-Status: Proposed (applies from roadmap phase 2) · Owner: Emilio · 2 Nov 2026
+Status: Accepted as revised by 0007 (Carlos, Nov 2026) · Owner: Emilio · Built in migration 0035
 
-> **Revised by [0007](0007-people-and-person-badges.md) (proposed):** affiliations attach to a person, not a listing. `provider_affiliations` below becomes `people`, `person_identifiers`, `entry_matches`, `provider_people` and `person_affiliations`. The run-ID rules here are unchanged. The full draft is in [`docs/roadmap/phase-2-database-proposal.md`](../roadmap/phase-2-database-proposal.md).
+> **Revised by [0007](0007-people-and-person-badges.md):** affiliations attach to a doctor, not a listing. `provider_affiliations` below became `doctors`, `doctor_cedulas`, `doctor_source_ids`, `doctor_listings` and `doctor_affiliations`; the source of truth is `supabase/migrations/0035_doctors_sources_badges.sql`. The run-ID rules here are unchanged.
 
 ## Context
 

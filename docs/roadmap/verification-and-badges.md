@@ -1,6 +1,6 @@
 # Roadmap: source pipeline, verification and organization badges
 
-Status: in progress · Owner: Emilio (plan streams E and J) · Last updated 2 Nov 2026
+Status: in progress · Owner: Emilio (plan streams E and J) · Last updated 5 Nov 2026
 
 MedSociety shows patients which doctors are affiliated with and certified by real institutions, so they can avoid non-compliant providers. This roadmap builds the pipeline that reads those institutions' own directories, matches them to our listings, and shows the result as badges.
 
@@ -10,12 +10,12 @@ Every phase ends with a demo and a go/no-go. Nothing is applied to production, p
 
 | Phase | What | Done when | Status |
 |---|---|---|---|
-| 0 | Decisions and docs: [ADRs](../adr/README.md), [sources register](../sources/README.md) | ADRs approved; Carlos decides [0005](../adr/0005-meaning-of-verified.md) | ADRs written, waiting for review |
+| 0 | Decisions and docs: [ADRs](../adr/README.md), [sources register](../sources/README.md) | ADRs approved; Carlos decides [0005](../adr/0005-meaning-of-verified.md) | Identity design approved by Carlos. **Open: [0005](../adr/0005-meaning-of-verified.md)** |
 | 1 | Pipeline core + Hospital Ángeles reader, Docker | Self-test passes; a dry run finds ~151 + 243 doctors, green, locally and in Docker | **Built 2 Nov**: 151 + 243 = 394, green locally and in Docker, second run +0 −0. Waiting for review |
-| 2 | Database tables + matching ([0003](../adr/0003-affiliation-data-model.md), [0004](../adr/0004-matching-and-freshness.md), [0007](../adr/0007-people-and-person-badges.md)) | Dry run reports matched / queued / unmatched; a second run changes nothing | **Draft ready for Carlos's review** ([proposal](phase-2-database-proposal.md), SQL tested locally). Not applied |
-| 3 | Star Médica Juárez reader (Playwright, per-specialty to beat the 100-result cap); **CONACEM** certification lookups | Union of specialty searches > 100 and stable; cédula matches confirm | **Built 4 Nov** (both permissions received 4 Nov). Matching waits for the identity tables |
-| 4 | Review queue: Verification and Sources tabs in `/admin` | One click decides a match; reviewer and time stored | Not started |
-| 5 | Show badges: card, profile, `/api/v1`, JSON-LD, "member of" filter | A confirmed test affiliation shows everywhere in EN and ES | Waiting for 0005 |
+| 2 | Database tables + matching ([0003](../adr/0003-affiliation-data-model.md), [0004](../adr/0004-matching-and-freshness.md), [0007](../adr/0007-people-and-person-badges.md)) | Dry run reports matched / queued / unmatched; a second run changes nothing | **Built and tested in the local sandbox.** Migration `0035` written, **not applied to production** |
+| 3 | Star Médica Juárez reader (Playwright, per-specialty to beat the 100-result cap); **CONACEM** certification lookups | Union of specialty searches > 100 and stable; cédula matches confirm | **Built 4 Nov** (both permissions received 4 Nov). Star Médica: 137 doctors, all with cédulas |
+| 4 | Review queue: Verification tab in `/admin` | One click decides a match; reviewer and time stored | **Built**, tested in the sandbox. A Sources panel lives in the local hub for now |
+| 5 | Show badges: card, profile, `/api/v1`, JSON-LD ([docs/badges.md](../badges.md)) | A confirmed test affiliation shows everywhere in EN and ES | **Built on the branch**, tested in the sandbox. "Member of" filter not built |
 | 6 | Weekly runs on a Hetzner VM ([0006](../adr/0006-pipeline-runtime.md)) | Two unattended weekly runs, green in `/admin` | **Timer and local health dashboard built 2 Nov** (`docker compose up -d scheduler dashboard`); VM not set up yet |
 | 7+ | Next sources: Sectur, COEPRIS, CMCPER, CLUES, colegios, associations, then consejos as letters arrive | Per source | Not started |
 

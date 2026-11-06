@@ -1,6 +1,6 @@
 # Phase 2 proposal: database tables for organization badges
 
-Status: **DRAFT for review. Not applied. Do not run.** · Author: Emilio (with Claude) · 3 Nov 2026
+Status: **Superseded by `supabase/migrations/0035_doctors_sources_badges.sql`** (Carlos approved the design; table names changed from `people` to `doctors`). Kept for the record. Do not run the SQL below · Author: Emilio (with Claude) · 3 Nov 2026
 Branch: `feat/hospital-angeles-directory` · Decisions: [ADR 0003](../adr/0003-affiliation-data-model.md), [0004](../adr/0004-matching-and-freshness.md), [0007](../adr/0007-people-and-person-badges.md) · Roadmap: [verification-and-badges.md](verification-and-badges.md)
 
 ## Summary

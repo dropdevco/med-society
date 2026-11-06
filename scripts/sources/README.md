@@ -22,6 +22,35 @@ docker compose run --rm sources --source=hospital-angeles
 
 Exit codes: `0` green, `2` red (the run is still written), `1` could not run. `--all` runs every source and returns the worst code.
 
+### Into the database
+
+Needs migration `0035` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
+
+```bash
+npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --commit   # once: a doctor for every Doctoralia person
+npx tsx --env-file=.env.local scripts/sources/run.ts --all --load            # load each source's last good run, no scraping
+npx tsx --env-file=.env.local scripts/sources/run.ts --all --commit          # scrape, then load
+```
+
+A run's rows all carry its run ID. A source record is matched once: a cédula we hold confirms it, anything else waits in `/admin` → Verification, and later runs reuse the decision (`lib/load.ts`, `lib/match.ts`). The timer loads each run when `SOURCES_LOAD=1` is set. See [docs/badges.md](../../docs/badges.md).
+
+### Local sandbox
+
+A throwaway copy of the database for testing anything above without touching production. Needs Docker.
+
+```bash
+bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migration 0035
+npx tsx scripts/sources/sandbox/proxy.ts                          # leave running
+export SOURCES_DB_URL=http://127.0.0.1:54331
+npx tsx --env-file=.env.local scripts/sources/sandbox/seed.ts     # copies listings and Doctoralia names (read-only on production)
+npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --commit
+npx tsx --env-file=.env.local scripts/sources/run.ts --all --load
+VITE_SUPABASE_URL=http://127.0.0.1:54331 VITE_SUPABASE_ANON_KEY=sandbox npx vite --port 5176   # the site, reading the sandbox
+bash scripts/sources/sandbox/down.sh                              # remove it all
+```
+
+`bash supabase/tests/0035/run.sh` is the quicker check: the migration against made-up data, 29 checks.
+
 ## Weekly timer and health dashboard
 
 ```bash
@@ -65,6 +94,12 @@ lib/http.ts                 polite, honest GET; BlockedError
 lib/robots.ts               robots.txt reader (RFC 9309)
 lib/judge.ts                green/red rules; duplicate merging
 lib/snapshot.ts             run files; last good run; diff
+lib/names.ts                splits a Mexican name; name_key
+lib/match.ts                the match decision (pure)
+lib/load.ts                 a run into the database
+lib/db.ts                   service-role client; paging helpers
+backfill-doctors.ts         one-off: Doctoralia people into doctors
+sandbox/                    local throwaway database
 lib/browser.ts              Playwright launcher with identity and pacing
 adapters/index.ts           every adapter the CLI knows, in run order
 adapters/hospital-angeles.ts  static HTML, two city pages

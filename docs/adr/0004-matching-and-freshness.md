@@ -1,6 +1,6 @@
 # 0004. Matching and freshness rules
 
-Status: Proposed · Owner: Emilio · 2 Nov 2026
+Status: Accepted (Carlos, Nov 2026) · Owner: Emilio · Built in `scripts/sources/lib/match.ts`; tier 2 (a cédula one digit off) not built yet
 
 ## Context
 
