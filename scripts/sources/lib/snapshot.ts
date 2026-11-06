@@ -27,6 +27,8 @@ export interface RunRecord {
     added: string[];
     removed: string[];
     entries: ObservedEntry[];
+    /** Lookup sources: question → when it was last answered. */
+    lookups?: Record<string, string>;
 }
 
 const runsDir = (source: string) => path.join(DATA_DIR, source, 'runs');

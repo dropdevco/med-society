@@ -5,7 +5,7 @@
  *
  *   npm run sources:selftest
  */
-import { lookupsFrom, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
+import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
 import { listUrl, parseCard } from './adapters/starmedica';
 import { cedulasOf, groupPeople, type DoctoraliaRow } from './backfill-doctors';
@@ -100,6 +100,23 @@ check('CONACEM entry: validity and certificate', ce.extra?.validFrom === '2024-0
 check('CONACEM entry: no cédula claimed', ce.cedulas.length === 0);
 const lk = lookupsFrom([{ entries: [{ name: 'Dr. Uno Prueba Núñez', region: 'elpaso-juarez' }, { name: 'Dos Prueba Nunez', region: 'sandiego-tijuana' }, { name: 'Tres Otra Persona', region: 'sandiego-tijuana' }] }]);
 check('CONACEM lookups: one per surname pair, first region kept', lk.size === 2 && lk.get('prueba nunez') === 'elpaso-juarez', [...lk]);
+
+const dayMs = 86_400_000;
+const nowMs = Date.parse('2026-11-30T00:00:00Z');
+const seen = (q: string, id: string, at: string) => ({ ...toEntry({ ...rec, id: Number(id) }, 'elpaso-juarez', q), observedAt: at });
+const wantedQ = new Map<string, 'elpaso-juarez'>([['uno prueba', 'elpaso-juarez'], ['dos prueba', 'elpaso-juarez'], ['tres prueba', 'elpaso-juarez']]);
+const recent = new Date(nowMs - 3 * dayMs).toISOString();
+const old = new Date(nowMs - 40 * dayMs).toISOString();
+const p1 = planLookups(wantedQ, { lookups: { 'uno prueba': recent, 'dos prueba': old }, entries: [seen('uno prueba', '1', recent), seen('dos prueba', '2', old)] }, nowMs);
+check('lookups: answered in the last 30 days is skipped', !p1.due.some(([q]) => q === 'uno prueba'), p1.due);
+check('lookups: older than 30 days, or never asked, is due', p1.due.map(([q]) => q).sort().join() === 'dos prueba,tres prueba', p1.due);
+check('lookups: skipped answers carry their certificates over', p1.carried.length === 1 && p1.carried[0].externalId === '1', p1.carried);
+const p2 = planLookups(wantedQ, { entries: [seen('uno prueba', '1', recent)] }, nowMs);
+check('lookups: a run from before the log counts its results as answers', p2.due.length === 2 && p2.carried.length === 1, p2.due);
+const p3 = planLookups(wantedQ, null, nowMs);
+check('lookups: the first run asks everything', p3.due.length === 3 && p3.carried.length === 0);
+const p4 = planLookups(new Map([['tres prueba', 'elpaso-juarez']]), { lookups: { 'uno prueba': recent }, entries: [seen('uno prueba', '1', recent)] }, nowMs);
+check('lookups: a doctor no longer listed is not carried', p4.carried.length === 0);
 
 // ── Run judge ────────────────────────────────────────────────────────────────
 const t = (key: string, count: number, ok = true, error?: string): TargetOutcome => ({ key, url: `https://x/${key}`, ok, count, error });

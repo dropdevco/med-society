@@ -35,6 +35,7 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
     const targets: TargetOutcome[] = [];
     const parsed: ObservedEntry[] = [];
     const reasons: string[] = [];
+    let lookups: Record<string, string> | undefined;
 
     // robots.txt is read every run unless the recorded permission names it as waived (docs/adr/0002).
     const robotsWaived = adapter.permission?.waives?.includes('robots') ?? false;
@@ -46,7 +47,8 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
             const got = await adapter.collect();
             targets.push(...got.targets);
             reasons.push(...got.reasons);
-            parsed.push(...got.entries.map((e) => ({ ...e, runId: id })));
+            parsed.push(...got.entries.map((e) => ({ ...e, runId: e.runId ?? id })));
+            lookups = got.lookups;
         } catch (err) {
             targets.push({ key: 'collect', url: adapter.targets[0]?.url ?? '', ok: false, count: 0, fetchedAt: new Date().toISOString(), error: (err as Error).message });
         }
@@ -92,6 +94,7 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
         added,
         removed,
         entries,
+        ...(lookups ? { lookups } : {}),
     };
     return { run, file: writeRun(run) };
 }

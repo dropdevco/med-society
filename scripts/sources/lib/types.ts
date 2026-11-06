@@ -69,8 +69,12 @@ export interface Permission {
     waives?: Array<'robots' | 'block'>;
 }
 
-/** An entry as a collecting adapter returns it: when it was seen is known per lookup. */
-export type CollectedEntry = SourceEntry & { observedAt: string };
+/**
+ * An entry as a collecting adapter returns it: when it was seen is known per
+ * lookup. `runId` is set only on an entry carried over from an earlier run,
+ * so it keeps pointing at the run that really saw it.
+ */
+export type CollectedEntry = SourceEntry & { observedAt: string; runId?: string };
 
 /** What an adapter that fetches by itself (real browser, lookups) hands back to the run. */
 export interface Collected {
@@ -78,6 +82,8 @@ export interface Collected {
     entries: CollectedEntry[];
     /** Problems the adapter found that make the run red (e.g. a search hit a result cap). */
     reasons: string[];
+    /** Lookup sources: every question answered so far, with when, so a later run can skip it. */
+    lookups?: Record<string, string>;
 }
 
 export interface SourceAdapter {

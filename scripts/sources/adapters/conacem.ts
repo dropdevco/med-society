@@ -10,6 +10,10 @@
  * so this uses a real browser with a standard identity, still sending
  * an `X-Client: MedSocietyBot` header, and calls the same JSON endpoint its own search page
  * calls. Source notes: docs/sources/conacem.md
+ *
+ * CONACEM limits queries ("Demasiadas consultas"): at the first 429 the run
+ * stops asking and the next run picks up. Answers are kept for 30 days, so a
+ * doctor is asked about once a month, not every week; certifications last 5 years.
  */
 import { openBrowser, pace } from '../lib/browser';
 import { lastGoodRun } from '../lib/snapshot';
@@ -21,6 +25,7 @@ export const apiPath = (query: string, cursor = 0) => `/api/buscador/medico-espe
 /** Sources whose doctors we look up. */
 export const LOOKUP_FROM = ['hospital-angeles', 'starmedica'];
 const MAX_PAGES = 3;
+export const REFRESH_DAYS = 30;
 
 export interface ConacemRecord {
     id: number;
@@ -86,10 +91,32 @@ export function lookupsFrom(sources: { entries: { name: string; region: RegionId
     return out;
 }
 
+/**
+ * What is due this run. A question answered in the last 30 days is skipped and
+ * its certificates are carried over untouched; everything else is asked.
+ */
+export function planLookups(wanted: Map<string, RegionId>, previous: { lookups?: Record<string, string>; entries: CollectedEntry[] } | null, now: number) {
+    const answered: Record<string, string> = { ...(previous?.lookups ?? {}) };
+    // Runs from before the log existed: a question with certificates was answered when they were seen.
+    if (previous && !previous.lookups) {
+        for (const e of previous.entries) {
+            const q = e.extra?.query;
+            if (typeof q === 'string' && !answered[q]) answered[q] = e.observedAt;
+        }
+    }
+    const fresh = (q: string) => !!answered[q] && now - Date.parse(answered[q]) < REFRESH_DAYS * 86_400_000;
+    return {
+        due: [...wanted].filter(([q]) => !fresh(q)),
+        carried: (previous?.entries ?? []).filter((e) => { const q = e.extra?.query; return typeof q === 'string' && wanted.has(q) && fresh(q); }),
+        answered,
+    };
+}
+
 async function collect(): Promise<Collected> {
     const runs = LOOKUP_FROM.map((slug) => lastGoodRun(slug)).filter((r): r is NonNullable<typeof r> => !!r);
     if (!runs.length) throw new Error(`no good run yet for ${LOOKUP_FROM.join(' or ')}: nothing to look up`);
-    const lookups = lookupsFrom(runs);
+    const wanted = lookupsFrom(runs);
+    const { due, carried, answered } = planLookups(wanted, lastGoodRun('conacem'), Date.now());
 
     const open = await openBrowser(conacem.permission);
     try {
@@ -98,20 +125,24 @@ async function collect(): Promise<Collected> {
         const landing = await page.goto(`${ORIGIN}/buscador`, { waitUntil: 'networkidle', timeout: 90_000 });
         if (landing?.status() !== 200) throw new Error(`CONACEM search page answered HTTP ${landing?.status()}`);
 
-        const entries: CollectedEntry[] = [];
+        const entries: CollectedEntry[] = [...carried];
         const reasons: string[] = [];
-        let withResults = 0, capped = 0, failed = 0;
-        for (const [query, region] of lookups) {
+        const statuses: Record<string, number> = {};
+        let asked = 0, withResults = 0, capped = 0, failed = 0, limited = false;
+        for (const [query, region] of due) {
             let cursor = 0;
             let found = 0;
+            let ok = true;
             for (let p = 0; p < MAX_PAGES; p++) {
                 await pace();
                 const res = await page.evaluate(async (path) => {
                     const r = await fetch(path);
                     return { status: r.status, body: r.status === 200 ? await r.json() : null };
                 }, apiPath(query, cursor));
+                statuses[res.status] = (statuses[res.status] ?? 0) + 1;
                 if (res.status === 403) throw new Error('CONACEM refused a lookup (HTTP 403); stopping the run');
-                if (res.status !== 200 || !res.body) { failed++; break; }
+                if (res.status === 429) { limited = true; ok = false; break; }
+                if (res.status !== 200 || !res.body) { failed++; ok = false; break; }
                 const body = res.body as ConacemPage;
                 const observedAt = new Date().toISOString();
                 for (const r of body.especialistas) entries.push({ ...toEntry(r, region, query), observedAt });
@@ -120,17 +151,22 @@ async function collect(): Promise<Collected> {
                 cursor = body.id_ultimo;
                 if (p === MAX_PAGES - 1) capped++;
             }
+            if (limited) break; // their limit: stop asking, the next run picks up
+            if (ok) { asked++; answered[query] = new Date().toISOString(); }
             if (found) withResults++;
         }
-        if (failed > lookups.size / 2) reasons.push(`${failed} of ${lookups.size} lookups failed`);
+        const left = due.length - asked - failed;
+        if (limited && asked === 0) reasons.push('CONACEM is limiting queries (HTTP 429) and answered none this run');
+        if (failed > due.length / 2) reasons.push(`${failed} of ${due.length} lookups failed`);
         return {
             targets: [{
                 key: 'lookups', url: `${ORIGIN}/buscador`, ok: true, noBaseline: true,
                 count: new Set(entries.map((e) => e.externalId)).size, fetchedAt: new Date().toISOString(),
-                detail: { lookups: lookups.size, withResults, failed, stoppedAtPageLimit: capped },
+                detail: { doctorsToCheck: wanted.size, askedThisRun: asked, withResults, carriedFromEarlierRuns: wanted.size - due.length, leftForNextRun: left, failed, stoppedAtPageLimit: capped, ...Object.fromEntries(Object.entries(statuses).map(([k, v]) => [`http${k}`, v])) },
             }],
             entries,
             reasons,
+            lookups: answered,
         };
     } finally {
         await open.close();
