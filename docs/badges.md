@@ -39,7 +39,7 @@ source run (run_id) → source_entries → doctor_source_ids (matched once) → 
 
 - **Card:** `CardBadges`: credential tiles, a separator, the first two affiliations, then "+N more". A tile opens its details without opening the profile.
 - **Profile:** `ProfileBadges`: every badge under Credentials / Affiliations / Facility.
-- **Details:** organization, consejo, certificate, verified on, valid from/to, link to the source.
+- **Details:** organization, consejo, certificate, verified on, valid from/to, link to the source. Hospital Ángeles and Star Médica link to the doctor's own page or card; CONACEM has no such link, so it opens its search page.
 - **Logos:** a tile shows the organization's logo only when `organizations.logo_permission_at` is set; until then, its initials (HA, SM, CON). Record each organization's OK before setting `logo_url`. Files go in `public/logos/orgs/`, which is git-ignored for now; `scripts/sources/sandbox/logos.sql` turns them on in the sandbox as a test build.
 - **Text:** `badges.*` in `src/i18n/locales/{en,es}.json`. **Component:** `src/components/provider/OrgBadges.tsx`.
 

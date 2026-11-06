@@ -14,6 +14,7 @@ Received 4 Nov 2026: scrape, store and display the doctor directory. The signed 
 - **A search returns at most 100 doctors**, alphabetically, so a hospital-wide search stops partway through "M". The adapter reads the specialty list from the site's own search box (about 120 values, typos included: "Oftamología", "Cradiología"), then searches `?hospital=Star Médica Ciudad Juárez&especialidad=<value>` once per specialty, about 2–3 seconds apart. A doctor found under several specialties is merged by ID.
 - If any one search returns 100, the run turns **red**: that specialty may be cut off.
 - The filter list on the results page is built from the 100 loaded cards, so it misses specialties; it is not used.
+- **Each doctor has a direct link:** `directorio-medico?doctorId=<external ID>` shows only that doctor's card, and it is what a badge links to. Checked on three doctors on 6 Nov 2026. `doctorName` in the URL does not filter: the page ignores it and shows the first 100.
 
 ## Fields per doctor
 

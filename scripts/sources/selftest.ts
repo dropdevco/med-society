@@ -7,7 +7,7 @@
  */
 import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
-import { listUrl, parseCard } from './adapters/starmedica';
+import { doctorUrl, parseCard } from './adapters/starmedica';
 import { cedulasOf, groupPeople, type DoctoraliaRow } from './backfill-doctors';
 import { entryRow } from './lib/load';
 import { decide, type NameCandidate } from './lib/match';
@@ -76,15 +76,15 @@ check('merge does not mutate its input', rows[0].sites.length === 1);
 // ── Star Médica card parser ─────────────────────────────────────────────────
 const smText = ['Ana Prueba Uno', 'Pediatría/Alergia e Inmunología Clínica', 'Star Médica Ciudad Juárez', 'Consultorio 929', '',
     'Tel.656 000 0000', '', 'Ubicación', 'Star Médica Ciudad Juárez', 'México', 'Formación', '◼︎ Ced. Prof. 1234567 // 76543210 // 0033203', '◼︎ Pediatría'].join('\n');
-const sm = parseCard({ id: 'a8qXX00000001ABCAY-28', name: ' Ana  Prueba Uno ', specialty: 'Pediatría/Alergia e Inmunología Clínica', text: smText }, 'Pediatría');
+const sm = parseCard({ id: 'a8qXX00000001ABCAY-28', name: ' Ana  Prueba Uno ', specialty: 'Pediatría/Alergia e Inmunología Clínica', text: smText });
 check('Star Médica: Salesforce ID without the render suffix', sm?.externalId === 'a8qXX00000001ABCAY', sm?.externalId);
 check('Star Médica: name cleaned, no title printed', sm?.name === 'Ana Prueba Uno' && sm?.title === null, sm?.name);
 check('Star Médica: every cédula on the card, leading zeros kept', JSON.stringify(sm?.cedulas) === '["1234567","76543210","0033203"]', sm?.cedulas);
 check('Star Médica: phone digits are not mistaken for cédulas', !sm?.cedulas.some((c) => c.startsWith('656')));
 check('Star Médica: composite specialty split', JSON.stringify(sm?.specialties) === '["Pediatría","Alergia e Inmunología Clínica"]', sm?.specialties);
 check('Star Médica: office and hospital', sm?.sites[0]?.office === '929' && sm?.sites[0]?.name === 'Star Médica Ciudad Juárez', sm?.sites[0]);
-check('Star Médica: Juárez region, URL of the search that found it', sm?.region === 'elpaso-juarez' && sm?.url === listUrl('Pediatría'));
-check('Star Médica: card without an ID is skipped', parseCard({ id: '', name: 'X', specialty: '', text: '' }, 'X') === null);
+check('Star Médica: Juárez region, links to the card of that doctor', sm?.region === 'elpaso-juarez' && sm?.url === doctorUrl('a8qXX00000001ABCAY') && sm.url.endsWith('directorio-medico?doctorId=a8qXX00000001ABCAY'), sm?.url);
+check('Star Médica: card without an ID is skipped', parseCard({ id: '', name: 'X', specialty: '', text: '' }) === null);
 
 // ── CONACEM lookups ──────────────────────────────────────────────────────────
 check('CONACEM query: two surnames, accents dropped', surnameQuery('Dr. René Ricardo Prueba Núñez') === 'Prueba Nunez', surnameQuery('Dr. René Ricardo Prueba Núñez'));

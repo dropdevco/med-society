@@ -16,6 +16,9 @@ const BASE = 'https://www.starmedica.com/s/';
 export const listUrl = (specialty: string) =>
     `${BASE}directorio-medico?hospital=${encodeURIComponent(HOSPITAL)}${specialty ? `&especialidad=${encodeURIComponent(specialty)}` : ''}`;
 
+/** One doctor's own card: the directory page reads `doctorId` and shows only that record. */
+export const doctorUrl = (externalId: string) => `${BASE}directorio-medico?doctorId=${encodeURIComponent(externalId)}`;
+
 const clean = (s: string | undefined | null) => (s ?? '').replace(/\s+/g, ' ').trim();
 
 /** What the page gives us per card, before interpretation. */
@@ -28,7 +31,7 @@ export interface RawCard {
     text: string;
 }
 
-export function parseCard(card: RawCard, searchedSpecialty: string): SourceEntry | null {
+export function parseCard(card: RawCard): SourceEntry | null {
     const externalId = card.id.replace(/-\d+$/, '');
     if (!externalId || !clean(card.name)) return null;
     const lines = card.text.split('\n').map(clean).filter(Boolean);
@@ -43,7 +46,7 @@ export function parseCard(card: RawCard, searchedSpecialty: string): SourceEntry
         cedulas,
         sites: [{ name: lines.find((l) => /^Star M[eé]dica/i.test(l)) ?? HOSPITAL, address: null, tower: null, office }],
         region: 'elpaso-juarez',
-        url: listUrl(searchedSpecialty),
+        url: doctorUrl(externalId),
         photoUrl: null, // a generic avatar on every card
     };
 }
@@ -109,7 +112,7 @@ async function collect(): Promise<Collected> {
             detail[specialty] = raw.length;
             if (raw.length >= RESULT_CAP) reasons.push(`"${specialty}" returned ${raw.length} doctors, the site's cap: some may be missing`);
             for (const card of raw) {
-                const e = parseCard(card, specialty);
+                const e = parseCard(card);
                 if (e) entries.push({ ...e, observedAt });
             }
         }
