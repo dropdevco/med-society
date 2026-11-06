@@ -9,7 +9,7 @@ Many sources we want are run by small organizations or government offices. Some 
 ## Decision
 
 1. A source is built only when it is **open** (its robots.txt and terms allow reading) or we hold **written permission** that covers it. Each source's status is recorded in the register, [`docs/sources/README.md`](../sources/README.md).
-2. The pipeline identifies itself: `MedSocietyBot/1.0 (+https://www.medsociety.one; info@dropdev.co)`. It honours robots.txt for that agent, waits between requests and backs off on 429/5xx.
+2. The pipeline identifies itself: `MedSocietyBot/1.0 (+https://www.medsociety.one)`. It honours robots.txt for that agent, waits between requests and backs off on 429/5xx.
 3. It never works around a CAPTCHA, a login or a block. A 401/403/429 that persists, or a robots.txt disallow, ends the run **red** and logs the source's contact for a person to follow up.
 4. Sources that refuse automation are handled by people: an assisted lookup in the review queue, a document the doctor uploads (SEP Constancia), or an export the organization sends.
 
@@ -22,4 +22,5 @@ Many sources we want are run by small organizations or government offices. Some 
 
 - Some sources arrive late or never; the review queue and doctor uploads cover the gap.
 - Permission letters are tracked like code: date, scope, conditions, where the signed copy is kept (the team vault, never this public repo).
+- When a letter explicitly lets us past a control (CONACEM, 4 Nov 2026: "however we can get it", because it will not change its site), the adapter records it in `permission.waives` (`robots`, `block`). Only then does the pipeline skip robots.txt or use a real browser's standard identity instead of `MedSocietyBot`, and it still sends an `X-Client: MedSocietyBot` header. No waiver, no exception.
 - Note: the older Doctoralia scraper sends a desktop-Chrome user agent. This pipeline does not.

@@ -38,6 +38,8 @@ export interface SourceEntry {
     region: RegionId;
     url: string;
     photoUrl: string | null;
+    /** Source-specific facts kept as published (e.g. CONACEM's split name and validity dates). */
+    extra?: Record<string, string | number | null>;
 }
 
 /**
@@ -59,6 +61,23 @@ export interface Permission {
     conditions: string;
     /** Where the signed copy is kept. */
     reference: string;
+    /**
+     * Controls the letter explicitly lets us past (docs/adr/0002 point 3 needs it named).
+     * 'robots': the site's robots.txt is not consulted; 'block': its firewall's refusal of
+     * our bot is not treated as a "no", so a standard browser identity may be used.
+     */
+    waives?: Array<'robots' | 'block'>;
+}
+
+/** An entry as a collecting adapter returns it: when it was seen is known per lookup. */
+export type CollectedEntry = SourceEntry & { observedAt: string };
+
+/** What an adapter that fetches by itself (real browser, lookups) hands back to the run. */
+export interface Collected {
+    targets: import('./judge').TargetOutcome[];
+    entries: CollectedEntry[];
+    /** Problems the adapter found that make the run red (e.g. a search hit a result cap). */
+    reasons: string[];
 }
 
 export interface SourceAdapter {
@@ -68,6 +87,9 @@ export interface SourceAdapter {
     /** docs/adr/0002: only `open`, or `permission` with the letter recorded. */
     access: 'open' | 'permission';
     permission?: Permission;
+    /** Pages for the plain-HTML path: fetched with politeGet, parsed with `parse`. */
     targets: Target[];
-    parse(html: string, target: Target): SourceEntry[];
+    parse?(html: string, target: Target): SourceEntry[];
+    /** Adapters that need a real browser or run lookups fetch for themselves instead. */
+    collect?(): Promise<Collected>;
 }

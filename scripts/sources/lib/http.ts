@@ -5,7 +5,7 @@
  * blocked so a person can ask the organization (docs/adr/0002).
  */
 
-export const USER_AGENT = 'MedSocietyBot/1.0 (+https://www.medsociety.one; info@dropdev.co)';
+export const USER_AGENT = 'MedSocietyBot/1.0 (+https://www.medsociety.one)';
 /** The token robots.txt groups are matched against. */
 export const ROBOTS_TOKEN = 'medsocietybot';
 

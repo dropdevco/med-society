@@ -9,7 +9,7 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 | Source | Slug | Kind | Access | Permission / basis | Reader | Cédula | Cadence | Status |
 |---|---|---|---|---|---|---|---|---|
 | Hospital Ángeles (Tijuana, Ciudad Juárez) | `hospital-angeles` | hospital | permission | Letter received 30 Oct 2026: scrape, store and display, on condition we keep it up to date. Signed by two Hospital Ángeles officials; copy in the team vault. Logo use not yet confirmed | A, static HTML | No | Weekly | **Building** (phase 1) |
-| Star Médica (Ciudad Juárez only) | `starmedica` | hospital | permission needed | Terms page does not render; letter to request | D, real browser | Yes | Weekly | Waiting for letter |
+| Star Médica (Ciudad Juárez only) | `starmedica` | hospital | permission | Received 4 Nov 2026: scrape, store and display the doctor directory. Copy in the team vault. Logo use not yet confirmed | D, real browser (identifies as MedSocietyBot) | Yes | Weekly | **Built** (4 Nov) |
 | Centro Médico de Especialidades (Juárez) | — | hospital | unknown | Not researched yet | — | — | — | Research |
 | Sectur `bajahealthtourism.com` | — | regulator register | open | robots.txt blocks only `/admin`, `/portal`, `/login`; no terms published | A | Yes | Weekly | Planned |
 | COEPRIS BC REPSSABI | — | regulator (facilities) | open | robots.txt allows all; public JSON feed | B, JSON | Facilities | Weekly | Planned |
@@ -17,15 +17,18 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 | CLUES | — | regulator (facilities) | open | "No existen restricciones para su uso" | C, file | Facilities | Monthly | Planned |
 | CCPERBC | — | colegio | open | robots.txt blocks only `/wp-admin/` | A | No | Weekly | Planned |
 | Baja Health Cluster | — | association | open | robots.txt blocks only `/wp-admin/`; ask for cédulas | A | No | Weekly | Planned |
-| CONACEM | — | consejo umbrella | permission needed | Returns 403 to automated readers | E, assisted | ? | Per claim | Letter to send |
+| CONACEM | `conacem` | consejo umbrella | permission | Received 4 Nov 2026: display the certified-specialist data, obtained by whatever means works (CONACEM will not change its site or add an API). **Waives:** robots.txt (unreadable, 403) and the firewall's refusal of our bot, so a real browser with a standard identity is used; it still sends an `X-Client: MedSocietyBot` header. Copy in the team vault | Lookup through a real browser (by surname pair, all consejos) | No (certificate no. and validity dates) | Weekly | **Built** (4 Nov) |
 | SEP (cédula registry) | — | government | permission needed | reCAPTCHA on every call; also file a transparency request | E, assisted | Yes | Per claim | Letter to send |
-| CMGO | — | consejo | permission needed | Directory moved behind a doctor login | E, assisted | ? | Per claim | Letter to send |
+| CMGO | — | consejo | permission needed | Directory moved behind a doctor login. Its certifications are also in CONACEM | E, assisted | ? | Per claim | Covered through CONACEM for now |
+| CMRI (radiology consejo) | — | consejo | unknown | New (meeting of 3 Nov): `cmri.org.mx/radCertificados.php`. robots.txt and terms not checked yet. Its certifications are also in CONACEM | — | ? | — | Research |
 | ADM dental council | — | consejo | permission needed | robots.txt bars AI agents | E, assisted | ? | Per claim | Letter to send |
 | JCI | — | accreditor | permission needed | 403; robots.txt bars AI agents | E, assisted | Facilities | Yearly | Low priority |
 | ACERBAC | — | association | export | Site down, no public list | F, export | ? | Monthly | Ask for list |
 | CMMI | — | consejo | export | Statute clause 18.4 promises the directory on request | F, export | ? | Monthly | Ask for list |
 
 Reader types: **A** static HTML · **B** JSON feed · **C** bulk file · **D** real browser · **E** assisted human lookup · **F** export or shared sheet.
+
+Permissions received on 4 Nov 2026 (Star Médica, CONACEM) are recorded from the team's account of the letters; check the wording against the signed copies. A permission that lets us past a control says so in the adapter's `permission.waives` (`robots`, `block`), and nothing else may skip robots.txt or use a non-bot identity.
 
 ## What a permission letter must say
 

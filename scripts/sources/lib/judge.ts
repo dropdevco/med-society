@@ -12,6 +12,10 @@ export interface TargetOutcome {
     /** When the request for this target finished (ISO 8601, UTC). */
     fetchedAt?: string;
     error?: string;
+    /** Breakdown behind `count`, e.g. doctors per specialty search. */
+    detail?: Record<string, number>;
+    /** Lookup sources: the count depends on what was asked, so no drop comparison. */
+    noBaseline?: boolean;
 }
 
 export interface Verdict {
@@ -38,7 +42,7 @@ export function judgeRun(
             continue;
         }
         const before = lastGoodCounts?.[t.key];
-        if (before && t.count < before * (1 - MAX_DROP)) {
+        if (!t.noBaseline && before && t.count < before * (1 - MAX_DROP)) {
             reasons.push(`${t.key}: ${t.count} entries, down from ${before} (more than ${MAX_DROP * 100}%)`);
         }
     }

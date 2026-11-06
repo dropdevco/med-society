@@ -5,7 +5,9 @@
  *
  *   npm run sources:selftest
  */
+import { lookupsFrom, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
+import { listUrl, parseCard } from './adapters/starmedica';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { isAllowed } from './lib/robots';
 import { DEFAULT_SCHEDULE, nextRunAt, previousRunAt, scheduleFromEnv } from './lib/schedule';
@@ -67,6 +69,34 @@ check('duplicate cards merge by slug', merged.length === 3, merged.length);
 check('merge keeps both hospitals', merged[0].sites.map((s) => s.name).join('|') === 'Hospital Angeles Tijuana|Hospital Angeles Mexicali', merged[0].sites);
 check('merge does not mutate its input', rows[0].sites.length === 1);
 
+// ── Star Médica card parser ─────────────────────────────────────────────────
+const smText = ['Ana Prueba Uno', 'Pediatría/Alergia e Inmunología Clínica', 'Star Médica Ciudad Juárez', 'Consultorio 929', '',
+    'Tel.656 000 0000', '', 'Ubicación', 'Star Médica Ciudad Juárez', 'México', 'Formación', '◼︎ Ced. Prof. 1234567 // 76543210 // 0033203', '◼︎ Pediatría'].join('\n');
+const sm = parseCard({ id: 'a8qXX00000001ABCAY-28', name: ' Ana  Prueba Uno ', specialty: 'Pediatría/Alergia e Inmunología Clínica', text: smText }, 'Pediatría');
+check('Star Médica: Salesforce ID without the render suffix', sm?.externalId === 'a8qXX00000001ABCAY', sm?.externalId);
+check('Star Médica: name cleaned, no title printed', sm?.name === 'Ana Prueba Uno' && sm?.title === null, sm?.name);
+check('Star Médica: every cédula on the card, leading zeros kept', JSON.stringify(sm?.cedulas) === '["1234567","76543210","0033203"]', sm?.cedulas);
+check('Star Médica: phone digits are not mistaken for cédulas', !sm?.cedulas.some((c) => c.startsWith('656')));
+check('Star Médica: composite specialty split', JSON.stringify(sm?.specialties) === '["Pediatría","Alergia e Inmunología Clínica"]', sm?.specialties);
+check('Star Médica: office and hospital', sm?.sites[0]?.office === '929' && sm?.sites[0]?.name === 'Star Médica Ciudad Juárez', sm?.sites[0]);
+check('Star Médica: Juárez region, URL of the search that found it', sm?.region === 'elpaso-juarez' && sm?.url === listUrl('Pediatría'));
+check('Star Médica: card without an ID is skipped', parseCard({ id: '', name: 'X', specialty: '', text: '' }, 'X') === null);
+
+// ── CONACEM lookups ──────────────────────────────────────────────────────────
+check('CONACEM query: two surnames, accents dropped', surnameQuery('Dr. René Ricardo Prueba Núñez') === 'Prueba Nunez', surnameQuery('Dr. René Ricardo Prueba Núñez'));
+check('CONACEM query: "de la" surname keeps its last word', surnameQuery('Uno Dos de la Prueba Núñez') === 'Prueba Nunez', surnameQuery('Uno Dos de la Prueba Núñez'));
+check('CONACEM query: two-word name searched whole', surnameQuery('Lic. Ana Prueba') === 'Ana Prueba');
+check('CONACEM query: one word is not searched', surnameQuery('Prueba') === null);
+const rec: ConacemRecord = { id: 900001, titulo: 'Dr.', nombre: 'Uno Dos', paterno: 'de la Prueba', materno: 'Nunez', consejo: 'Consejo Mexicano de Radiología e Imagen, A.C.',
+    especialidad: 'Radiología e Imagen', inicio: '2024-01-01', fin: '2029-01-01', numero_certificado: '9999', libro: '1', foja: '70' };
+const ce = toEntry(rec, 'elpaso-juarez', 'Prueba Nunez');
+check('CONACEM entry: certificate record ID is the external ID', ce.externalId === '900001');
+check('CONACEM entry: name split kept', ce.extra?.given === 'Uno Dos' && ce.extra?.paterno === 'de la Prueba' && ce.extra?.materno === 'Nunez' && ce.name === 'Uno Dos de la Prueba Nunez', ce.extra);
+check('CONACEM entry: validity and certificate', ce.extra?.validFrom === '2024-01-01' && ce.extra?.validTo === '2029-01-01' && ce.extra?.certificate === '9999');
+check('CONACEM entry: no cédula claimed', ce.cedulas.length === 0);
+const lk = lookupsFrom([{ entries: [{ name: 'Dr. Uno Prueba Núñez', region: 'elpaso-juarez' }, { name: 'Dos Prueba Nunez', region: 'sandiego-tijuana' }, { name: 'Tres Otra Persona', region: 'sandiego-tijuana' }] }]);
+check('CONACEM lookups: one per surname pair, first region kept', lk.size === 2 && lk.get('prueba nunez') === 'elpaso-juarez', [...lk]);
+
 // ── Run judge ────────────────────────────────────────────────────────────────
 const t = (key: string, count: number, ok = true, error?: string): TargetOutcome => ({ key, url: `https://x/${key}`, ok, count, error });
 const e = (id: string, name = 'Someone'): SourceEntry => ({ externalId: id, name, title: null, specialties: [], cedulas: [], sites: [], region: 'elpaso-juarez', url: '', photoUrl: null });
@@ -80,6 +110,7 @@ check('drop under 30% is green', judgeRun([t('tj', 130)], some, { tj: 151 }).sta
 check('growth is green', judgeRun([t('tj', 200)], some, { tj: 151 }).status === 'green');
 check('mostly nameless rows is red', judgeRun([t('tj', 3)], [e('a', ''), e('b', ''), e('c')], null).status === 'red');
 check('no targets is red', judgeRun([], [], null).status === 'red');
+check('lookup target: a smaller answer is not a drop', judgeRun([{ ...t('lookups', 40), noBaseline: true }], some, { lookups: 400 }).status === 'green');
 
 // ── robots.txt ───────────────────────────────────────────────────────────────
 const haRobots = 'User-agent: *\nDisallow: /*?st=*\nSitemap: https://hospitalangeles.com/sitemap.xml\n';

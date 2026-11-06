@@ -4,6 +4,8 @@ Reads outside directories (hospitals, consejos, colegios, associations, regulato
 
 ## Run it
 
+First time on a machine (not needed in Docker): `npx playwright install chromium` downloads the browser the Star Médica and CONACEM adapters drive.
+
 ```bash
 npm run sources -- --list                          # sources the pipeline knows
 npm run sources -- --source=hospital-angeles       # one run: fetch, parse, judge, write
@@ -37,7 +39,8 @@ npm run sources:dashboard                    # the dashboard without Docker
 
 1. **Access check.** The adapter must be `open`, or `permission` with the letter recorded.
 2. **robots.txt**, read fresh each run for `MedSocietyBot`. A disallow ends the run red.
-3. **Fetch** each target with `lib/http.ts`: identifies as `MedSocietyBot/1.0 (+https://www.medsociety.one; info@dropdev.co)`, waits ~3–4 s between requests, backs off on 429/5xx. A 401/403 ends the run red as **blocked**; nothing retries it with other tools ([ADR 0002](../../docs/adr/0002-source-access-policy.md)).
+3. **Fetch** each target with `lib/http.ts`: identifies as `MedSocietyBot/1.0 (+https://www.medsociety.one)`, waits ~3–4 s between requests, backs off on 429/5xx. A 401/403 ends the run red as **blocked**; nothing retries it with other tools ([ADR 0002](../../docs/adr/0002-source-access-policy.md)).
+   Adapters that need a real browser or run lookups implement `collect()` instead and use `lib/browser.ts` (Playwright Chromium, same pacing, `MedSocietyBot` in the user agent and an `X-Client: MedSocietyBot` header). Only a permission whose `waives` lists `block` may use the plain Chrome identity, and only one listing `robots` skips robots.txt.
 4. **Parse** with the adapter, then merge duplicates by external id.
 5. **Judge** green or red against the last good run ([ADR 0004](../../docs/adr/0004-matching-and-freshness.md)): a failed or empty target, a drop over 30%, or mostly nameless rows make it red.
 6. **Write** the run to `.data/<source>/runs/<started-at>_<run-id>.json`, with entries, per-target counts, and doctors added and removed since the last good run. A red run is kept for inspection but never becomes the baseline.
@@ -62,8 +65,11 @@ lib/http.ts                 polite, honest GET; BlockedError
 lib/robots.ts               robots.txt reader (RFC 9309)
 lib/judge.ts                green/red rules; duplicate merging
 lib/snapshot.ts             run files; last good run; diff
-adapters/index.ts           every adapter the CLI knows
-adapters/hospital-angeles.ts
+lib/browser.ts              Playwright launcher with identity and pacing
+adapters/index.ts           every adapter the CLI knows, in run order
+adapters/hospital-angeles.ts  static HTML, two city pages
+adapters/starmedica.ts      real browser, one search per specialty (100-result cap)
+adapters/conacem.ts         lookups by surname pair for doctors the hospital sources list
 selftest.ts                 synthetic fixtures only
 ```
 

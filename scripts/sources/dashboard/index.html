@@ -193,11 +193,22 @@ function contentsPanel(src, host) {
     var rows = run.entries;
     var tbody = h("tbody");
     var shown = h("span", { class: "muted" });
+    // Accent- and case-insensitive: "Ángeles" finds "Angeles", "juarez" finds "Juárez".
+    var fold = function (s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
+    var details = function (x) {
+      if (!x) return "";
+      var parts = [];
+      if (x.consejo) parts.push(x.consejo);
+      if (x.validTo) parts.push("valid " + (x.validFrom || "?") + " to " + x.validTo);
+      if (x.certificate) parts.push("certificate " + x.certificate);
+      return parts.join(" · ");
+    };
+    var haystack = rows.map(function (e) {
+      return fold([e.name, e.specialties.join(" "), e.sites.map(function (s) { return s.name; }).join(" "), e.externalId, e.region, e.cedulas.join(" "), details(e.extra)].join(" "));
+    });
     var draw = function (q) {
-      q = (q || "").toLowerCase();
-      var list = rows.filter(function (e) {
-        return !q || [e.name, e.specialties.join(" "), e.sites.map(function (s) { return s.name; }).join(" "), e.externalId].join(" ").toLowerCase().indexOf(q) >= 0;
-      });
+      q = fold(q);
+      var list = rows.filter(function (e, i) { return !q || haystack[i].indexOf(q) >= 0; });
       shown.textContent = list.length + " of " + rows.length;
       tbody.replaceChildren.apply(tbody, list.map(function (e) {
         return h("tr", {},
@@ -205,6 +216,7 @@ function contentsPanel(src, host) {
           h("td", {}, e.specialties.join(", ")),
           h("td", {}, e.sites.map(function (s) { return h("div", {}, s.name + (s.office ? " · office " + s.office : "")); })),
           h("td", {}, e.cedulas.length ? h("span", { class: "mono" }, e.cedulas.join(", ")) : h("span", { class: "faint" }, "—")),
+          h("td", { style: "font-size:12.5px" }, details(e.extra) || h("span", { class: "faint" }, "—")),
           h("td", {}, e.region),
           h("td", {}, fmt(e.observedAt)),
           h("td", {}, link(e.url, "Profile ↗")));
@@ -214,9 +226,9 @@ function contentsPanel(src, host) {
       h("div", { class: "row spread" },
         h("div", { class: "row" }, h("strong", {}, "Last scrape"), pill(run.status), h("span", { class: "mono faint" }, run.id), copyBtn(run.id)),
         h("div", { class: "row" }, shown,
-          h("input", { type: "search", placeholder: "Search name, specialty, hospital", "aria-label": "Search the last scrape", oninput: function (e) { draw(e.target.value); } }))),
+          h("input", { type: "search", placeholder: "Search name, specialty, hospital, cédula, region", "aria-label": "Search the last scrape", oninput: function (e) { draw(e.target.value); } }))),
       h("div", { class: "scroll" }, h("table", {},
-        h("thead", {}, h("tr", {}, ["Name", "Specialties", "Hospital", "Cédula", "Region", "Observed", ""].map(function (c) { return h("th", {}, c); }))),
+        h("thead", {}, h("tr", {}, ["Name", "Specialties", "Hospital", "Cédula", "Details", "Region", "Observed", ""].map(function (c) { return h("th", {}, c); }))),
         tbody)));
     draw("");
   }).catch(function (err) { host.replaceChildren(h("div", { class: "reasons" }, "Could not load: " + err.message)); });

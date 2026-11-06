@@ -33,10 +33,21 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
     const parsed: ObservedEntry[] = [];
     const reasons: string[] = [];
 
-    const robots = await robotsVerdict(adapter.targets.map((t) => t.url));
+    // robots.txt is read every run unless the recorded permission names it as waived (docs/adr/0002).
+    const robotsWaived = adapter.permission?.waives?.includes('robots') ?? false;
+    const robots = robotsWaived ? { allowed: true } : await robotsVerdict(adapter.targets.map((t) => t.url));
     if (!robots.allowed) reasons.push(robots.reason!);
 
-    if (robots.allowed) {
+    if (robots.allowed && adapter.collect) {
+        try {
+            const got = await adapter.collect();
+            targets.push(...got.targets);
+            reasons.push(...got.reasons);
+            parsed.push(...got.entries.map((e) => ({ ...e, runId: id })));
+        } catch (err) {
+            targets.push({ key: 'collect', url: adapter.targets[0]?.url ?? '', ok: false, count: 0, fetchedAt: new Date().toISOString(), error: (err as Error).message });
+        }
+    } else if (robots.allowed && adapter.parse) {
         for (const t of adapter.targets) {
             try {
                 const page = await politeGet(t.url);
