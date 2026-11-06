@@ -1,7 +1,12 @@
 -- Stand-ins for production objects migration 0035 references. Not production's definitions.
-create extension if not exists pg_trgm;
-create extension if not exists unaccent;
+-- Production keeps these in an extensions schema; matching that catches search_path mistakes.
+create schema extensions;
+create extension if not exists pg_trgm schema extensions;
+create extension if not exists unaccent schema extensions;
+alter database postgres set search_path = "$user", public, extensions;
+set search_path = "$user", public, extensions;
 create role anon; create role authenticated; create role service_role bypassrls;
+grant usage on schema extensions to anon, authenticated, service_role;
 create schema auth;
 create table auth.users (id uuid primary key);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
@@ -25,8 +30,14 @@ create view public.provider_list with (security_invoker = true) as
                      from jsonb_array_elements(p.services) s(value), lateral (values (s.value ->> 'name'::text), (s.value ->> 'nameEn'::text)) v(n)), '{}'::text[]) as service_names
     from public.providers p where status = 'live'::text;
 grant select on public.provider_list to anon, authenticated;
-create function public.bh_norm(t text) returns text language sql stable as $$
-    select btrim(regexp_replace(regexp_replace(lower(unaccent(coalesce(t, ''))), '^(dra?|lic)\.?\s+', ''), '[^a-z0-9]+', ' ', 'g'))
+-- Production's bh_norm, verbatim (5 Nov 2026).
+create function public.bh_norm(t text) returns text language sql stable set search_path = public, extensions, pg_temp as $$
+    select btrim(regexp_replace(
+        regexp_replace(
+            regexp_replace(lower(extensions.unaccent(coalesce(t, ''))), '[^a-z0-9]+', ' ', 'g'),
+            '\m(dr|dra|doctor|doctora|lic|mtro|mtra|clinica|clinicas|consultorio|centro|medico|medica|medicos|hospital|salud|grupo|especialidades|dental|dentista|odontologia|de|del|la|el|los|las|y|en|sa|cv|s|a|c|v|clinic|clinics|medical|center|centre|family|health|care|group|services|the|of|at|and|pllc|llc|pa|md|dds|inc)\M',
+            ' ', 'g'),
+        '\s+', ' ', 'g'));
 $$;
 create table public.app_admins (user_id uuid primary key);
 create function public.is_app_admin() returns boolean language sql stable security definer set search_path = public, auth as $$

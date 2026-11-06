@@ -8,6 +8,10 @@
 import { lookupsFrom, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
 import { listUrl, parseCard } from './adapters/starmedica';
+import { cedulasOf, groupPeople, type DoctoraliaRow } from './backfill-doctors';
+import { entryRow } from './lib/load';
+import { decide, type NameCandidate } from './lib/match';
+import { nameKey, parseName } from './lib/names';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { isAllowed } from './lib/robots';
 import { DEFAULT_SCHEDULE, nextRunAt, previousRunAt, scheduleFromEnv } from './lib/schedule';
@@ -142,6 +146,44 @@ check('run file name: start time, then run id',
     runFileName({ id: id1, startedAt: '2026-11-02T18:30:05.123Z' }) === `2026-11-02T18-30-05Z_${id1}.json`);
 const stamped = mergeEntries([{ ...e('a'), runId: id1, observedAt: '2026-11-02T18:30:07.000Z' }]);
 check('merged entries keep their run id and observedAt', stamped[0].runId === id1 && stamped[0].observedAt === '2026-11-02T18:30:07.000Z');
+
+// ── Names ────────────────────────────────────────────────────────────────────
+const four = parseName('Dr. René Ricardo Prueba Núñez');
+check('names: four words split, title and accents gone', four?.given === 'RENE RICARDO' && four?.surname1 === 'PRUEBA' && four?.surname2 === 'NUNEZ' && !four?.ambiguous, four);
+check('names: "de la" stays with its surname', parseName('Uno Dos de la Prueba Núñez')?.surname1 === 'DE LA PRUEBA', parseName('Uno Dos de la Prueba Núñez'));
+check('names: three words flagged as ambiguous', parseName('Ana Prueba Uno')?.ambiguous === true);
+check('name_key skips particles', nameKey(parseName('Uno Dos de la Prueba Núñez')) === 'ANPR', nameKey(parseName('Uno Dos de la Prueba Núñez')));
+check('name_key needs a surname', nameKey(parseName('Prueba')) === null);
+
+// ── Match decision ───────────────────────────────────────────────────────────
+const cand = (doctor_id: string, similarity: number, regions = ['elpaso-juarez']): NameCandidate => ({ doctor_id, display_name: doctor_id, similarity, regions, listings: [], specialties: [] });
+const region = 'elpaso-juarez';
+const m1 = decide({ cedulaDoctors: ['d1', 'd1'], candidates: [cand('d1', 0.9)], region });
+check('tier 1: a held cédula with a similar name is confirmed', m1.status === 'confirmed' && m1.tier === 1 && m1.doctorId === 'd1', m1);
+const m2 = decide({ cedulaDoctors: ['d1'], candidates: [], region });
+check('tier 1: a cédula on a very different name goes to review', m2.status === 'probable' && m2.tier === 1 && m2.confidence === 0.8, m2);
+const m3 = decide({ cedulaDoctors: ['d1', 'd2'], candidates: [], region });
+check('tier 1: cédulas on two doctors go to review', m3.status === 'probable', m3);
+const m4 = decide({ cedulaDoctors: [], candidates: [cand('d1', 1)], region });
+check('tier 3: an exact name alone is never confirmed', m4.status === 'probable' && m4.tier === 3 && m4.confidence === 1, m4);
+const m5 = decide({ cedulaDoctors: [], candidates: [cand('far', 0.95, ['sandiego-tijuana']), cand('near', 0.9)], region });
+check('tier 3: a same-region candidate outranks one elsewhere', m5.doctorId === 'near', m5);
+const m6 = decide({ cedulaDoctors: [], candidates: [], region });
+check('tier 4: nothing similar is unmatched', m6.status === 'unmatched' && m6.doctorId === null, m6);
+
+// ── Doctor backfill and rows ─────────────────────────────────────────────────
+const dr = (id: string, cedulas: string[] | null, provider: string | null = null): DoctoraliaRow => ({ doctoralia_id: id, name: id, cedulas, provider_id: provider });
+check('backfill: malformed cédulas dropped, digits cleaned', cedulasOf(dr('a', ['123 4567', 'abc', '12'])).join() === '1234567');
+const people = groupPeople([dr('a', ['1111111', '2222222']), dr('b', ['2222222', '3333333']), dr('c', ['3333333']), dr('d', ['4444444']), dr('e', null), dr('f', [])]);
+check('backfill: a shared cédula joins records, even through a chain', people.some((g) => g.map((r) => r.doctoralia_id).sort().join() === 'a,b,c'), people.map((g) => g.map((r) => r.doctoralia_id)));
+check('backfill: records without cédulas stay separate people', people.length === 4, people.length);
+const obs = { externalId: '1', name: 'X', title: null, specialties: ['Radiología e Imagen'], cedulas: [], sites: [], region: 'elpaso-juarez' as const, url: 'u', photoUrl: null, runId: 'r', observedAt: 't',
+    extra: { consejo: 'Consejo de Prueba', certificate: '9999', validFrom: '2024-01-01', validTo: '2029-01-01', query: 'x' } };
+const row = entryRow(obs, 'conacem');
+check('entry row: a certification badge is labelled by its specialty', row.label === 'Radiología e Imagen' && row.valid_to === '2029-01-01', row);
+check('entry row: only public facts kept for the badge', JSON.stringify(row.facts) === '{"consejo":"Consejo de Prueba","certificate":"4842"}', row.facts);
+const hosp = entryRow({ ...obs, extra: undefined, specialties: ['Urología'], sites: [{ name: 'Star Médica Ciudad Juárez', address: null, tower: null, office: '1' }] }, 'starmedica');
+check('entry row: a hospital badge is labelled by its site', hosp.label === 'Star Médica Ciudad Juárez' && hosp.valid_to === null, hosp);
 
 // ── Weekly timer ─────────────────────────────────────────────────────────────
 // Mexico City has no daylight saving since 2022: 06:00 there is always 12:00 UTC.

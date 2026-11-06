@@ -17,7 +17,9 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { ADAPTERS } from './adapters';
 import { mayRun, runSource } from './run';
+import { database } from './lib/db';
 import { recentRuns } from './lib/history';
+import { loadRun } from './lib/load';
 import { describeSchedule, nextRunAt, previousRunAt, scheduleFromEnv, type WeeklySchedule } from './lib/schedule';
 import { DATA_DIR } from './lib/snapshot';
 
@@ -75,6 +77,8 @@ async function cycle(state: SchedulerState, reason: string) {
         }
         try {
             const { run } = await runSource(adapter);
+            // SOURCES_LOAD=1: also load each run into the database.
+            if (process.env.SOURCES_LOAD === '1') await loadRun(database(), run);
             results.push({ source: adapter.slug, runId: run.id, status: run.status, entries: run.counts.entries });
             console.log(`  ${adapter.slug}: ${run.status} ${run.counts.entries} entries, run ${run.id}`);
         } catch (err) {

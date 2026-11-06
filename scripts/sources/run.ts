@@ -5,15 +5,18 @@
  *   npm run sources -- --source=hospital-angeles
  *   npm run sources -- --all
  *   npm run sources -- --list
+ *   npm run sources -- --source=starmedica --commit   # scrape, then load into the database
+ *   npm run sources -- --all --load                   # no scraping: load each source's last good run
  *
  * Exit code: 0 green, 2 red (the run is still written), 1 could not run.
  * With --all, the worst of the sources' codes.
- * Loading into the database (--commit) arrives with roadmap phase 2.
  */
 import { pathToFileURL } from 'url';
 import { ADAPTERS } from './adapters';
+import { database } from './lib/db';
 import { BlockedError, politeGet } from './lib/http';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
+import { loadRun } from './lib/load';
 import { robotsVerdict } from './lib/robots';
 import { diffIds, lastGoodRun, uuidv7, writeRun, type RunRecord } from './lib/snapshot';
 import type { ObservedEntry, SourceAdapter, SourceEntry } from './lib/types';
@@ -97,7 +100,7 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
 export const mayRun = (a: SourceAdapter) => a.access === 'open' || !!a.permission;
 
 /** Run one source and print its summary. Returns the exit code for that source. */
-export async function runAndReport(adapter: SourceAdapter): Promise<number> {
+export async function runAndReport(adapter: SourceAdapter, commit = false): Promise<number> {
     if (!mayRun(adapter)) {
         console.error(`${adapter.slug} needs written permission recorded before it runs (docs/adr/0002).`);
         return 1;
@@ -108,7 +111,13 @@ export async function runAndReport(adapter: SourceAdapter): Promise<number> {
     for (const t of run.targets) console.log(`  ${t.key.padEnd(14)} ${t.ok ? `${t.count} entries` : `FAILED ${t.error}`}`);
     for (const r of run.reasons) console.log(`  red: ${r}`);
     console.log(`  run written to ${file}`);
+    if (commit) await loadAndReport(run);
     return run.status === 'green' ? 0 : 2;
+}
+
+async function loadAndReport(run: RunRecord) {
+    const s = await loadRun(database(), run);
+    console.log(`  loaded: ${s.entries} entries, ${s.newRecords} new | confirmed ${s.confirmed}, to review ${s.probable}, unmatched ${s.unmatched} | badges ${JSON.stringify(s.badges)}`);
 }
 
 async function main() {
@@ -116,22 +125,30 @@ async function main() {
         for (const a of Object.values(ADAPTERS)) console.log(`${a.slug}\t${a.access}\t${a.name}`);
         return;
     }
-    if (arg('commit')) {
-        console.error('--commit loads into the database, which arrives with roadmap phase 2. Run without it for now.');
-        process.exit(1);
+    const commit = !!arg('commit');
+    if (arg('load')) {
+        const slug = arg('source');
+        const list = typeof slug === 'string' ? [ADAPTERS[slug]] : Object.values(ADAPTERS);
+        for (const a of list) {
+            const run = a && lastGoodRun(a.slug);
+            if (!run) { console.log(`${a?.slug ?? slug}: no good run to load`); continue; }
+            console.log(`${a.slug}: loading run ${run.id}`);
+            await loadAndReport(run);
+        }
+        return;
     }
     if (arg('all')) {
         let worst = 0;
-        for (const a of Object.values(ADAPTERS)) worst = Math.max(worst, await runAndReport(a));
+        for (const a of Object.values(ADAPTERS)) worst = Math.max(worst, await runAndReport(a, commit));
         process.exit(worst);
     }
     const slug = arg('source');
     const adapter = typeof slug === 'string' ? ADAPTERS[slug] : undefined;
     if (!adapter) {
-        console.error(`Usage: npm run sources -- --source=<slug> | --all | --list. Known: ${Object.keys(ADAPTERS).join(', ')}`);
+        console.error(`Usage: npm run sources -- --source=<slug> | --all | --list [--commit] [--load]. Known: ${Object.keys(ADAPTERS).join(', ')}`);
         process.exit(1);
     }
-    process.exit(await runAndReport(adapter));
+    process.exit(await runAndReport(adapter, commit));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

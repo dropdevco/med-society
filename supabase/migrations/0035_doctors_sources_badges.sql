@@ -100,7 +100,7 @@ create table public.doctors (
     check ((status = 'merged') = (merged_into is not null))
 );
 create index doctors_name_key_idx  on public.doctors (name_key) where status = 'active';
-create index doctors_name_trgm_idx on public.doctors using gin (name_norm gin_trgm_ops);
+create index doctors_name_trgm_idx on public.doctors using gin (name_norm extensions.gin_trgm_ops);
 
 create table public.doctor_cedulas (
     cedula       text primary key check (cedula ~ '^[0-9]{6,9}$'),  -- one doctor per cédula
@@ -258,7 +258,7 @@ $$;
 -- trigram index for the rest; never a full scan.
 create function public.doctor_name_candidates(p_name text, p_name_key text, p_limit integer default 5)
 returns table (doctor_id uuid, display_name text, similarity real, regions text[], listings uuid[], specialties text[])
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
     with n as (select public.bh_norm(p_name) as norm)
     select d.id, d.display_name, similarity(d.name_norm, n.norm),
            coalesce(array_agg(distinct p.region) filter (where p.region is not null), '{}'),
