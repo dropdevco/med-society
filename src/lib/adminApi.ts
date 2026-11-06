@@ -119,6 +119,29 @@ export const fetchSite = () => rpc<SiteOverview>('admin_site_overview');
 export const searchProviders = (q: string) => rpc<ProviderHit[]>('admin_provider_search', { q, lim: 25 });
 export const fetchProvider = (pid: string) => rpc<ProviderDetail | null>('admin_provider_detail', { pid });
 
+export interface MatchCandidate {
+    doctor_id: string; display_name: string; similarity: number;
+    regions: string[]; listings: string[]; specialties: string[];
+}
+export interface MatchItem {
+    source_slug: string; external_id: string; tier: number; confidence: number | null; candidates: MatchCandidate[];
+    name: string; label: string; specialties: string[]; cedulas: string[]; region: string | null; url: string | null;
+    valid_to: string | null; facts: { consejo?: string; certificate?: string } | null;
+}
+export interface MatchQueue { total: number; exact: number; items: MatchItem[] }
+export interface SourceOverview {
+    slug: string; name: string; access: string; permission_granted_on: string | null;
+    last_run: { id: string; started_at: string; status: 'green' | 'red'; reasons: string[]; counts: Record<string, number> } | null;
+    matches: Record<string, number>;
+    badges: number;
+}
+export const fetchSources = () => rpc<SourceOverview[]>('admin_sources_overview');
+export const fetchMatchQueue = (source: string | null, limit: number, offset: number) =>
+    rpc<MatchQueue>('admin_match_queue', { p_source: source, p_limit: limit, p_offset: offset });
+export const decideMatch = (source: string, external: string, decision: 'confirm' | 'reject', doctor?: string) =>
+    rpc<void>('admin_match_decide', { p_source: source, p_external: external, p_decision: decision, p_doctor: doctor ?? null });
+export const confirmExactMatches = (source: string) => rpc<number>('admin_match_confirm_exact', { p_source: source });
+
 export interface BillingSub {
     id: string; provider_id: string; provider_name: string; city: string | null; plan: string; market: string | null;
     status: string; paid_through: string | null; last_payment_at: string | null; last_amount: number | null;

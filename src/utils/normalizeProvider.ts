@@ -27,6 +27,7 @@ export function normalizeProvider(row: any): Provider {
         socials:       row.socials       ?? {},
         galleryUrls:   row.galleryUrls   ?? row.galleryurls   ?? [],
         services:      row.services      ?? [],
+        badges:        Array.isArray(row.badges) ? row.badges : [],
         serviceNames:  row.serviceNames  ?? row.service_names ?? undefined,
         region:        isRegionId(row.region) ? row.region : (regionOf(row.lng) ?? undefined),
         clicks:        row.clicks        ?? 0,

@@ -108,6 +108,29 @@
     "showingCapped": "Showing the top {{shown}} of {{total}} here. Zoom in to see them all.",
     "showingInView": "Showing {{shown}} of {{total}} on the map. Zoom out to see the rest."
   },
+  "badges": {
+    "title": "Credentials and affiliations",
+    "type": "Type",
+    "consejo": "Consejo",
+    "certificate": "Certificate",
+    "verifiedOn": "Verified on",
+    "validFrom": "Valid from",
+    "validTo": "Valid to",
+    "rechecked": "Re-checked weekly",
+    "source": "See the source",
+    "more_one": "+{{count}} more",
+    "more_other": "+{{count}} more",
+    "group": {
+      "credential": "Credential",
+      "affiliation": "Affiliation",
+      "facility": "Facility"
+    },
+    "groups": {
+      "credential": "Credentials",
+      "affiliation": "Affiliations",
+      "facility": "Facility"
+    }
+  },
   "drawer": {
     "rating": "Rating",
     "reviews": "Reviews",

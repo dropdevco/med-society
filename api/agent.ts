@@ -367,6 +367,29 @@ interface Row {
     source: string;
     imageUrl: string | null;
     serviceNames: string[];
+    organizations: OrganizationBadge[];
+}
+
+/** A confirmed organization badge: a hospital affiliation or a board certification. */
+interface OrganizationBadge {
+    organization: string;
+    kind: string;
+    label: string;
+    confirmed_at: string | null;
+    valid_until: string | null;
+    source_url: string | null;
+}
+
+function organizationsOf(raw: unknown): OrganizationBadge[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((b: Record<string, unknown>) => ({
+        organization: String(b.name ?? ''),
+        kind: String(b.kind ?? ''),
+        label: String(b.label ?? ''),
+        confirmed_at: typeof b.confirmed_at === 'string' ? b.confirmed_at : null,
+        valid_until: typeof b.valid_to === 'string' ? b.valid_to : null,
+        source_url: typeof b.url === 'string' ? b.url : null,
+    }));
 }
 
 const toNum = (v: unknown): number => {
@@ -454,6 +477,7 @@ function toRow(raw: any): Row | null {
         source: String(raw.source ?? 'other'),
         imageUrl: photoUrl(raw.imageUrl ?? raw.imageurl),
         serviceNames: [...new Set(names)],
+        organizations: organizationsOf(raw.badges),
     };
 }
 
@@ -1141,7 +1165,7 @@ function listItem(p: Row, o: { lang: Lang; prior: number; distanceKm?: number })
             status: p.languagesConfirmed && p.languages.length > 0 ? 'stated_by_clinic' : 'unknown',
         },
         insurances: p.insurances,
-        credentials: { license_published: p.licensed },
+        credentials: { license_published: p.licensed, organizations: p.organizations },
         listing: {
             tier: p.tier,
             sponsored: sponsoredOf(p),
@@ -1397,6 +1421,7 @@ async function metaEnvelope() {
                 'listing.sponsored': 'True for clinics on a paid Promoted or Featured plan. They rank first by default.',
                 'listing.verified_badge': 'The gold "Verified" badge is part of a paid plan. It is not a credential check; use credentials.license_published for that.',
                 'credentials.license_published': 'The provider\'s professional licence (cédula profesional) is published on their source profile.',
+                'credentials.organizations': 'Hospitals and certifying boards that list this doctor, confirmed against that organization\'s own directory. valid_until is the end of a board certification; confirmed_at is when we last saw it there.',
                 'price_from': 'The cheapest published service price in MXN. Many providers publish none, so null means "no price published", not free.',
             },
             interfaces: interfaceLinks(),
@@ -1676,7 +1701,7 @@ function openApiSpec(): Record<string, unknown> {
                         price_from: { type: ['object', 'null'], properties: { amount_mxn: { type: 'number' }, approx_usd: { type: 'integer' }, note: { type: 'string' } } },
                         languages: { type: 'object', description: LANGUAGE_FIELD_NOTE, properties: { codes: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['stated_by_clinic', 'unknown'] } } },
                         insurances: { type: 'array', items: { type: 'string' } },
-                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' } } },
+                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations and board certifications.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'] } } } } } },
                         listing: { type: 'object', properties: { tier: { type: 'string', enum: ['basic', 'promoted', 'featured'] }, sponsored: { type: 'boolean' }, verified_badge: { type: 'boolean', description: 'A paid-plan badge, not a credential check.' } } },
                         photo_url: { type: ['string', 'null'] },
                         distance_km: { type: 'number', description: 'Present when a location was given.' },
@@ -1881,6 +1906,7 @@ async function providerPage(id: string, lang: Lang): Promise<PageDoc> {
         ['Languages spoken', [it.languages.codes.length ? it.languages.codes.join(', ') : 'Not stated by the clinic']],
         ['Insurance accepted', [p.insurances.length ? p.insurances.join(', ') : 'None listed']],
         ['Professional licence', [p.licensed ? 'Published on the provider\'s source profile' : 'Not published']],
+        ...(p.organizations.length ? [['Affiliations and certifications', p.organizations.map((o) => `${o.label || o.organization}${o.valid_until ? ` (valid until ${o.valid_until})` : ''}`)] as [string, string[]]] : []),
         ['Listing', [p.tier === 'basic' && !p.promoted ? 'Free listing' : `${p.tier === 'featured' ? 'Featured' : 'Promoted'} (paid placement)`]],
     ];
     if (detail.phone) facts.push(['Phone', [{ text: detail.phone, href: `tel:${detail.phone.replace(/[^+\d]/g, '')}` }]]);

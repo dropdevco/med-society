@@ -73,6 +73,11 @@
   --accent-fill: #4fc79f;   /* decorative fill only               */
   --accent-dim: rgba(15, 107, 82, 0.09);
 
+  /* Organization badges: affiliations and facilities (credentials use --accent). */
+  --affil: #4b4396;
+  --affil-dim: rgba(75, 67, 150, 0.09);
+  --facility: #6d7178;
+
   /* Legacy aliases. `--gold` is retained because 40+ call sites use
      it as "the accent"; it is no longer gold. Star ratings moved to
      --star, which is the only warm colour left in the system. */
@@ -171,6 +176,10 @@
   --accent: #4fc79f;        /* 8.9:1 on --navy */
   --accent-fill: #4fc79f;
   --accent-dim: rgba(79, 199, 159, 0.13);
+
+  --affil: #aaa3f0;
+  --affil-dim: rgba(170, 163, 240, 0.14);
+  --facility: #a0a3a8;
 
   --gold: var(--accent);
   --gold-light: #7cd9b8;
