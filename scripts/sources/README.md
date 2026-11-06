@@ -39,13 +39,14 @@ A run's rows all carry its run ID. A source record is matched once: a cédula we
 A throwaway copy of the database for testing anything above without touching production. Needs Docker.
 
 ```bash
-bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migration 0035
+bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migrations 0035 and 0036
 npx tsx scripts/sources/sandbox/proxy.ts                          # leave running
 export SOURCES_DB_URL=http://127.0.0.1:54331
 npx tsx --env-file=.env.local scripts/sources/sandbox/seed.ts     # copies listings and Doctoralia names (read-only on production)
 npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --commit
 npx tsx --env-file=.env.local scripts/sources/run.ts --all --load
 VITE_SUPABASE_URL=http://127.0.0.1:54331 VITE_SUPABASE_ANON_KEY=sandbox npx vite --port 5176   # the site, reading the sandbox
+npx tsx scripts/sources/sandbox/recovery-listings.ts              # test listings for the recovery centers, then load the sources again
 bash scripts/sources/sandbox/down.sh                              # remove it all
 ```
 

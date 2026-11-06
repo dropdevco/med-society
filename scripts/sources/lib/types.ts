@@ -90,6 +90,8 @@ export interface SourceAdapter {
     slug: string;
     name: string;
     kind: OrganizationKind;
+    /** What a record describes. Default 'doctor'; a 'facility' badge sits on the listing (docs/adr/0008). */
+    entity?: 'doctor' | 'facility';
     /** docs/adr/0002: only `open`, or `permission` with the letter recorded. */
     access: 'open' | 'permission';
     permission?: Permission;

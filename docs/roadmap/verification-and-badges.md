@@ -1,6 +1,6 @@
 # Roadmap: source pipeline, verification and organization badges
 
-Status: in progress · Owner: Emilio (plan streams E and J) · Last updated 5 Nov 2026
+Status: in progress · Owner: Emilio (plan streams E and J) · Last updated 6 Nov 2026
 
 MedSociety shows patients which doctors are affiliated with and certified by real institutions, so they can avoid non-compliant providers. This roadmap builds the pipeline that reads those institutions' own directories, matches them to our listings, and shows the result as badges.
 
@@ -17,7 +17,8 @@ Every phase ends with a demo and a go/no-go. Nothing is applied to production, p
 | 4 | Review queue: Verification tab in `/admin` | One click decides a match; reviewer and time stored | **Built**, tested in the sandbox. A Sources panel lives in the local hub for now |
 | 5 | Show badges: card, profile, `/api/v1`, JSON-LD ([docs/badges.md](../badges.md)) | A confirmed test affiliation shows everywhere in EN and ES | **Built on the branch**, tested in the sandbox. "Member of" filter not built |
 | 6 | Weekly runs on a Hetzner VM ([0006](../adr/0006-pipeline-runtime.md)) | Two unattended weekly runs, green in `/admin` | **Timer and local health dashboard built 2 Nov** (`docker compose up -d scheduler dashboard`); VM not set up yet |
-| 7+ | Next sources: Sectur, COEPRIS, CMCPER, CLUES, colegios, associations, then consejos as letters arrive | Per source | Not started |
+| 7a | Recovery centers in Tijuana: COEPRIS, the Padrón, Baja Health Cluster ([ADR 0008](../adr/0008-facility-badges.md)) | Badges on real listings | Built locally; needs listings and 0036 applied |
+| 7+ | Next sources: CMCPER, CLUES, colegios, associations, then consejos as letters arrive | Per source | Not started |
 
 ## Badge design
 

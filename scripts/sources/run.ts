@@ -119,7 +119,7 @@ export async function runAndReport(adapter: SourceAdapter, commit = false): Prom
 }
 
 async function loadAndReport(run: RunRecord) {
-    const s = await loadRun(database(), run);
+    const s = await loadRun(database(), run, ADAPTERS[run.source]?.entity);
     console.log(`  loaded: ${s.entries} entries, ${s.newRecords} new | confirmed ${s.confirmed}, to review ${s.probable}, unmatched ${s.unmatched} | badges ${JSON.stringify(s.badges)}`);
 }
 

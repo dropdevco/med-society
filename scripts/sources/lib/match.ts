@@ -34,6 +34,30 @@ function score(c: NameCandidate, region: string | null): number {
     return Math.round((c.similarity - (elsewhere ? OTHER_REGION_PENALTY : 0)) * 1000) / 1000;
 }
 
+/** A listing that may be this facility. */
+export interface FacilityCandidate {
+    provider_id: string;
+    name: string;
+    similarity: number;
+    region: string | null;
+}
+
+export interface FacilityDecision {
+    providerId: string | null;
+    status: 'confirmed' | 'probable' | 'unmatched';
+    tier: 1 | 3 | 4;
+    confidence: number | null;
+    candidates: FacilityCandidate[];
+}
+
+/** docs/adr/0008: a register number we already tied to a listing confirms; a name alone never does. */
+export function decideFacility(input: { registerListing: string | null; candidates: FacilityCandidate[] }): FacilityDecision {
+    if (input.registerListing) return { providerId: input.registerListing, status: 'confirmed', tier: 1, confidence: 1, candidates: [] };
+    const ranked = [...input.candidates].sort((a, b) => b.similarity - a.similarity);
+    if (ranked.length) return { providerId: ranked[0].provider_id, status: 'probable', tier: 3, confidence: ranked[0].similarity, candidates: ranked };
+    return { providerId: null, status: 'unmatched', tier: 4, confidence: null, candidates: [] };
+}
+
 export function decide(input: {
     /** Doctors already holding one of the record's cédulas. */
     cedulaDoctors: string[];

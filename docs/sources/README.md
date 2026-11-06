@@ -1,6 +1,6 @@
 # Data sources and permissions register
 
-Status: living document · Owner: Emilio · Last updated 2 Nov 2026
+Status: living document · Owner: Emilio · Last updated 6 Nov 2026
 
 Every outside source the pipeline in `scripts/sources/` reads, or plans to read, is listed here. A source is built only when its access is **open** or **permission** is recorded below ([ADR 0002](../adr/0002-source-access-policy.md)). Signed letters are kept in the team vault, never in this repository; this table records only what they allow.
 
@@ -11,12 +11,12 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 | Hospital Ángeles (Tijuana, Ciudad Juárez) | `hospital-angeles` | hospital | permission | Letter received 30 Oct 2026: scrape, store and display, on condition we keep it up to date. Signed by two Hospital Ángeles officials; copy in the team vault. Logo use not yet confirmed | A, static HTML | No | Weekly | **Building** (phase 1) |
 | Star Médica (Ciudad Juárez only) | `starmedica` | hospital | permission | Received 4 Nov 2026: scrape, store and display the doctor directory. Copy in the team vault. Logo use not yet confirmed | D, real browser (identifies as MedSocietyBot) | Yes | Weekly | **Built** (4 Nov) |
 | Centro Médico de Especialidades (Juárez) | — | hospital | unknown | Not researched yet | — | — | — | Research |
-| Sectur `bajahealthtourism.com` | — | regulator register | open | robots.txt blocks only `/admin`, `/portal`, `/login`; no terms published | A | Yes | Weekly | Planned |
-| COEPRIS BC REPSSABI | — | regulator (facilities) | open | robots.txt allows all; public JSON feed | B, JSON | Facilities | Weekly | Planned |
+| Padrón Estatal de Salud (`bajahealthtourism.com`, Secretaría de Turismo) | `padron-salud-bc` | regulator register | open | robots.txt blocks only `/admin`, `/portal`, `/login`; no terms published | A | Register no. | Weekly | Built (residences only) |
+| COEPRIS BC REPSSABI | `coepris-bc` | regulator (facilities) | open | robots.txt allows all; public JSON feed | B, JSON | Register no. | Weekly | Built (recovery residences only) |
 | CMCPER (plastic surgery board) | — | consejo | open | robots.txt allows the directory pages | A | Cert. no. | Weekly | Planned |
 | CLUES | — | regulator (facilities) | open | "No existen restricciones para su uso" | C, file | Facilities | Monthly | Planned |
 | CCPERBC | — | colegio | open | robots.txt blocks only `/wp-admin/` | A | No | Weekly | Planned |
-| Baja Health Cluster | — | association | open | robots.txt blocks only `/wp-admin/`; ask for cédulas | A | No | Weekly | Planned |
+| Baja Health Cluster | `baja-health-cluster` | association | open | robots.txt blocks only `/wp-admin/`; ask for cédulas | A | No | Weekly | Built (recovery centers only) |
 | CONACEM | `conacem` | consejo umbrella | permission | Received 4 Nov 2026: display the certified-specialist data, obtained by whatever means works (CONACEM will not change its site or add an API). **Waives:** robots.txt (unreadable, 403) and the firewall's refusal of our bot, so a real browser with a standard identity is used; it still sends an `X-Client: MedSocietyBot` header. Copy in the team vault | Lookup through a real browser (by surname pair, all consejos) | No (certificate no. and validity dates) | Weekly | **Built** (4 Nov) |
 | SEP (cédula registry) | — | government | permission needed | reCAPTCHA on every call; also file a transparency request | E, assisted | Yes | Per claim | Letter to send |
 | CMGO | — | consejo | permission needed | Directory moved behind a doctor login. Its certifications are also in CONACEM | E, assisted | ? | Per claim | Covered through CONACEM for now |
