@@ -130,6 +130,7 @@ export interface BillingEvent {
     payer_email: string | null; payer_phone?: string | null; ghl_contact_id?: string | null;
     amount?: number | null; currency?: string | null; product?: string | null;
     outcome: string; detail: string | null; match_method?: string | null; provider_name?: string | null;
+    resolved_by?: string | null;
 }
 export interface BillingOverview {
     generated_at: string;

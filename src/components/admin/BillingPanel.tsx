@@ -90,7 +90,7 @@ export function BillingPanel() {
                     <div className="adm-line" key={e.id}>
                         <b>{pretty(e.kind)} · {e.plan ? pretty(e.plan) : 'plan ?'}{e.market ? ` · ${e.market.toUpperCase()}` : ''} → {pretty(e.outcome)}</b>
                         <span>
-                            {e.created_at.slice(0, 16).replace('T', ' ')} · {e.payer_email ?? 'no email'}
+                            {e.created_at.slice(0, 16).replace('T', ' ')} · {e.payer_email ?? (e.resolved_by ? `by ${e.resolved_by}` : 'no email')}
                             {e.provider_name ? ` · ${e.provider_name}` : ''}
                             {e.match_method ? ` · matched by ${e.match_method.replace('_', ' ')}` : ''}
                             {e.detail ? ` · ${e.detail}` : ''}
