@@ -118,6 +118,7 @@
     "validTo": "Valid to",
     "rechecked": "Re-checked weekly",
     "source": "See the source",
+    "about": "What is {{name}}?",
     "more_one": "+{{count}} more",
     "more_other": "+{{count}} more",
     "group": {

@@ -22,6 +22,7 @@ create table public.organizations (
     kind               text not null check (kind in ('hospital','consejo','colegio','association','regulator','accreditor')),
     country            text not null default 'MX' check (country in ('MX','US')),
     website            text,
+    info_url           text,                 -- what the organization is; shown when a source cannot link to the doctor
     logo_url           text,
     logo_permission_at timestamptz,          -- the logo shows publicly only when set
     provider_id        uuid references public.providers (id) on delete set null,
@@ -36,6 +37,7 @@ create table public.data_sources (
     permission_granted_on date,
     permission_scope      text,
     permission_ref        text,              -- where the signed letter is kept; never the letter
+    doctor_links          boolean not null default true,  -- false: the site has no page or link for one doctor
     cadence               text not null default 'weekly',
     created_at            timestamptz not null default now()
 );
@@ -232,7 +234,8 @@ returns integer language sql security definer set search_path = public as $$
                    'kind',         o.kind,
                    'label',        a.label,
                    'logo',         case when o.logo_permission_at is not null then o.logo_url end,
-                   'url',          coalesce(a.url, o.website),
+                   'url',          case when s.doctor_links then a.url end,
+                   'info_url',     coalesce(o.info_url, o.website),
                    'confirmed_at', a.last_confirmed_at,
                    'valid_from',   a.valid_from,
                    'valid_to',     a.valid_to,
@@ -244,6 +247,7 @@ returns integer language sql security definer set search_path = public as $$
         left join public.doctor_affiliations a on a.doctor_id = l.doctor_id and a.status = 'confirmed'
              and (a.valid_to is null or a.valid_to >= current_date)
         left join public.organizations o on o.id = a.organization_id
+        left join public.data_sources s on s.slug = a.source_slug
         group by t.provider_id
     ), updated as (
         update public.providers p set badges = c.badges
@@ -481,10 +485,10 @@ revoke all on function public.listings_for_cedula(text) from public, anon;
 grant execute on function public.listings_for_cedula(text) to authenticated;
 
 -- ── Seed: the organizations and sources with permission ──────────────────────
-insert into public.organizations (slug, name, kind, website) values
-    ('hospital-angeles', 'Hospital Ángeles', 'hospital', 'https://hospitalangeles.com'),
-    ('starmedica', 'Star Médica', 'hospital', 'https://www.starmedica.com'),
-    ('conacem', 'CONACEM', 'consejo', 'https://conacem.org.mx');
+insert into public.organizations (slug, name, kind, website, info_url) values
+    ('hospital-angeles', 'Hospital Ángeles', 'hospital', 'https://hospitalangeles.com', null),
+    ('starmedica', 'Star Médica', 'hospital', 'https://www.starmedica.com', null),
+    ('conacem', 'CONACEM', 'consejo', 'https://conacem.org.mx', 'https://conacem.org.mx/quienes-somos');
 
 insert into public.data_sources (slug, organization_id, name, access, permission_granted_on, permission_scope, permission_ref)
 select o.slug, o.id, x.name, 'permission', x.granted, x.scope, 'Signed letter in the team vault'
@@ -494,6 +498,9 @@ join (values
     ('starmedica', 'Star Médica doctor directory', date '2026-11-04', 'Scrape, store and display'),
     ('conacem', 'CONACEM certified specialists', date '2026-11-04', 'Display, obtained by whatever means works')
 ) as x (slug, name, granted, scope) on x.slug = o.slug;
+
+-- CONACEM has no page per certificate and its search ignores URL parameters.
+update public.data_sources set doctor_links = false where slug = 'conacem';
 
 insert into public.data_sources (slug, name, access) values ('doctoralia', 'Doctoralia import (identity backfill only)', 'manual');
 

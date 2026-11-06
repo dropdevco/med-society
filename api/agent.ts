@@ -378,6 +378,7 @@ interface OrganizationBadge {
     confirmed_at: string | null;
     valid_until: string | null;
     source_url: string | null;
+    organization_url: string | null;
 }
 
 function organizationsOf(raw: unknown): OrganizationBadge[] {
@@ -389,6 +390,7 @@ function organizationsOf(raw: unknown): OrganizationBadge[] {
         confirmed_at: typeof b.confirmed_at === 'string' ? b.confirmed_at : null,
         valid_until: typeof b.valid_to === 'string' ? b.valid_to : null,
         source_url: typeof b.url === 'string' ? b.url : null,
+        organization_url: typeof b.info_url === 'string' ? b.info_url : null,
     }));
 }
 
@@ -1701,7 +1703,7 @@ function openApiSpec(): Record<string, unknown> {
                         price_from: { type: ['object', 'null'], properties: { amount_mxn: { type: 'number' }, approx_usd: { type: 'integer' }, note: { type: 'string' } } },
                         languages: { type: 'object', description: LANGUAGE_FIELD_NOTE, properties: { codes: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['stated_by_clinic', 'unknown'] } } },
                         insurances: { type: 'array', items: { type: 'string' } },
-                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations and board certifications.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'] } } } } } },
+                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations and board certifications.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
                         listing: { type: 'object', properties: { tier: { type: 'string', enum: ['basic', 'promoted', 'featured'] }, sponsored: { type: 'boolean' }, verified_badge: { type: 'boolean', description: 'A paid-plan badge, not a credential check.' } } },
                         photo_url: { type: ['string', 'null'] },
                         distance_km: { type: 'number', description: 'Present when a location was given.' },

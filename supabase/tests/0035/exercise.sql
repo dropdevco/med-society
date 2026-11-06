@@ -57,6 +57,9 @@ select 'certification badge carries validity and consejo' as check,
 -- An expired certification never shows, even when confirmed.
 insert into public.doctor_listings (provider_id, doctor_id, method) values ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-000000000002', 'review');
 set role authenticated;
+select 'a source with no doctor links shows the information page' as check,
+  (select count(*) = 1 from public.providers p, jsonb_array_elements(p.badges) b
+   where p.id = '00000000-0000-4000-8000-0000000000a1' and b->>'org' = 'conacem' and b->>'url' is null and b->>'info_url' = 'https://conacem.org.mx/quienes-somos') as ok;
 select public.admin_match_decide('conacem', '900002', 'confirm');
 reset role;
 select 'expired certification stays off the card' as check, (select badges = '[]'::jsonb from public.providers where id = '00000000-0000-4000-8000-0000000000b1') as ok;

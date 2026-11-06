@@ -10,7 +10,10 @@ export interface ProviderBadge {
   /** What it says: the hospital site, or the certified specialty. */
   label: string;
   logo: string | null;
+  /** This doctor's page at the source. Null when the source has none. */
   url: string | null;
+  /** What the organization is: the link shown when there is no `url`. */
+  info_url?: string | null;
   confirmed_at: string | null;
   valid_from: string | null;
   valid_to: string | null;

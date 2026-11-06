@@ -118,6 +118,7 @@
     "validTo": "Vigente hasta",
     "rechecked": "Se revisa cada semana",
     "source": "Ver la fuente",
+    "about": "¿Qué es {{name}}?",
     "more_one": "+{{count}} más",
     "more_other": "+{{count}} más",
     "group": {

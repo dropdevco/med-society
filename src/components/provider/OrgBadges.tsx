@@ -58,7 +58,9 @@ function Detail({ badge }: { badge: ProviderBadge }) {
                     <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
                 ))}
             </dl>
-            {badge.url && <a href={badge.url} target="_blank" rel="noopener noreferrer">{t('badges.source')} ↗</a>}
+            {badge.url
+                ? <a href={badge.url} target="_blank" rel="noopener noreferrer">{t('badges.source')} ↗</a>
+                : badge.info_url && <a href={badge.info_url} target="_blank" rel="noopener noreferrer">{t('badges.about', { name: badge.name })} ↗</a>}
         </div>
     );
 }
