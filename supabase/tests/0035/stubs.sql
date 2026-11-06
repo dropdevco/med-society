@@ -1,0 +1,35 @@
+-- Stand-ins for production objects migration 0035 references. Not production's definitions.
+create extension if not exists pg_trgm;
+create extension if not exists unaccent;
+create role anon; create role authenticated; create role service_role bypassrls;
+create schema auth;
+create table auth.users (id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
+grant usage on schema auth to anon, authenticated, service_role;
+grant usage on schema public to anon, authenticated, service_role;
+grant execute on function auth.uid() to anon, authenticated, service_role;
+create table public.providers (
+    id uuid primary key default gen_random_uuid(), name text, specialty text[] default '{}', country text default 'MX', city text, region text,
+    address text, lat numeric, lng numeric, "postalCode" text, rating numeric, "reviewCount" integer, promoted boolean default false,
+    tier text default 'basic', verified boolean default false, licensed boolean default false, "featuredRank" integer, "priceFromMxn" numeric,
+    insurances text[], languages text[], languages_confirmed boolean default false, source text default 'doctoralia', "imageUrl" text,
+    "googlePlaceId" text, services jsonb default '[]', status text default 'live');
+grant select (id, name, specialty, country, city, region, address, lat, lng, "postalCode", rating, "reviewCount", promoted, tier, verified, licensed,
+    "featuredRank", "priceFromMxn", insurances, languages, languages_confirmed, source, "imageUrl", "googlePlaceId", services, status)
+    on public.providers to anon, authenticated;
+grant all on public.providers to service_role;
+create view public.provider_list with (security_invoker = true) as
+    select id, name, specialty, country, city, region, address, lat, lng, "postalCode", rating, "reviewCount", promoted, tier, verified, licensed,
+           "featuredRank", "priceFromMxn", insurances, languages, languages_confirmed, source, "imageUrl", "googlePlaceId",
+           coalesce((select array_agg(distinct v.n) filter (where v.n is not null and v.n <> ''::text)
+                     from jsonb_array_elements(p.services) s(value), lateral (values (s.value ->> 'name'::text), (s.value ->> 'nameEn'::text)) v(n)), '{}'::text[]) as service_names
+    from public.providers p where status = 'live'::text;
+grant select on public.provider_list to anon, authenticated;
+create function public.bh_norm(t text) returns text language sql stable as $$
+    select btrim(regexp_replace(regexp_replace(lower(unaccent(coalesce(t, ''))), '^(dra?|lic)\.?\s+', ''), '[^a-z0-9]+', ' ', 'g'))
+$$;
+create table public.app_admins (user_id uuid primary key);
+create function public.is_app_admin() returns boolean language sql stable security definer set search_path = public, auth as $$
+    select exists (select 1 from public.app_admins where user_id = auth.uid()) $$;
+create function public._admin_guard() returns void language plpgsql stable security definer set search_path = public, auth as $$
+begin if not public.is_app_admin() then raise exception 'not authorized' using errcode = '42501'; end if; end $$;
