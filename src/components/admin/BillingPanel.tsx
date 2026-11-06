@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-    fetchBilling, resolveBillingEvent, searchProviders,
-    type BillingEvent, type BillingOverview, type ProviderHit,
+    endPlan, fetchBilling, resolveBillingEvent, searchProviders,
+    type BillingEvent, type BillingOverview, type BillingSub, type ProviderHit,
 } from '../../lib/adminApi';
 import { Card, Kpi } from './charts';
 import { fmt } from './format';
@@ -28,6 +28,7 @@ export function BillingPanel() {
 
     const active = data.subscriptions.filter((s) => s.access && s.status !== 'comp');
     const unsynced = data.subscriptions.filter((s) => s.ghl_dirty);
+    const refunded = active.filter((s) => s.refund_flag);
     const money = (cur: string) => active.filter((s) => (s.currency ?? '').toUpperCase() === cur)
         .reduce((t, s) => t + (s.last_amount ?? 0), 0);
 
@@ -45,6 +46,14 @@ export function BillingPanel() {
             {data.needs_attention.length > 0 && (
                 <Card title="Payments that need a listing" hint="attach once; this person's later payments match by themselves">
                     {data.needs_attention.map((e) => <Unplaced key={e.id} ev={e} onDone={load} />)}
+                </Card>
+            )}
+
+            {refunded.length > 0 && (
+                <Card title="Refunded in GHL, plan still active" hint="end the plan below, or leave it on if it should keep running">
+                    <ul className="adm-attn">
+                        {refunded.map((s) => <li key={s.id}>{s.provider_name} · {pretty(s.plan)}</li>)}
+                    </ul>
                 </Card>
             )}
 
@@ -70,6 +79,7 @@ export function BillingPanel() {
                                 {' · '}{s.payer_email ?? 'no payer email'}
                                 {' · GHL '}{s.ghl_error ? `error: ${s.ghl_error}` : s.ghl_dirty ? 'pending' : 'synced'}
                             </span>
+                            {s.access && s.status !== 'comp' && <EndPlan sub={s} onDone={load} />}
                         </div>
                     ))
                 )}
@@ -80,7 +90,7 @@ export function BillingPanel() {
                     <div className="adm-line" key={e.id}>
                         <b>{pretty(e.kind)} · {e.plan ? pretty(e.plan) : 'plan ?'}{e.market ? ` · ${e.market.toUpperCase()}` : ''} → {pretty(e.outcome)}</b>
                         <span>
-                            {e.created_at.slice(0, 16).replace('T', ' ')} · {e.payer_email ?? 'no email'}
+                            {e.created_at.slice(0, 16).replace('T', ' ')} · {e.payer_email ?? (e.resolved_by ? `by ${e.resolved_by}` : 'no email')}
                             {e.provider_name ? ` · ${e.provider_name}` : ''}
                             {e.match_method ? ` · matched by ${e.match_method.replace('_', ' ')}` : ''}
                             {e.detail ? ` · ${e.detail}` : ''}
@@ -89,6 +99,27 @@ export function BillingPanel() {
                 ))}
             </Card>
         </div>
+    );
+}
+
+function EndPlan({ sub, onDone }: { sub: BillingSub; onDone: () => void }) {
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+
+    const end = () => {
+        if (!window.confirm(`End ${pretty(sub.plan)} for ${sub.provider_name} now? The listing drops today. This does not refund or cancel anything in GHL.`)) return;
+        setBusy(true);
+        setMsg(null);
+        endPlan(sub.id)
+            .then(onDone)
+            .catch((e: Error) => { setMsg(e.message); setBusy(false); });
+    };
+
+    return (
+        <span>
+            <button type="button" className="adm-btn ghost" disabled={busy} onClick={end}>{busy ? 'Ending…' : 'End plan now'}</button>
+            {msg && <span role="alert"> {msg}</span>}
+        </span>
     );
 }
 
