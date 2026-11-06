@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { track } from '../../lib/posthog';
-import { fetchPlanStatus, startCheckout, type PlanKey, type PlanStatusRow } from '../../lib/billing';
+import { fetchPlanStatus, readSavedMarket, saveChosenMarket, marketForLanguage, startCheckout, type Market, type PlanKey, type PlanStatusRow } from '../../lib/billing';
 import { IconCheck, IconVerified, IconPromoted, IconChart, IconLock } from '../icons/Icons';
+import { CurrencyPicker } from './CurrencyPicker';
 
 /**
  * What this listing's plan includes, what it does not, and how to change that.
@@ -31,11 +32,11 @@ const FEATURES = [
 ] as const;
 
 const RANK = { basic: 0, promoted: 1, featured: 2 } as const;
-// What each language's payment link actually charges (lib/billing.ts): USD in English, MXN in Spanish.
-const PRICE = {
-    en: { promoted: '$49', featured: '$99' },
-    es: { promoted: '$899', featured: '$1,799' },
-} as const;
+// What each market's payment link actually charges (lib/billing.ts): USD in us, MXN in mx.
+const PRICE: Record<Market, Record<PlanKey, string>> = {
+    us: { promoted: '$49', featured: '$99' },
+    mx: { promoted: '$899', featured: '$1,799' },
+};
 
 /** After a payment: check every 4 s for up to ~2 min for the plan to switch on. */
 const POLL_MS = 4000;
@@ -59,8 +60,8 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState<PlanStatusRow[]>([]);
     const [gaveUp, setGaveUp] = useState(false);
+    const [overrideMarket, setOverrideMarket] = useState<Market | null>(null);
     const rank = RANK[clinic.tier];
-    const english = i18n.language.startsWith('en');
 
     // Latest refresh callback without restarting the poll every render.
     const refreshRef = useRef(onRefresh);
@@ -71,6 +72,11 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
         void fetchPlanStatus(clinic.id).then((rows) => { if (!cancelled) setStatus(rows); });
         return () => { cancelled = true; };
     }, [clinic.id, clinic.tier]);
+
+    const handleMarketChange = (newMarket: Market) => {
+        setOverrideMarket(newMarket);
+        saveChosenMarket(newMarket);
+    };
 
     // Back from the payment page: wait for the webhook to land and flip the tier.
     const waiting = Boolean(returnedFrom) && RANK[clinic.tier] < RANK[returnedFrom ?? 'promoted'];
@@ -89,12 +95,23 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
         return () => window.clearInterval(id);
     }, [waiting, clinic.id]);
 
+    // Pressing Back on the payment page restores this page from the browser's
+    // cache exactly as it was left, button still busy. Nothing is in flight then.
+    useEffect(() => {
+        const onShow = (e: PageTransitionEvent) => { if (e.persisted) setBusy(null); };
+        window.addEventListener('pageshow', onShow);
+        return () => window.removeEventListener('pageshow', onShow);
+    }, []);
+
+    const current = status.find((s) => s.access && s.plan === clinic.tier) ?? status.find((s) => s.access);
+    const market = overrideMarket ?? current?.market ?? readSavedMarket() ?? marketForLanguage(i18n.language);
+
     const subscribe = async (plan: PlanKey) => {
         setBusy(plan);
         setError(null);
-        track('checkout_started', { plan, provider_id: clinic.id, current_tier: clinic.tier });
+        track('checkout_started', { plan, provider_id: clinic.id, current_tier: clinic.tier, market });
         try {
-            const url = await startCheckout(clinic.id, plan, i18n.language, email);
+            const url = await startCheckout(clinic.id, plan, market, email);
             window.location.assign(url);
         } catch {
             track('checkout_failed', { plan, provider_id: clinic.id });
@@ -103,7 +120,6 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
         }
     };
 
-    const current = status.find((s) => s.access && s.plan === clinic.tier) ?? status.find((s) => s.access);
     const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(i18n.language, { dateStyle: 'long' }) : '');
     const offered = (['promoted', 'featured'] as const).filter((p) => RANK[p] > rank);
     const ended = rank === 0 && status.some((s) => s.status === 'lapsed' || s.status === 'refunded');
@@ -185,9 +201,12 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
 
             {offered.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    <p style={{ fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gray-500)' }}>
-                        {t('account.choosePlan')}
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem' }}>
+                        <p style={{ fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gray-500)', margin: 0 }}>
+                            {t('account.choosePlan')}
+                        </p>
+                        <CurrencyPicker value={market} onChange={handleMarketChange} />
+                    </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem' }}>
                         {offered.map((plan) => (
                             <div
@@ -201,12 +220,12 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
                             >
                                 <p style={{ fontWeight: 800, fontSize: '1rem' }}>{t(`pricing.${plan}Tier`)}</p>
                                 <p>
-                                    <span className="display" style={{ fontSize: '1.9rem' }}>{PRICE[english ? 'en' : 'es'][plan]}</span>{' '}
+                                    <span className="display" style={{ fontSize: '1.9rem' }}>{PRICE[market][plan]}</span>{' '}
                                     <span style={{ fontSize: '0.85rem', color: 'var(--gray-400)' }}>
-                                        {english ? t('pricing.perMonth') : t('pricing.perMonthMxn')}
+                                        {market === 'us' ? t('pricing.perMonthUsd') : t('pricing.perMonthMxn')}
                                     </span>
                                 </p>
-                                {!english && (
+                                {market === 'mx' && (
                                     <p style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>{t(`pricing.${plan}Alt`)}</p>
                                 )}
                                 <button
