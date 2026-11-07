@@ -6,7 +6,7 @@ The doctor directory of Star Médica Ciudad Juárez. Star Médica has **no hospi
 
 ## Permission
 
-Received 4 Nov 2026: scrape, store and display the doctor directory. The signed copy is in the team vault. Logo use is not yet confirmed.
+Received 4 Nov 2026: scrape, store and display the doctor directory. The signed copy is in the team vault. Logo use authorized, recorded 6 Nov 2026 (see [Logo use](README.md#logo-use)).
 
 ## How it is read
 

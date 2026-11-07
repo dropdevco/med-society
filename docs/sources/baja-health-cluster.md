@@ -6,7 +6,7 @@ The medical industry association's directory of recovery centers. A listed cente
 
 ## Access
 
-Open. robots.txt blocks only `/wp-admin/`. Logo use is not confirmed.
+Open. robots.txt blocks only `/wp-admin/`. Logo use authorized, recorded 6 Nov 2026 (see [Logo use](README.md#logo-use)).
 
 ## How it is read
 

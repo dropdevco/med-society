@@ -6,7 +6,7 @@ CONACEM (Comité Normativo Nacional de Consejos de Especialidades Médicas) is t
 
 ## Permission
 
-Received 4 Nov 2026: display the data, obtained by whatever means works, because CONACEM will not change its site or add an API. The signed copy is in the team vault. **It waives** robots.txt (CONACEM answers 403 to it) and the firewall's refusal of our bot. See [ADR 0002](../adr/0002-source-access-policy.md) and the register.
+Received 4 Nov 2026: display the data, obtained by whatever means works, because CONACEM will not change its site or add an API. The signed copy is in the team vault. **It waives** robots.txt (CONACEM answers 403 to it) and the firewall's refusal of our bot. See [ADR 0002](../adr/0002-source-access-policy.md) and the register. Logo use authorized, recorded 6 Nov 2026 (see [Logo use](README.md#logo-use)).
 
 ## How it is read
 

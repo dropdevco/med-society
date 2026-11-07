@@ -39,7 +39,7 @@ A run's rows all carry its run ID. A source record is matched once: a cédula we
 A throwaway copy of the database for testing anything above without touching production. Needs Docker.
 
 ```bash
-bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migrations 0035 and 0036
+bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migrations 0035 to 0037
 npx tsx scripts/sources/sandbox/proxy.ts                          # leave running
 export SOURCES_DB_URL=http://127.0.0.1:54331
 npx tsx --env-file=.env.local scripts/sources/sandbox/seed.ts     # copies listings and Doctoralia names (read-only on production)

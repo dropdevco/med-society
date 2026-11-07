@@ -8,8 +8,8 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 
 | Source | Slug | Kind | Access | Permission / basis | Reader | Cédula | Cadence | Status |
 |---|---|---|---|---|---|---|---|---|
-| Hospital Ángeles (Tijuana, Ciudad Juárez) | `hospital-angeles` | hospital | permission | Letter received 30 Oct 2026: scrape, store and display, on condition we keep it up to date. Signed by two Hospital Ángeles officials; copy in the team vault. Logo use not yet confirmed | A, static HTML | No | Weekly | **Building** (phase 1) |
-| Star Médica (Ciudad Juárez only) | `starmedica` | hospital | permission | Received 4 Nov 2026: scrape, store and display the doctor directory. Copy in the team vault. Logo use not yet confirmed | D, real browser (identifies as MedSocietyBot) | Yes | Weekly | **Built** (4 Nov) |
+| Hospital Ángeles (Tijuana, Ciudad Juárez) | `hospital-angeles` | hospital | permission | Letter received 30 Oct 2026: scrape, store and display, on condition we keep it up to date. Signed by two Hospital Ángeles officials; copy in the team vault. Logo use authorized, see below | A, static HTML | No | Weekly | **Building** (phase 1) |
+| Star Médica (Ciudad Juárez only) | `starmedica` | hospital | permission | Received 4 Nov 2026: scrape, store and display the doctor directory. Copy in the team vault. Logo use authorized, see below | D, real browser (identifies as MedSocietyBot) | Yes | Weekly | **Built** (4 Nov) |
 | Centro Médico de Especialidades (Juárez) | — | hospital | unknown | Not researched yet | — | — | — | Research |
 | Padrón Estatal de Salud (`bajahealthtourism.com`, Secretaría de Turismo) | `padron-salud-bc` | regulator register | open | robots.txt blocks only `/admin`, `/portal`, `/login`; no terms published | A | Register no. | Weekly | Built (residences only) |
 | COEPRIS BC REPSSABI | `coepris-bc` | regulator (facilities) | open | robots.txt allows all; public JSON feed | B, JSON | Register no. | Weekly | Built (recovery residences only) |
@@ -29,6 +29,22 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 Reader types: **A** static HTML · **B** JSON feed · **C** bulk file · **D** real browser · **E** assisted human lookup · **F** export or shared sheet.
 
 Permissions received on 4 Nov 2026 (Star Médica, CONACEM) are recorded from the team's account of the letters; check the wording against the signed copies. A permission that lets us past a control says so in the adapter's `permission.waives` (`robots`, `block`), and nothing else may skip robots.txt or use a non-bot identity.
+
+
+## Logo use
+
+Authorization to show the logo on medsociety.one, recorded 6 Nov 2026 for all six organizations below. A logo shows only when `organizations.logo_permission_at` is set, which migration 0037 does for these six. Any new organization starts without one.
+
+| Organization | Slug | File | Note |
+|---|---|---|---|
+| Hospital Ángeles | `hospital-angeles` | `hospital-angeles.png` | |
+| Star Médica | `starmedica` | `starmedica.png` | |
+| CONACEM | `conacem` | `conacem.png` | |
+| COEPRIS Baja California | `coepris-bc` | `coepris-bc.png` | Their logo has white lettering, so we placed it on their site's burgundy (`#6a1c32`) to read on a white tile |
+| Padrón Estatal de Salud | `padron-salud-bc` | `padron-salud-bc.png` | The logo of the Secretaría de Turismo, which runs the site |
+| Baja Health Cluster | `baja-health-cluster` | `baja-health-cluster.png` | |
+
+The date is when we recorded the authorization. Each organization's own date and the location of its written OK are still to be added here.
 
 ## What a permission letter must say
 

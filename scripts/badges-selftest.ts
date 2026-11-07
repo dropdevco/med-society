@@ -6,7 +6,7 @@
  *
  *   npm run badges:selftest
  */
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, statSync } from 'fs';
 import { __test } from '../api/agent';
 import en from '../src/i18n/locales/en.json';
 import es from '../src/i18n/locales/es.json';
@@ -95,13 +95,18 @@ check('the "about" link names the organization', en.badges.about.includes('{{nam
 // ── Nothing left out ─────────────────────────────────────────────────────────
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
 const seeds = read('supabase/migrations/0035_doctors_sources_badges.sql') + read('supabase/migrations/0036_facility_badges.sql');
-const logos = read('scripts/sources/sandbox/logos.sql');
+const logos = read('supabase/migrations/0037_organization_logos.sql');
 const register = read('docs/sources/README.md');
 for (const b of all) {
     check(`${b.org}: seeded`, seeds.includes(`('${b.org}', `));
-    check(`${b.org}: in the test-build logo list`, logos.includes(`'${b.org}'`));
+    check(`${b.org}: logo turned on`, logos.includes(`'${b.org}'`));
+    const file = new URL(`../public/logos/orgs/${b.org}.png`, import.meta.url);
+    check(`${b.org}: logo file exists, because a tile has no fallback`, existsSync(file));
+    check(`${b.org}: logo file is small enough for a card`, existsSync(file) && statSync(file).size < 40_000);
     check(`${b.org}: in the permissions register`, register.includes(`\`${b.org}\``));
 }
+
+check('logos ship with the site', !read('.gitignore').includes('public/logos/orgs'));
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

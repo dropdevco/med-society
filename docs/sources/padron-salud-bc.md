@@ -6,7 +6,7 @@ The public catalog at `bajahealthtourism.com`, run by Baja California's Secretar
 
 ## Access
 
-Open. robots.txt blocks only `/admin`, `/portal` and `/login`, and no terms are published. Logo use is not confirmed.
+Open. robots.txt blocks only `/admin`, `/portal` and `/login`, and no terms are published. Logo use authorized, recorded 6 Nov 2026 (see [Logo use](README.md#logo-use)). The logo shown is the Secretaría de Turismo's, which runs the site.
 
 ## How it is read
 

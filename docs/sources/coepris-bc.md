@@ -6,7 +6,7 @@ REPSSABI is the state health regulator's register of establishments (Registro Es
 
 ## Access
 
-Open. robots.txt allows everything, and the register page is public. Logo use is not confirmed.
+Open. robots.txt allows everything, and the register page is public. Logo use authorized, recorded 6 Nov 2026 (see [Logo use](README.md#logo-use)).
 
 ## How it is read
 

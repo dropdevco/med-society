@@ -6,7 +6,7 @@ The doctor directories of Hospital Ángeles' two hospitals in our regions. A doc
 
 ## Permission
 
-Written permission received 30 Oct 2026 to scrape, store and display the directory data, **on condition that we keep it up to date**. Signed by two Hospital Ángeles officials; the signed copy is in the team vault. Logo use is not yet confirmed: ask in the same thread before the logo appears on medsociety.one.
+Written permission received 30 Oct 2026 to scrape, store and display the directory data, **on condition that we keep it up to date**. Signed by two Hospital Ángeles officials; the signed copy is in the team vault. Logo use authorized, recorded 6 Nov 2026 (see [Logo use](README.md#logo-use)).
 
 Keeping it up to date means: the pipeline runs weekly, and a doctor missing from two consecutive good runs loses the badge ([ADR 0004](../adr/0004-matching-and-freshness.md)).
 

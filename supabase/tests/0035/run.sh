@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs migrations 0035 and 0036 in a throwaway local Postgres 17 (never production) with made-up data.
+# Runs migrations 0035 to 0037 in a throwaway local Postgres 17 (never production) with made-up data.
 #   bash supabase/tests/0035/run.sh
 set -euo pipefail
 export MSYS_NO_PATHCONV=1   # Git Bash: keep /sql paths inside the container as written
@@ -13,7 +13,8 @@ sleep 2
 psql() { docker exec ms-0035-test psql -U postgres -v ON_ERROR_STOP=1 -q -X "$@"; }
 psql -f /sql/stubs.sql
 psql -f /migrations/0035_doctors_sources_badges.sql && psql -f /migrations/0036_facility_badges.sql && echo "migrations applied"
-out="$(psql -f /sql/exercise.sql 2>&1)"
+# 0037 comes after the exercise, which needs a logo-free start to test the permission rule.
+out="$(psql -f /sql/exercise.sql 2>&1 && psql -f /migrations/0037_organization_logos.sql 2>&1 && psql -f /sql/logos.sql 2>&1)"
 echo "$out"
 if echo "$out" | grep -qE ' \| f$'; then echo "FAILED: a check returned false"; exit 1; fi
 echo "all checks passed: $(echo "$out" | grep -cE ' \| t$') true, $(echo "$out" | grep -c 'NOTICE:  ok') refused"

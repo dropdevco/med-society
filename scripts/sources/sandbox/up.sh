@@ -20,6 +20,7 @@ psql -f /supabase/tests/0035/stubs.sql
 psql -f /sandbox/extra.sql
 psql -f /supabase/migrations/0035_doctors_sources_badges.sql
 psql -f /supabase/migrations/0036_facility_badges.sql
+psql -f /supabase/migrations/0037_organization_logos.sql
 docker run -d --name ms-sandbox-api --network ms-sandbox \
     -e PGRST_DB_URI=postgres://postgres:sandbox@ms-sandbox-db:5432/postgres \
     -e PGRST_DB_SCHEMAS=public -e PGRST_DB_EXTRA_SEARCH_PATH=extensions -e PGRST_DB_ANON_ROLE=service_role \
