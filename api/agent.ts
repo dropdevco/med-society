@@ -1832,7 +1832,8 @@ interface PageDoc {
 }
 
 const COUNTRY_NAME = { US: 'United States', MX: 'Mexico' } as const;
-const LOGO = `${SITE}/logo.png`;
+/** Link-preview fallback: the HealthAtlas card until MedSociety has its own logo. */
+const SHARE_IMAGE = 'https://healthatlasglobal.com/assets/og.png';
 
 const dash = (parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join(' · ');
 
@@ -1856,7 +1857,7 @@ async function providerPage(id: string, lang: Lang): Promise<PageDoc> {
         return {
             status: 404, kind: 'notfound', title: 'Provider not found — MedSociety',
             description: 'No live provider has this address. Search the MedSociety directory instead.',
-            canonical: `${SITE}/providers/${esc(id).slice(0, 60)}`, ogImage: LOGO, robots: 'noindex',
+            canonical: `${SITE}/providers/${esc(id).slice(0, 60)}`, ogImage: SHARE_IMAGE, robots: 'noindex',
             blocks: [
                 { k: 'h', level: 1, text: 'Provider not found' },
                 { k: 'p', parts: ['No live provider has this address. It may have been removed or the link may be mistyped. ', { text: 'Search the directory', href: '/' }, '.'] },
@@ -1927,7 +1928,7 @@ async function providerPage(id: string, lang: Lang): Promise<PageDoc> {
     return {
         status: 200, kind: 'provider',
         title: `${p.name} — MedSociety`,
-        description, canonical: it.url, ogImage: p.imageUrl ?? LOGO,
+        description, canonical: it.url, ogImage: p.imageUrl ?? SHARE_IMAGE,
         blocks,
         jsonld: [
             providerJsonLd(detail),
@@ -2016,7 +2017,7 @@ async function homePage(sp: URLSearchParams): Promise<PageDoc> {
             title: `${label} — MedSociety`,
             description: `${total.toLocaleString('en-US')} providers: ${label}. Compare ratings, published prices, languages and licences across the US–Mexico border.`,
             canonical: query.region ? `${SITE}/?region=${query.region}` : canonical,
-            ogImage: LOGO, robots: 'noindex, follow', blocks,
+            ogImage: SHARE_IMAGE, robots: 'noindex, follow', blocks,
             jsonld: [itemListJsonLd(label, env.data)],
             json: env,
         };
@@ -2057,7 +2058,7 @@ async function homePage(sp: URLSearchParams): Promise<PageDoc> {
         status: 200, kind: 'home',
         title: 'MedSociety — Medical care across the US–Mexico border',
         description: 'Find dentists, surgeons and specialists on both sides of the US–Mexico border, in El Paso – Ciudad Juárez and San Diego – Tijuana. Compare ratings, published prices and licenses, in English and Spanish.',
-        canonical, ogImage: LOGO, blocks,
+        canonical, ogImage: SHARE_IMAGE, blocks,
         jsonld: [{
             '@context': 'https://schema.org', '@type': 'ItemList', name: 'MedSociety regions',
             numberOfItems: REGION_IDS.length,
@@ -2073,7 +2074,7 @@ function pricingPage(): PageDoc {
         status: 200, kind: 'pricing',
         title: 'Plans and pricing for clinics — MedSociety',
         description: 'List your clinic free on MedSociety, or get promoted or featured to reach patients across the US–Mexico border. No setup fee, no contract.',
-        canonical: `${SITE}/pricing`, ogImage: LOGO,
+        canonical: `${SITE}/pricing`, ogImage: SHARE_IMAGE,
         blocks: [
             { k: 'h', level: 1, text: 'Plans and pricing for clinics' },
             { k: 'p', parts: ['For clinics and practices. This page is about listing a clinic; patients never pay MedSociety. No setup fee, no contract, cancel whenever you want.'] },
@@ -2110,7 +2111,7 @@ function contactPage(): PageDoc {
         status: 200, kind: 'contact',
         title: 'Contact — MedSociety',
         description: 'Contact the MedSociety team about the directory, listing a clinic, or partnerships.',
-        canonical: `${SITE}/contact`, ogImage: LOGO,
+        canonical: `${SITE}/contact`, ogImage: SHARE_IMAGE,
         blocks: [
             { k: 'h', level: 1, text: 'Contact us' },
             { k: 'p', parts: ['Questions about the directory, a listing, or working together: write to ', { text: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` }, ' or use the form on this page.'] },
