@@ -81,7 +81,7 @@ const SITE = process.env.PUBLIC_SITE_URL || 'https://medsociety.one';
 
 // ── Normalisation ────────────────────────────────────────────────────────────
 
-export type Kind = 'payment' | 'canceled' | 'failed' | 'refunded';
+export type Kind = 'payment' | 'canceled' | 'failed' | 'refunded' | 'refund_seen';
 export type Plan = 'promoted' | 'featured';
 export type Market = 'us' | 'mx';
 
@@ -541,8 +541,10 @@ export function eventsFromGhl(
         if (t.status === 'succeeded' && within(t.createdAt, PAYMENT_WINDOW_DAYS, now) && !(t.amountRefunded && t.amountRefunded > 0)) {
             out.push({ ...common, key: `payment:${t.chargeId}`, kind: 'payment' });
         }
-        if (t.status === 'succeeded' && t.amount && (t.amountRefunded ?? 0) >= t.amount && within(t.createdAt, CHANGE_WINDOW_DAYS, now)) {
-            out.push({ ...common, key: `refunded:${t.chargeId}`, kind: 'refunded' });
+        // GHL moves a fully refunded charge to `refunded`. Flagged in /admin, not
+        // applied: refunding the money and ending the plan are separate decisions.
+        if ((t.status === 'succeeded' || t.status === 'refunded') && t.amount && (t.amountRefunded ?? 0) >= t.amount && within(t.createdAt, CHANGE_WINDOW_DAYS, now)) {
+            out.push({ ...common, key: `refund_seen:${t.chargeId}`, kind: 'refund_seen' });
         }
     }
 
@@ -601,6 +603,7 @@ const emptySummary = (): PollSummary => ({ seen: 0, applied: 0, already: 0, unma
 async function applyAll(cfg: Cfg, events: ParsedEvent[], s: PollSummary, source: string): Promise<void> {
     s.seen += events.length;
     const needsHelp: string[] = [];
+    const refunds: string[] = [];
     for (const ev of events) {
         try {
             const r = await applyEvent(cfg, ev);
@@ -611,6 +614,7 @@ async function applyAll(cfg: Cfg, events: ParsedEvent[], s: PollSummary, source:
             } else {
                 s.applied++;
                 if (r.outcome === 'applied' && r.subscription_id) s.changed.push({ subscriptionId: r.subscription_id, kind: ev.kind });
+                if (ev.kind === 'refund_seen') refunds.push(`${ev.plan} (${ev.market ?? '?'}): ${ev.email || ev.contactId}`);
             }
         } catch (e) {
             s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
@@ -621,6 +625,12 @@ async function applyAll(cfg: Cfg, events: ParsedEvent[], s: PollSummary, source:
         await alertTeam('MedSociety payments found in GHL need a listing attached', [
             ...needsHelp,
             `Attach them in ${SITE}/admin → Billing. The next payments from the same person then match by themselves.`,
+        ]);
+    }
+    if (refunds.length > 0) {
+        await alertTeam('MedSociety refund found in GHL: the plan is still on', [
+            ...refunds,
+            `If the plan should stop now, end it in ${SITE}/admin → Billing.`,
         ]);
     }
 }
@@ -697,7 +707,7 @@ async function announce(row: PendingRow, what: 'activated' | 'cancelled' | 'refu
 }
 
 const WHAT: Record<Kind, 'activated' | 'cancelled' | 'refunded' | 'lapsed'> = {
-    payment: 'activated', canceled: 'cancelled', refunded: 'refunded', failed: 'lapsed',
+    payment: 'activated', canceled: 'cancelled', refunded: 'refunded', failed: 'lapsed', refund_seen: 'refunded',
 };
 
 /**
