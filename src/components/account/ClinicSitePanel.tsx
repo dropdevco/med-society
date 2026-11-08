@@ -42,14 +42,16 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
     const toast = useToast();
     const lang: 'es' | 'en' = i18n.language?.startsWith('es') ? 'es' : 'en';
     const c = site.content ?? {};
+    // Show what the site shows: the owner's language, else whichever one was written.
+    const seen = (v: Loc | undefined) => v?.[lang] ?? v?.es ?? v?.en ?? '';
 
     const [accent, setAccent] = useState(c.brand?.accent ?? '#1f5a8a');
     const [ink, setInk] = useState(c.brand?.ink ?? '#14181d');
     const [warm, setWarm] = useState(c.brand?.warm ?? '');
     const [logo, setLogo] = useState(c.brand?.logo ?? '');
-    const [headline, setHeadline] = useState(c.headline?.[lang] ?? '');
-    const [lead, setLead] = useState(c.lead?.[lang] ?? '');
-    const [about, setAbout] = useState(c.about?.[lang] ?? '');
+    const [headline, setHeadline] = useState(seen(c.headline));
+    const [lead, setLead] = useState(seen(c.lead));
+    const [about, setAbout] = useState(seen(c.about));
     const [story, setStory] = useState<StoryItem[]>(c.images?.story ?? []);
     const [hero, setHero] = useState(c.images?.hero ?? '');
     const [busy, setBusy] = useState<'save' | 'photo' | 'logo' | null>(null);
@@ -145,11 +147,11 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
                 <p className="acct-muted">{t('account.site.brandHint')}</p>
                 <div className="acct-grid2">
                     <div className="acct-field"><label htmlFor="site-accent">{t('account.site.accent')}</label>
-                        <input id="site-accent" type="color" value={HEX.test(accent) ? accent : '#000000'} onChange={(e) => setAccent(e.target.value)} /></div>
+                        <input id="site-accent" className="acct-color" type="color" value={HEX.test(accent) ? accent : '#000000'} onChange={(e) => setAccent(e.target.value)} /></div>
                     <div className="acct-field"><label htmlFor="site-ink">{t('account.site.ink')}</label>
-                        <input id="site-ink" type="color" value={HEX.test(ink) ? ink : '#000000'} onChange={(e) => setInk(e.target.value)} /></div>
+                        <input id="site-ink" className="acct-color" type="color" value={HEX.test(ink) ? ink : '#000000'} onChange={(e) => setInk(e.target.value)} /></div>
                     <div className="acct-field"><label htmlFor="site-warm">{t('account.site.warm')}</label>
-                        <input id="site-warm" type="color" value={HEX.test(warm) ? warm : '#dd7d30'} onChange={(e) => setWarm(e.target.value)} />
+                        <input id="site-warm" className="acct-color" type="color" value={HEX.test(warm) ? warm : '#dd7d30'} onChange={(e) => setWarm(e.target.value)} />
                         {warm && <button type="button" className="acct-link" onClick={() => setWarm('')}>{t('account.site.clear')}</button>}</div>
                 </div>
                 <div className="acct-field">
@@ -169,13 +171,13 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
                             <img src={s.src} alt="" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 10, flex: 'none' }} />
                             <div className="acct-field" style={{ flex: 1, minWidth: 0 }}>
                                 <input aria-label={t('account.site.photoTitle')} placeholder={t('account.site.photoTitle')} maxLength={70}
-                                    value={s.title?.[lang] ?? ''} onChange={(e) => setCaption(i, 'title', e.target.value)} />
+                                    value={seen(s.title)} onChange={(e) => setCaption(i, 'title', e.target.value)} />
                                 <input aria-label={t('account.site.photoCaption')} placeholder={t('account.site.photoCaption')} maxLength={200}
-                                    value={s.caption?.[lang] ?? ''} onChange={(e) => setCaption(i, 'caption', e.target.value)} />
+                                    value={seen(s.caption)} onChange={(e) => setCaption(i, 'caption', e.target.value)} />
                                 <div className="acct-row">
                                     <button type="button" className="acct-link" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
                                     <button type="button" className="acct-link" disabled={i === story.length - 1} onClick={() => move(i, 1)}>↓</button>
-                                    <label className="acct-fine"><input type="radio" name="site-hero" checked={hero === s.src} onChange={() => setHero(s.src)} /> {t('account.site.cover')}</label>
+                                    <label className="acct-fine" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><input type="radio" style={{ width: 'auto', margin: 0 }} name="site-hero" checked={hero === s.src} onChange={() => setHero(s.src)} /> {t('account.site.cover')}</label>
                                     <button type="button" className="acct-link acct-link--danger" onClick={() => remove(i)}>{t('account.site.remove')}</button>
                                 </div>
                             </div>
