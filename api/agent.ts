@@ -2976,7 +2976,7 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
     const gallery = photos.map((u, i) => `<img src="${esc(u)}" alt="${esc(`${t.galleryKicker} — ${p.name}`)}" ${i ? 'loading="lazy"' : ''} referrerpolicy="no-referrer" />`).join('');
 
     const faq: { q: string; a: string }[] = [
-        { q: t.qWhere, a: `${p.address}, ${where}.` },
+        { q: t.qWhere, a: `${fold(p.address).includes(fold(p.city)) ? p.address : `${p.address}, ${where}`}.` },
         ...(insurers ? [{ q: t.qIns, a: `${insurers}.` }] : []),
         ...(langNames ? [{ q: t.qLang, a: `${langNames[0].toUpperCase()}${langNames.slice(1)}.` }] : []),
         ...(minPrice !== null ? [{ q: t.qPrice, a: t.aPrice(`$${num(minPrice)}`) }] : []),
@@ -2988,6 +2988,8 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
     const title = `${p.name} — ${specialties || t.aboutKicker}, ${p.city}`;
     const description = trim(`${headline}. ${lead}`, 158);
     const ld = providerJsonLd(d);
+    // A kicker means the place is not described by its specialty (a recovery center is not "primary care").
+    if (c.kicker) delete ld.medicalSpecialty;
     const graph: Record<string, unknown>[] = [{
         ...ld, '@id': `${origin}/#provider`, url: origin,
         sameAs: [...((ld.sameAs as string[] | undefined) ?? []), listing],
