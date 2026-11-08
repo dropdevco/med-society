@@ -113,6 +113,17 @@ preview; the owner-upload path (Supabase Storage, from the intake form) replaces
 Google Maps photos are never used. Pick photos that are sharp, show the place and no identifiable
 patients, and write captions that state only what the photo shows or the listing says.
 
+### The owner's form (dashboard "Website" tab)
+
+The tab appears for a listing that has a `doctor_sites` row. It edits colours (the page tints
+are derived from the main colour), the logo, the photo sequence with a title and caption per
+photo, the cover photo, and the headline, lead and about text, in the language the owner is using.
+Photos upload to `clinic-photos/<provider_id>/site/`. Saving calls `update_my_site` (migration
+0036), a security-definer function that merges only `brand`, `images`, `headline`, `lead` and
+`about` into the owner's own row. Status, subdomain, plan and icons stay with us, and a site
+stays `preview` until the team sets it to `active`. A text written in one language only is shown in
+both. Still to build: the GHL email that links to this tab after the plan is bought.
+
 ## Review checklist before a site goes live
 
 - [ ] The doctor agreed to have a site.

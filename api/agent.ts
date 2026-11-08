@@ -2946,7 +2946,9 @@ function siteMessage(status: number, title: string, body: string, link: string):
 function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lang, origin: string, defaultLang: Lang): string {
     const p = d.row;
     const c = site.content ?? {};
-    const text = (v: Localized | undefined, max: number) => (v?.[lang] ? clean(v[lang], max) : null);
+    // An owner who wrote one language only is better shown in it than not shown at all.
+    const pick = (v: Localized | undefined) => v?.[lang] || v?.es || v?.en || '';
+    const text = (v: Localized | undefined, max: number) => (pick(v) ? clean(pick(v), max) : null);
     const t = withPlace(SITE_COPY[lang], text(c.place, 24) ?? (lang === 'es' ? 'consultorio' : 'practice'));
     const locale = lang === 'es' ? 'es-MX' : 'en-US';
     const otherLang: Lang = lang === 'es' ? 'en' : 'es';
@@ -2962,7 +2964,7 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
     const warm = hex(brand.warm) ?? theme.accent;
     const logo = secure(brand.logo);
     const heroImg = secure(c.images?.hero);
-    const cap = (v: Localized | undefined, max: number) => (v?.[lang] ? clean(v[lang], max) : '');
+    const cap = (v: Localized | undefined, max: number) => (pick(v) ? clean(pick(v), max) : '');
     const story = (c.images?.story ?? []).slice(0, 8).flatMap((s) => { const src = secure(s.src); return src ? [{ src, title: cap(s.title, 70), caption: cap(s.caption, 200) }] : []; });
     const more = (c.images?.more ?? []).slice(0, 6).flatMap((s) => { const src = secure(s.src); return src ? [{ src, caption: cap(s.caption, 120) }] : []; });
     const icons = (c.icons ?? []).map(secure);
