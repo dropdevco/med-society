@@ -26,7 +26,7 @@ let viewSent = false;
  */
 export function BorderhealthPage({ research = false }: { research?: boolean }) {
     const { i18n } = useTranslation();
-    const [lang, setLangState] = useState<BhLang>(() => pickLang(window.location.search));
+    const [lang, setLangState] = useState<BhLang>(() => pickLang(window.location.search, research));
     const [result, setResult] = useState<SurveyResult | null>(null);
     const [submittedOnce, setSubmittedOnce] = useState(false);
     const [runKey, setRunKey] = useState(0);
