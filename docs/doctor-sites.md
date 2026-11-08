@@ -85,7 +85,12 @@ instead, and with no published prices the services list drops its price column.
   "about":      { "es": "…", "en": "…" },
   "highlights": { "es": [{ "title": "…", "body": "…" }], "en": [] },
   "faq":        { "es": [{ "q": "…", "a": "…" }],        "en": [] },
-  "gallery":    false
+  "gallery":    false,
+  "brand":      { "bg": "#fbf7f4", "soft": "#f2e4e2", "accent": "#701236", "ink": "#1d1e20", "warm": "#dd7d30", "logo": "https://…" },
+  "images":     { "hero": "https://…",
+                  "story": [{ "src": "https://…", "title": { "es": "…", "en": "…" }, "caption": { "es": "…", "en": "…" } }],
+                  "more":  [{ "src": "https://…", "caption": { "es": "…", "en": "…" } }] },
+  "icons":      ["https://…"]
 }
 ```
 
@@ -94,6 +99,19 @@ rules: write for a patient, in the doctor's voice only where the listing support
 nothing the listing does not (no years of experience, awards, techniques or guarantees), keep the
 headline under 12 words, and return both languages. Treat the result as a draft: the doctor
 approves it before the site goes from `preview` to `active`.
+
+### Brand and photos (what makes it look like *their* site)
+
+`brand` replaces the specialty palette with the practice's own colours (`#rrggbb` only; each missing
+colour keeps the specialty one) and sets the logo shown in the navigation. `warm` is a second
+brand colour used only for small decoration, never for text. `images.hero` turns the opening into a
+full-bleed photo; `images.story` is a scroll sequence, one photo per screen stacking over the last
+with its caption arriving late, in the order a visitor would walk through the place; `images.more`
+is a captioned details grid. `icons` gives each service an icon, in the listing's service order.
+All image URLs must be `https`. They are hotlinked from the practice's own website for the first
+preview; the owner-upload path (Supabase Storage, from the intake form) replaces that, and
+Google Maps photos are never used. Pick photos that are sharp, show the place and no identifiable
+patients, and write captions that state only what the photo shows or the listing says.
 
 ## Review checklist before a site goes live
 

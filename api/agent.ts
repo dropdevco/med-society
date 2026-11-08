@@ -2700,6 +2700,16 @@ interface SiteContent {
     faq?: Partial<Record<Lang, { q: string; a: string }[]>>;
     /** false hides the photo gallery (a listing's photos are scraped, so not always fit to show). */
     gallery?: boolean;
+    /** The practice's own colours and logo; any missing colour keeps the specialty palette. */
+    brand?: { bg?: string; soft?: string; accent?: string; ink?: string; warm?: string; logo?: string };
+    /** Photos (https). `hero` makes the opening image-led; `story` is the scroll sequence, `more` the details grid. */
+    images?: {
+        hero?: string;
+        story?: { src: string; title?: Localized; caption?: Localized }[];
+        more?: { src: string; caption?: Localized }[];
+    };
+    /** Icon images for the services, in the same order as the listing's services. */
+    icons?: string[];
 }
 
 async function fetchSite(sub: string): Promise<DoctorSite | null> {
@@ -2722,6 +2732,7 @@ const SITE_COPY = {
         whyIns: 'Acepta seguros', whyInsBody: (l: string) => `Seguros aceptados: ${l}.`,
         aboutKicker: 'Sobre el {place}', servicesKicker: 'Servicios', servicesTitle: 'Qué puedes consultar y cuánto cuesta', servicesTitleFree: 'Qué ofrece el {place}',
         galleryKicker: 'El {place}', galleryTitle: 'Conoce el lugar antes de llegar',
+        storyKicker: 'Un recorrido', storyTitle: 'Así se vive por dentro', detailsKicker: 'Los detalles', detailsTitle: 'Pensado hasta en lo pequeño',
         reviewsKicker: 'Opiniones', reviewsTitle: 'Lo que dicen quienes ya fueron',
         stepsKicker: 'Cómo empezar', stepsTitle: 'Tres pasos sencillos',
         step1: 'Escribe o llama', step1Body: 'Cuéntanos qué necesitas por WhatsApp o por teléfono.', step1Alt: 'Envía un mensaje desde su perfil en MedSociety.',
@@ -2752,6 +2763,7 @@ const SITE_COPY = {
         whyIns: 'Insurance accepted', whyInsBody: (l: string) => `Accepted insurers: ${l}.`,
         aboutKicker: 'About the {place}', servicesKicker: 'Services', servicesTitle: 'What you can book and what it costs', servicesTitleFree: 'What the {place} offers',
         galleryKicker: 'The {place}', galleryTitle: 'See the place before you arrive',
+        storyKicker: 'A walk through', storyTitle: 'What it feels like inside', detailsKicker: 'The details', detailsTitle: 'Thought through, down to the small things',
         reviewsKicker: 'Reviews', reviewsTitle: 'What patients say',
         stepsKicker: 'How to start', stepsTitle: 'Three simple steps',
         step1: 'Message or call', step1Body: 'Tell us what you need on WhatsApp or by phone.', step1Alt: 'Send a message from their MedSociety profile.',
@@ -2886,10 +2898,39 @@ h1{font-size:clamp(2.7rem,6.4vw,5.4rem);line-height:.98;letter-spacing:-.035em;m
 .share{display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between;margin-top:64px;padding-top:28px;border-top:1px solid rgba(255,255,255,.3);text-align:left}.share p{margin:0;max-width:26em}
 footer{padding:32px 0 40px;color:var(--muted);font-size:.88rem}footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
 .bar{display:none}
+.logo{height:30px;width:auto;mix-blend-mode:multiply}
+.hero.cover{position:relative;isolation:isolate;overflow:hidden;color:#fff;align-items:end;padding-bottom:clamp(56px,9vw,110px)}
+.hero.cover>.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;animation:settle 2.6s var(--ease) both}
+.hero.cover::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(24,8,14,.82),rgba(24,8,14,.4) 62%,rgba(24,8,14,.15)),linear-gradient(0deg,rgba(24,8,14,.6),transparent 45%)}
+.hero.cover h1{color:#fff;max-width:13em}.hero.cover .lead,.hero.cover .who{color:rgba(255,255,255,.86)}.hero.cover .who b{color:#fff}
+.hero.cover .eyebrow{background:rgba(255,255,255,.16);color:#fff}.hero.cover .wrap{grid-template-columns:1fr}
+.story{padding-bottom:0}.story>.wrap{padding-bottom:clamp(40px,6vw,72px)}
+.panels{margin-top:0}
+.pn{position:sticky;top:0;height:100dvh;display:grid;grid-template-columns:5fr 7fr;background:var(--bg);border-radius:36px 36px 0 0;overflow:hidden;box-shadow:0 -28px 60px -30px rgba(0,0,0,.35)}
+.pn:nth-child(even){background:var(--soft);grid-template-columns:7fr 5fr}.pn:nth-child(even) .im{order:-1}
+.pn .tx{align-self:center;padding:clamp(28px,5vw,80px)}
+.pn .rule{display:block;width:48px;height:3px;border-radius:3px;background:var(--warm);margin-bottom:22px}
+.pn .no{font:italic 420 1rem var(--serif);color:var(--accent)}.pn h3{font-size:clamp(1.9rem,3.6vw,3rem);line-height:1.05;margin:12px 0 16px}
+.pn p{margin:0;color:var(--muted);font-size:1.12rem;max-width:22em}
+.pn .im{min-height:0;overflow:hidden}.pn .im img{width:100%;height:100%;object-fit:cover}
+.det{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:clamp(180px,24vw,320px);gap:12px;margin-top:48px}
+.det figure{position:relative;margin:0;grid-column:span 2;border-radius:22px;overflow:hidden;background:var(--soft)}
+.det figure:first-child{grid-column:span 4;grid-row:span 2}.det figure:nth-child(n+4){grid-column:span 3}
+.det img{width:100%;height:100%;object-fit:cover}
+.det figcaption{position:absolute;left:0;right:0;bottom:0;padding:44px 18px 14px;color:#fff;font-size:.92rem;background:linear-gradient(0deg,rgba(0,0,0,.62),transparent)}
+.svc.icons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;border-top:0}
+.svc.icons li.ic{display:block;padding:6px;border:0;border-radius:30px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+.svc.icons li.ic>div{display:flex;flex-direction:column;gap:22px;height:100%;padding:30px;border-radius:24px;background:var(--bg)}
+.svc.icons img{width:56px;height:56px;mix-blend-mode:multiply}
+@keyframes settle{from{transform:scale(1.12)}to{transform:scale(1)}}
+@keyframes grow{from{transform:scale(1.14)}to{transform:scale(1)}}
+@supports (animation-timeline:view()){.pn .im img{animation:grow linear both;animation-timeline:view();animation-range:entry 0% entry 100%}.pn .tx>*{animation:rise linear both;animation-timeline:view();animation-range:entry 45% entry 100%}}
 @keyframes rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
 .rise{animation:rise .9s var(--ease) both;animation-delay:calc(var(--i,0)*90ms)}
 @supports (animation-timeline:view()){.reveal{animation:rise linear both;animation-timeline:view();animation-range:entry 0% entry 60%}}
 @media(max-width:860px){.hero{min-height:0;padding:104px 0 56px}.hero .wrap,.split{grid-template-columns:1fr}.frame{max-width:360px}.float{left:12px;bottom:28px}.statrow{grid-template-columns:repeat(2,1fr)}.stat:nth-child(odd){padding-left:0;border-left:0}.stat:nth-child(n+3){border-top:1px solid var(--line)}.why,.why.n3,.why.n2{grid-template-columns:1fr}.why .card,.why.n3 .card:nth-child(n),.why.n2 .card,.why.n1 .card{grid-column:auto;grid-row:auto}.rev{columns:1}.steps{grid-template-columns:1fr;gap:28px}.gal{grid-template-columns:repeat(2,1fr)}.gal img,.gal img:first-child,.gal.n2 img{grid-column:span 1;grid-row:auto;aspect-ratio:4/3;min-height:0}.gal img:first-child{grid-column:span 2}.band,.final{margin:0 8px}.nav .btn{display:none}.nav{padding-right:16px}}
+@media(max-width:860px){.pn,.pn:nth-child(even){grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}.pn .im,.pn:nth-child(even) .im{order:-1}.pn .tx{padding:22px 24px 30px}.pn h3{margin:8px 0 8px}.pn .rule{margin-bottom:14px}.pn p{font-size:1rem}.det{grid-template-columns:repeat(2,1fr)}.det{grid-auto-rows:auto}.det figure,.det figure:first-child,.det figure:nth-child(n+4){grid-column:span 1;grid-row:auto;aspect-ratio:4/3}.det figure:first-child{grid-column:span 2}.hero.cover{min-height:92dvh}.svc.icons{grid-template-columns:repeat(2,minmax(0,1fr))}.hero.cover::after{background:linear-gradient(0deg,rgba(24,8,14,.85),rgba(24,8,14,.3) 70%)}}
+@media(max-width:520px){.svc.icons{grid-template-columns:minmax(0,1fr)}.svc.icons li.ic>div{flex-direction:row;align-items:center;padding:20px 22px}}
 @media(max-width:760px){.bar{display:flex;position:fixed;left:12px;right:12px;bottom:12px;z-index:30}.bar .btn{flex:1;justify-content:space-between;box-shadow:0 14px 34px -14px rgba(0,0,0,.45)}body{padding-bottom:84px}.hero .actions .btn:first-child{display:none}.svc li{grid-template-columns:36px 1fr}.svc .p{grid-column:2;text-align:left}.actions .btn{flex:1 1 100%;justify-content:space-between}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}`;
 
@@ -2910,7 +2951,21 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
     const locale = lang === 'es' ? 'es-MX' : 'en-US';
     const otherLang: Lang = lang === 'es' ? 'en' : 'es';
     const urlFor = (l: Lang) => (l === defaultLang ? `${origin}/` : `${origin}/?lang=${l}`);
-    const theme = SITE_THEMES[SITE_THEME_OF[p.specialty[0] ?? ''] ?? 'sky'];
+    const baseTheme: { bg: string; soft: string; accent: string; ink: string } = SITE_THEMES[SITE_THEME_OF[p.specialty[0] ?? ''] ?? 'sky'];
+    const hex = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+    const secure = (v: unknown) => { const u = httpUrl(v); return u && u.startsWith('https://') ? u : null; };
+    const brand = c.brand ?? {};
+    const theme = {
+        bg: hex(brand.bg) ?? baseTheme.bg, soft: hex(brand.soft) ?? baseTheme.soft,
+        accent: hex(brand.accent) ?? baseTheme.accent, ink: hex(brand.ink) ?? baseTheme.ink,
+    };
+    const warm = hex(brand.warm) ?? theme.accent;
+    const logo = secure(brand.logo);
+    const heroImg = secure(c.images?.hero);
+    const cap = (v: Localized | undefined, max: number) => (v?.[lang] ? clean(v[lang], max) : '');
+    const story = (c.images?.story ?? []).slice(0, 8).flatMap((s) => { const src = secure(s.src); return src ? [{ src, title: cap(s.title, 70), caption: cap(s.caption, 200) }] : []; });
+    const more = (c.images?.more ?? []).slice(0, 6).flatMap((s) => { const src = secure(s.src); return src ? [{ src, caption: cap(s.caption, 120) }] : []; });
+    const icons = (c.icons ?? []).map(secure);
 
     const specialties = text(c.kicker, 80) ?? p.specialty.map((s) => specialtyLabel(s, lang)).join(' · ');
     const specFirst = text(c.kicker, 80) ?? (p.specialty[0] ? specialtyLabel(p.specialty[0], lang) : '');
@@ -2965,10 +3020,12 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
     const trim = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
     const anyPrice = priced.length > 0;
+    const iconCards = !priced.length && icons.some(Boolean);
     const services = d.services.slice(0, 12).map((s, i) => {
         const name = lang === 'en' && s.name_en ? s.name_en : s.name;
         const price = !anyPrice ? '' : s.price_mxn === null ? `<span class="p">${esc(t.noPrice)}</span>`
             : `<span class="p">${s.is_from_price ? `<small>${esc(t.from)}</small>` : ''}$${num(s.price_mxn)} MXN${lang === 'en' ? `<small>≈ $${s.approx_usd} USD</small>` : ''}</span>`;
+        if (iconCards) return `<li class="ic"><div>${icons[i] ? `<img src="${esc(icons[i] as string)}" alt="" width="56" height="56" loading="lazy" referrerpolicy="no-referrer" />` : ''}<span class="t">${esc(name)}</span></div></li>`;
         return `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${esc(name)}</span>${price}</li>`;
     }).join('');
 
@@ -3008,27 +3065,29 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
 ${noindex ? '<meta name="robots" content="noindex" />' : ''}
 <link rel="canonical" href="${esc(urlFor(lang))}" />
 <link rel="alternate" hreflang="${lang}" href="${esc(urlFor(lang))}" /><link rel="alternate" hreflang="${otherLang}" href="${esc(urlFor(otherLang))}" />
-<meta property="og:type" content="website" /><meta property="og:title" content="${esc(`${p.name} — ${headline}`)}" /><meta property="og:description" content="${esc(description)}" /><meta property="og:url" content="${esc(urlFor(lang))}" />${photo ? `<meta property="og:image" content="${esc(photo)}" />` : ''}
-<meta name="twitter:card" content="${photo ? 'summary_large_image' : 'summary'}" />
+<meta property="og:type" content="website" /><meta property="og:title" content="${esc(`${p.name} — ${headline}`)}" /><meta property="og:description" content="${esc(description)}" /><meta property="og:url" content="${esc(urlFor(lang))}" />${photo || heroImg ? `<meta property="og:image" content="${esc((photo ?? heroImg) as string)}" />` : ''}
+<meta name="twitter:card" content="${photo || heroImg ? 'summary_large_image' : 'summary'}" />
 <link rel="icon" href="${SITE}/favicon.ico" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="${siteFontUrl('fraunces-latin-wght-normal.woff2')}" /><link rel="preload" as="font" type="font/woff2" crossorigin href="${siteFontUrl('geist-latin-wght-normal.woff2')}" />
 ${graph.map((g) => `<script type="application/ld+json">${jsonForScript(g)}</script>`).join('\n')}
-<style>:root{--bg:${theme.bg};--soft:${theme.soft};--accent:${theme.accent};--ink:${theme.ink}}${SITE_CSS}</style></head><body>
-<nav class="nav" aria-label="${esc(p.name)}"><b>${esc(p.name)}</b><div class="r"><a class="lang" href="${esc(urlFor(otherLang))}" hreflang="${otherLang}">${esc(t.other)}</a>${btn(primary.href, t.contact, 'sm')}</div></nav>
+<style>:root{--bg:${theme.bg};--soft:${theme.soft};--accent:${theme.accent};--ink:${theme.ink};--warm:${warm}}${SITE_CSS}</style></head><body>
+<nav class="nav" aria-label="${esc(p.name)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${esc(p.name)}" referrerpolicy="no-referrer" />` : `<b>${esc(p.name)}</b>`}<div class="r"><a class="lang" href="${esc(urlFor(otherLang))}" hreflang="${otherLang}">${esc(t.other)}</a>${btn(primary.href, t.contact, 'sm')}</div></nav>
 <main>
-<header class="hero"><div class="wrap${photo || rating !== null ? '' : ' solo'}"><div>
+<header class="hero${heroImg ? ' cover' : ''}">${heroImg ? `<img class="bg" src="${esc(heroImg)}" alt="" fetchpriority="high" referrerpolicy="no-referrer" />` : ''}<div class="wrap${heroImg || (!photo && rating === null) ? ' solo' : ''}"><div>
 <span ${rise(0)}><span class="eyebrow">${esc(specialties ? `${specialties} · ${p.city}` : p.city)}</span></span>
 <h1 ${rise(1)}>${esc(headline)}</h1>
 <p class="lead rise" style="--i:2">${esc(lead)}</p>
-<div class="actions rise" style="--i:3">${btn(primary.href, primary.label)}${secondary ? btn(secondary.href, secondary.label, 'ghost') : ''}</div>
+<div class="actions rise" style="--i:3">${btn(primary.href, primary.label, heroImg ? 'light' : '')}${secondary ? btn(secondary.href, secondary.label, heroImg ? 'line' : 'ghost') : ''}</div>
 <p class="who rise" style="--i:4"><b>${esc(p.name)}</b>${p.licensed ? ` · ${esc(t.statLicence)}` : ''}</p>
-</div>${!photo && rating !== null ? `<div class="frame rise" style="--i:2"><div class="ph"><b>★ ${rating.toFixed(1)}</b><span>${esc(`${num(p.reviewCount)} ${t.statReviews}`)}</span></div></div>` : ''}${photo ? `<div class="frame rise" style="--i:2"><img src="${esc(photo)}" alt="${esc(p.name)}" fetchpriority="high" referrerpolicy="no-referrer" />${rating !== null ? `<div class="float"><b>★ ${rating.toFixed(1)}</b><span>${esc(`${num(p.reviewCount)} ${t.statReviews}`)}</span></div>` : ''}</div>` : ''}</div></header>
+</div>${heroImg ? '' : !photo && rating !== null ? `<div class="frame rise" style="--i:2"><div class="ph"><b>★ ${rating.toFixed(1)}</b><span>${esc(`${num(p.reviewCount)} ${t.statReviews}`)}</span></div></div>` : ''}${photo && !heroImg ? `<div class="frame rise" style="--i:2"><img src="${esc(photo)}" alt="${esc(p.name)}" fetchpriority="high" referrerpolicy="no-referrer" />${rating !== null ? `<div class="float"><b>★ ${rating.toFixed(1)}</b><span>${esc(`${num(p.reviewCount)} ${t.statReviews}`)}</span></div>` : ''}</div>` : ''}</div></header>
 ${stats.length ? `<div class="stats"><div class="wrap"><div class="statrow reveal" style="--n:${stats.length}">${stats.map(([v, l]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div></div></div>` : ''}
 ${highlights.length ? `<section><div class="wrap"><span class="eyebrow">${esc(t.whyKicker)}</span><h2>${esc(t.whyTitle)}</h2><div class="why n${highlights.length}">${highlights.map((h, i) => `<div class="card reveal"><div><span class="no">${String(i + 1).padStart(2, '0')}</span><h3>${esc(h.title)}</h3><p>${esc(h.body)}</p></div></div>`).join('')}</div></div></section>` : ''}
 <section class="about"><div class="wrap"><span class="eyebrow">${esc(t.aboutKicker)}</span><p class="reveal ${about.length <= 300 ? 'big' : ''}">${esc(about)}</p></div></section>
+${story.length ? `<section class="story"><div class="wrap"><span class="eyebrow">${esc(t.storyKicker)}</span><h2>${esc(t.storyTitle)}</h2></div><div class="panels">${story.map((sp, i) => `<article class="pn"><div class="tx"><span class="rule"></span><span class="no">${String(i + 1).padStart(2, '0')}</span>${sp.title ? `<h3>${esc(sp.title)}</h3>` : ''}${sp.caption ? `<p>${esc(sp.caption)}</p>` : ''}</div><div class="im"><img src="${esc(sp.src)}" alt="${esc(sp.title || sp.caption || p.name)}" ${i ? 'loading="lazy" ' : ''}decoding="async" referrerpolicy="no-referrer" /></div></article>`).join('')}</div></section>` : ''}
 ${featured ? `<section class="band"><div class="wrap"><span class="eyebrow">${esc(t.reviewsKicker)}</span>${featured.rating !== null ? `<div class="stars" role="img" aria-label="${featured.rating}/5" style="margin-top:26px">${'★'.repeat(Math.round(featured.rating))}</div>` : ''}<blockquote class="reveal">“${esc(trim(featured.text, 300))}”</blockquote><cite>${esc(featured.author ?? t.patient)}${featured.translated ? ` · ${esc(t.translated)}` : ''}</cite></div></section>` : ''}
-${services ? `<section><div class="wrap"><span class="eyebrow">${esc(t.servicesKicker)}</span><h2>${esc(anyPrice ? t.servicesTitle : t.servicesTitleFree)}</h2><ol class="svc reveal">${services}</ol></div></section>` : ''}
+${services ? `<section><div class="wrap"><span class="eyebrow">${esc(t.servicesKicker)}</span><h2>${esc(anyPrice ? t.servicesTitle : t.servicesTitleFree)}</h2><ol class="svc${iconCards ? ' icons' : ''} reveal">${services}</ol></div></section>` : ''}
 ${gallery ? `<section><div class="wrap"><span class="eyebrow">${esc(t.galleryKicker)}</span><h2>${esc(t.galleryTitle)}</h2><div class="gal reveal n${Math.min(photos.length, 3)}">${gallery}</div></div></section>` : ''}
+${more.length ? `<section><div class="wrap"><span class="eyebrow">${esc(t.detailsKicker)}</span><h2>${esc(t.detailsTitle)}</h2><div class="det reveal">${more.map((m) => `<figure><img src="${esc(m.src)}" alt="${esc(m.caption || p.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />${m.caption ? `<figcaption>${esc(m.caption)}</figcaption>` : ''}</figure>`).join('')}</div></div></section>` : ''}
 ${rest.length ? `<section><div class="wrap"><span class="eyebrow">${esc(t.reviewsKicker)}</span><h2>${esc(t.reviewsTitle)}</h2><div class="rev">${rest.map((r) => `<figure class="reveal">${stars(r)}<blockquote>${esc(trim(r.text, 320))}</blockquote><figcaption>${esc(r.author ?? t.patient)}${r.translated ? ` · ${esc(t.translated)}` : ''}</figcaption></figure>`).join('')}</div></div></section>` : ''}
 <section><div class="wrap"><span class="eyebrow">${esc(t.stepsKicker)}</span><h2>${esc(t.stepsTitle)}</h2><div class="steps">
 <div class="step reveal"><b>01</b><h3>${esc(t.step1)}</h3><p>${esc(whatsapp || d.phone ? t.step1Body : t.step1Alt)}</p></div>
