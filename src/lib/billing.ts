@@ -3,9 +3,11 @@ import { supabase } from './supabase';
 export type PlanKey = 'promoted' | 'featured';
 export type Market = 'us' | 'mx';
 
+export const PLAN_MARKET_KEY = 'ms_plan_market';
+
 /**
- * The four GoHighLevel payment links, one per plan and market. The English site
- * sells in the `us` product, the Spanish site in the `mx` one.
+ * The four GoHighLevel payment links, one per plan and market. Clinics can
+ * choose USD (`us`) or MXN (`mx`) when buying a plan.
  *
  * Changing a price means a new link: replace the URL here, nothing else moves.
  * The server does not care which link was used (api/billing.ts reads the plan
@@ -24,6 +26,31 @@ export const PAYMENT_LINKS: Record<PlanKey, Record<Market, string>> = {
 };
 
 export const marketForLanguage = (lang: string): Market => (lang.toLowerCase().startsWith('es') ? 'mx' : 'us');
+
+/**
+ * Reads the clinic's preferred billing market from localStorage under 'ms_plan_market'.
+ * Returns null if storage fails or the stored value is neither 'us' nor 'mx'.
+ */
+export function readSavedMarket(): Market | null {
+    try {
+        const val = localStorage.getItem(PLAN_MARKET_KEY);
+        if (val === 'us' || val === 'mx') return val;
+    } catch {
+        // Storage access may fail (blocked, quota, private browsing)
+    }
+    return null;
+}
+
+/**
+ * Saves the chosen billing market to localStorage under 'ms_plan_market'.
+ */
+export function saveChosenMarket(market: Market): void {
+    try {
+        localStorage.setItem(PLAN_MARKET_KEY, market);
+    } catch {
+        // Ignore storage write failures
+    }
+}
 
 /**
  * The payment page, pre-filled with the signed-in email (GHL payment links take
@@ -45,8 +72,7 @@ export function checkoutUrl(plan: PlanKey, market: Market, email: string, origin
  * recorded first; if that call fails the payment can still be matched by the
  * account email, so it does not block the purchase.
  */
-export async function startCheckout(providerId: string, plan: PlanKey, lang: string, email: string): Promise<string> {
-    const market = marketForLanguage(lang);
+export async function startCheckout(providerId: string, plan: PlanKey, market: Market, email: string): Promise<string> {
     if (supabase) {
         const { error } = await supabase.rpc('start_plan_checkout', { p_provider: providerId, p_plan: plan, p_market: market });
         if (error) console.error('start_plan_checkout failed:', error.message);

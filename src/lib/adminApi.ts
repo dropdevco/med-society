@@ -155,13 +155,14 @@ export interface BillingSub {
     id: string; provider_id: string; provider_name: string; city: string | null; plan: string; market: string | null;
     status: string; paid_through: string | null; last_payment_at: string | null; last_amount: number | null;
     currency: string | null; payer_email: string | null; ghl_contact_id: string | null; ghl_dirty: boolean;
-    ghl_error: string | null; access: boolean; listing_tier: string;
+    ghl_error: string | null; access: boolean; listing_tier: string; refund_flag: boolean;
 }
 export interface BillingEvent {
     id: string; created_at: string; kind: string; plan: string | null; market: string | null;
     payer_email: string | null; payer_phone?: string | null; ghl_contact_id?: string | null;
     amount?: number | null; currency?: string | null; product?: string | null;
     outcome: string; detail: string | null; match_method?: string | null; provider_name?: string | null;
+    resolved_by?: string | null;
 }
 export interface BillingOverview {
     generated_at: string;
@@ -173,6 +174,7 @@ export interface BillingOverview {
 export const fetchBilling = () => rpc<BillingOverview>('admin_billing_overview');
 export const resolveBillingEvent = (eid: string, pid: string, plan: string | null) =>
     rpc<{ outcome: string; detail?: string }>('admin_resolve_billing_event', { eid, pid, p_plan: plan });
+export const endPlan = (sid: string) => rpc<string>('admin_end_plan', { sid });
 
 export interface FeedbackItem {
     id: string; created_at: string; kind: 'bug' | 'content' | 'idea' | 'other'; message: string;

@@ -59,6 +59,19 @@ Workflow 1 as an extra trigger. If not, nothing is lost: the daily sync reads
 cancellations from GHL, and a cancelled plan runs to the end of the paid month
 either way.
 
+## Refunds
+
+Refunds and cancellations are done by a person, in GHL. A refund does not end the
+plan by itself, because refunding the money and ending the plan are separate
+decisions.
+
+1. Payments > Transactions: refund the payment.
+2. Payments > Subscriptions: cancel the subscription. A refund alone does not stop the next charge.
+3. /admin > Billing shows "Refunded in GHL, plan still active" after the next daily sync.
+4. To stop the plan now, click **End plan now**. To let it run to the end of the paid month, do nothing.
+
+End plan now changes the listing straight away. The GHL tags follow on the next daily sync.
+
 ## Rehearse with test payments, then go live
 
 1. In Vercel add `BILLING_ACCEPT_TEST_MODE` = `1` and redeploy.

@@ -12,6 +12,7 @@ import { AuthShell } from '../components/account/AuthShell';
 import { ClinicProfileForm } from '../components/account/ClinicProfileForm';
 import { ClinicPhotoManager } from '../components/account/ClinicPhotoManager';
 import { ClinicPlanPanel } from '../components/account/ClinicPlanPanel';
+import { ClinicSitePanel, type SiteRow } from '../components/account/ClinicSitePanel';
 import { StatsPanel, StatsSummary } from '../components/account/StatsPanel';
 import { ClinicAvatar } from '../components/account/ClinicAvatar';
 import { ProfileCompleteness } from '../components/account/ProfileCompleteness';
@@ -21,7 +22,7 @@ import { FORUMS_LISTED } from '../lib/forumRoutes';
 import type { CompletenessTarget } from '../utils/profileCompleteness';
 import { IconViews } from '../components/icons/Icons';
 
-type Tab = 'overview' | 'insights' | 'profile' | 'photos' | 'plan';
+type Tab = 'overview' | 'insights' | 'profile' | 'photos' | 'website' | 'plan';
 
 /**
  * What a clinic can actually do once it has claimed a listing — which, until
@@ -41,7 +42,7 @@ export function DashboardPage() {
     // customer back to `?tab=plan&paid=<plan>`. Read once, at mount.
     const [tab, setTab] = useState<Tab>(() => {
         const wanted = params.get('tab');
-        return wanted === 'plan' || wanted === 'insights' ? wanted : 'overview';
+        return wanted === 'plan' || wanted === 'insights' || wanted === 'website' ? wanted : 'overview';
     });
     const planParam = (key: string): PlanKey | null => {
         const v = params.get(key);
@@ -58,6 +59,19 @@ export function DashboardPage() {
     const setDirty = useCallback((d: boolean) => { dirtyRef.current = d; }, []);
 
     const activeClinicId = (owned.find((p) => p.id === activeId) ?? owned[0])?.id ?? null;
+    // The clinic's website, if it has one (a row in doctor_sites). The tab only exists then.
+    const [siteState, setSiteState] = useState<{ id: string; row: SiteRow | null } | null>(null);
+    const [siteNonce, setSiteNonce] = useState(0);
+    const site = siteState && siteState.id === activeClinicId ? siteState.row : null;
+    const reloadSite = () => setSiteNonce((n) => n + 1);
+    useEffect(() => {
+        if (!supabase || !activeClinicId) return;
+        let live = true;
+        void supabase.from('doctor_sites').select('subdomain, status, content').eq('provider_id', activeClinicId).maybeSingle()
+            .then(({ data }) => { if (live) setSiteState({ id: activeClinicId, row: (data as SiteRow | null) ?? null }); });
+        return () => { live = false; };
+    }, [activeClinicId, siteNonce]);
+
     // The listing's analytics, fetched once and shared by the Overview summary and the Insights tab.
     const { stats, loading: statsLoading, error: statsError } = useProviderStats(activeClinicId);
 
@@ -149,9 +163,9 @@ export function DashboardPage() {
     // manual override). It appears by itself the moment that flips; a deep link to
     // it falls back to Overview until then.
     const insightsReady = Boolean(stats?.ready);
-    const visibleTabs = (['overview', 'insights', 'profile', 'photos', 'plan'] as Tab[])
-        .filter((key) => key !== 'insights' || insightsReady);
-    const activeTab: Tab = tab === 'insights' && !insightsReady ? 'overview' : tab;
+    const visibleTabs = (['overview', 'insights', 'profile', 'photos', 'website', 'plan'] as Tab[])
+        .filter((key) => (key !== 'insights' || insightsReady) && (key !== 'website' || site !== null));
+    const activeTab: Tab = (tab === 'insights' && !insightsReady) || (tab === 'website' && site === null) ? 'overview' : tab;
 
     return (
         <ToastProvider>
@@ -253,6 +267,9 @@ export function DashboardPage() {
                     onCountChange={setGalleryCount}
                     onGoToProfile={() => goTo({ tab: 'profile', field: 'acct-avatar' })}
                 />
+            )}
+            {tab === 'website' && site && (
+                <ClinicSitePanel key={clinic.id} clinic={clinic} site={site} onSaved={reloadSite} />
             )}
             {tab === 'plan' && (
                 <ClinicPlanPanel

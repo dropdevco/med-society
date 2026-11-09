@@ -1996,6 +1996,11 @@ select option {
 .acct-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
 
 /* fields */
+.acct-color { width: 100%; height: 44px; padding: 4px; cursor: pointer; background: var(--navy); }
+.acct-color::-webkit-color-swatch-wrapper { padding: 0; }
+.acct-color::-webkit-color-swatch { border: 0; border-radius: 6px; }
+.acct-color::-moz-color-swatch { border: 0; border-radius: 6px; }
+
 .acct-field { display: flex; flex-direction: column; gap: 0.35rem; }
 .acct-field > label { font-size: 0.78rem; font-weight: 700; color: var(--gray-300); }
 .acct-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }

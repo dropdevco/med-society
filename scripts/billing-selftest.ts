@@ -217,7 +217,9 @@ async function main() {
     check('backstop: other products are ignored', eventsFromGhl([tx({ entitySourceName: 'TEST trigger sub' })] as never, [], now).length === 0);
     check('backstop: a 20-day-old charge is not applied as a new payment', eventsFromGhl([tx({ createdAt: ago(20) })] as never, [], now).length === 0);
     const refunded = eventsFromGhl([tx({ createdAt: ago(20), amountRefunded: 49 })] as never, [], now);
-    check('backstop: a refunded charge becomes only a refund event', refunded.length === 1 && refunded[0].kind === 'refunded' && refunded[0].key === 'refunded:ch_1', refunded);
+    check('backstop: a refunded charge only flags the refund', refunded.length === 1 && refunded[0].kind === 'refund_seen' && refunded[0].key === 'refund_seen:ch_1', refunded);
+    const ghlRefund = eventsFromGhl([tx({ status: 'refunded', amountRefunded: 49 })] as never, [], now);
+    check('backstop: GHL\'s real `refunded` status is seen, and is not a payment', ghlRefund.length === 1 && ghlRefund[0].kind === 'refund_seen', ghlRefund);
     check('backstop: a partial refund changes nothing', eventsFromGhl([tx({ amountRefunded: 10 })] as never, [], now).filter((e) => e.kind !== 'payment').length === 0
         && eventsFromGhl([tx({ amountRefunded: 10 })] as never, [], now).length === 0);
     const sub = (o: Record<string, unknown>) => ({ liveMode: true, status: 'canceled', subscriptionId: 'sub_1', contactId: 'c1', contactEmail: 'owner@clinic.com', currency: 'usd', amount: 49, entitySourceName: 'MedSociety Promoted US', recurringProduct: { product: { name: 'MedSociety Promoted' } }, updatedAt: ago(3), ...o });
