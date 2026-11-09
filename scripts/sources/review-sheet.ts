@@ -49,7 +49,7 @@ export function buildSheet(run: Pick<RunRecord, 'id' | 'startedAt' | 'entries'>,
         cells.push('', '', '');
         return cells.map(csvCell).join(',');
     });
-    return `﻿${[header.join(','), ...rows].join('\n')}\n`;
+    return `\ufeff${[header.join(','), ...rows].join('\n')}\n`;
 }
 
 async function main() {
