@@ -459,6 +459,8 @@
       "down": "Move down",
       "hide": "Hide",
       "block": {
+        "conditions": "Conditions I treat",
+        "affiliations": "Hospitals and affiliations",
         "rooms": "The rooms",
         "amenities": "What your stay includes",
         "day": "A typical day",
@@ -475,6 +477,8 @@
         "results": "Results"
       },
       "extraHint": {
+        "conditions": "The conditions patients come to you for, in plain words, with one line on how you approach each.",
+        "affiliations": "Hospitals where you operate or see patients, and professional boards or societies you belong to. Only ones you can show proof of.",
         "rooms": "One card per room type: what it is like and who it suits. Add photos in the Photos section.",
         "amenities": "Care, meals and comforts that come with a stay: nursing hours, meals, transfers, Wi-Fi.",
         "day": "Morning to night, in order. Put the time in the title.",
@@ -486,6 +490,8 @@
       },
       "itemTitle": "Title",
       "itemTitlePh": {
+        "conditions": "e.g. Atrial fibrillation",
+        "affiliations": "e.g. Hospital Angeles Tijuana",
         "rooms": "e.g. Private room with bathroom",
         "amenities": "e.g. Nurse on site 24 hours",
         "day": "e.g. 8:00 Breakfast and medication",

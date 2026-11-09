@@ -459,6 +459,8 @@
       "down": "Bajar",
       "hide": "Ocultar",
       "block": {
+        "conditions": "Qué condiciones atiendo",
+        "affiliations": "Hospitales y afiliaciones",
         "rooms": "Las habitaciones",
         "amenities": "Qué incluye tu estancia",
         "day": "Un día típico",
@@ -475,6 +477,8 @@
         "results": "Resultados"
       },
       "extraHint": {
+        "conditions": "Las condiciones por las que te consultan, en palabras sencillas, con una línea sobre cómo las abordas.",
+        "affiliations": "Hospitales donde operas o atiendes y colegios o sociedades a las que perteneces. Solo las que puedas comprobar.",
         "rooms": "Una tarjeta por tipo de habitación: cómo es y para quién es. Las fotos van en la sección de fotos.",
         "amenities": "Cuidados, comidas y comodidades de la estancia: horas de enfermería, comidas, traslados, Wi-Fi.",
         "day": "De la mañana a la noche, en orden. Pon la hora en el título.",
@@ -486,6 +490,8 @@
       },
       "itemTitle": "Título",
       "itemTitlePh": {
+        "conditions": "p. ej. Fibrilación auricular",
+        "affiliations": "p. ej. Hospital Ángeles Tijuana",
         "rooms": "p. ej. Habitación privada con baño",
         "amenities": "p. ej. Enfermera en sitio las 24 horas",
         "day": "p. ej. 8:00 Desayuno y medicamentos",
