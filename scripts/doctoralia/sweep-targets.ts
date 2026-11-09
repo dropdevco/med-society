@@ -12,6 +12,12 @@
  *   --target=san-diego  US side of San Diego–Tijuana. A fixed English query list
  *                       (the Juárez categories, translated), results go to
  *                       google_places_san_diego (migration 0023).
+ *   --target=juarez-recovery / --target=tijuana-recovery
+ *                       Post-surgery recovery centers ("recovery houses" for
+ *                       medical-tourism patients): a small bilingual query list
+ *                       per city. Juárez lands in google_places_juarez, Tijuana in
+ *                       google_places_tijuana (migration 0039, not applied yet).
+ *                       Collect only; promote-google.ts does not support them yet.
  *
  * The flag is `--target=`, not `--city=`: config.ts owns `--city=` for the
  * Doctoralia scraper and throws on any city it does not know.
@@ -20,7 +26,7 @@
  */
 import type { Specialty } from '../../src/types/provider';
 
-export type TargetId = 'juarez' | 'san-diego';
+export type TargetId = 'juarez' | 'san-diego' | 'juarez-recovery' | 'tijuana-recovery';
 
 export interface BBox {
   minLat: number;
@@ -56,6 +62,8 @@ export interface SweepTarget {
   detailsFields: string;
   /** Drop anything not confirmed to be in the United States (address + country component + border line). */
   requireUs: boolean;
+  /** Mexico side of a border box: drop anything on or north of the border survey line. */
+  requireMx?: boolean;
   /** The `link` / `report` phases match against Doctoralia — Juárez only. */
   doctoraliaLink: boolean;
   estimate: {
@@ -137,7 +145,45 @@ const SAN_DIEGO: SweepTarget = {
   provider: { country: 'US', defaultCity: 'San Diego', cityFromLocality: true },
 };
 
-export const TARGETS: Record<TargetId, SweepTarget> = { juarez: JUAREZ, 'san-diego': SAN_DIEGO };
+// ── Post-surgery recovery centers (Tijuana, Juárez) ─────────────────────────
+
+const JUAREZ_RECOVERY: SweepTarget = {
+  ...JUAREZ,
+  id: 'juarez-recovery',
+  label: 'Ciudad Juárez — recovery centers',
+  querySource: 'static',
+  textSearchExtra: '&language=es&region=mx',
+  doctoraliaLink: false,
+  // Few, niche results per query and heavy overlap between the Spanish and English phrasings.
+  estimate: { searchesPerQuery: 1.3, newPlacesPerQuery: 3 },
+};
+
+/**
+ * Tijuana incl. Playas de Tijuana, La Mesa, Zona Río, Otay and the Tecate road.
+ * The north edge reaches San Diego at the coast, so `requireMx` (south of the
+ * border survey line, non-US address) is what actually decides.
+ */
+const TIJUANA_RECOVERY: SweepTarget = {
+  ...JUAREZ,
+  id: 'tijuana-recovery',
+  label: 'Tijuana — recovery centers',
+  boxLabel: 'Tijuana',
+  table: 'google_places_tijuana',
+  bbox: { minLat: 32.3, maxLat: 32.56, minLng: -117.13, maxLng: -116.6 },
+  querySource: 'static',
+  textSearchExtra: '&language=es&region=mx',
+  requireMx: true,
+  doctoraliaLink: false,
+  estimate: { searchesPerQuery: 1.3, newPlacesPerQuery: 4 },
+  provider: { country: 'MX', defaultCity: 'Tijuana', cityFromLocality: false },
+};
+
+export const TARGETS: Record<TargetId, SweepTarget> = {
+  juarez: JUAREZ,
+  'san-diego': SAN_DIEGO,
+  'juarez-recovery': JUAREZ_RECOVERY,
+  'tijuana-recovery': TIJUANA_RECOVERY,
+};
 
 export function resolveTarget(argv: string[]): SweepTarget {
   const id = argv.find((a) => a.startsWith('--target='))?.split('=')[1] ?? 'juarez';
@@ -255,7 +301,44 @@ const SD_CATEGORIES: Category[] = [
   { q: 'medical center', specialty: ['general'], generic: true },
 ];
 
+/**
+ * Recovery-center phrasings, Spanish and English; patients travelling for
+ * surgery search in both. Listings are filed under `general` (there is no
+ * recovery specialty), so `found_via` is the only marker until one is chosen.
+ */
+const RECOVERY_TERMS_ES = [
+  'centro de recuperación posoperatoria',
+  'casa de recuperación posoperatoria',
+  'casa de recuperación cirugía plástica',
+  'casa de recuperación cirugía bariátrica',
+  'casa de recuperación cirugía estética',
+  'hospedaje para recuperación después de cirugía',
+  'hotel de recuperación posquirúrgica',
+  'cuidados posoperatorios con enfermera',
+];
+const RECOVERY_TERMS_EN = [
+  'post-op recovery house',
+  'recovery house after plastic surgery',
+  'bariatric surgery recovery house',
+  'cosmetic surgery recovery center',
+  'post surgery recovery center',
+  'aftercare recovery home after surgery',
+];
+
+const RECOVERY_AREAS = {
+  'juarez-recovery': { es: 'Ciudad Juárez, Chihuahua', en: 'Ciudad Juarez, Mexico', lat: JUAREZ_CENTER.lat, lng: JUAREZ_CENTER.lng, radiusM: JUAREZ_RADIUS_M },
+  'tijuana-recovery': { es: 'Tijuana, Baja California', en: 'Tijuana, Mexico', lat: 32.5, lng: -117.01, radiusM: 20_000 },
+} as const;
+
 export function buildStaticQueries(target: SweepTarget): SweepQuery[] {
+  if (target.id === 'juarez-recovery' || target.id === 'tijuana-recovery') {
+    const a = RECOVERY_AREAS[target.id];
+    const mk = (text: string): SweepQuery => ({ text, lat: a.lat, lng: a.lng, radiusM: a.radiusM, specialty: ['general'] });
+    return [
+      ...RECOVERY_TERMS_ES.map((t) => mk(`${t} en ${a.es}`)),
+      ...RECOVERY_TERMS_EN.map((t) => mk(`${t} in ${a.en}`)),
+    ];
+  }
   if (target.id !== 'san-diego') throw new Error(`${target.id} has no static query list`);
   const out: SweepQuery[] = [];
   for (const c of SD_CATEGORIES) {

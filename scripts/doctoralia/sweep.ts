@@ -22,6 +22,8 @@
  *         --refetch           ignore the cached Places responses
  *         --target=san-diego  sweep the US side of San Diego–Tijuana instead
  *                             (default: juarez — unchanged). See sweep-targets.ts.
+ *         --target=tijuana-recovery | juarez-recovery
+ *                             post-surgery recovery centers (static bilingual list)
  *         --estimate          print the query count and cost estimate with the
  *                             network disabled: no Google, no Supabase, no keys
  *                             needed. Needs a target with a static query list
@@ -332,6 +334,11 @@ async function collect() {
       if (typeof lat !== 'number' || typeof lng !== 'number' || !r.place_id) continue;
       if (!inTargetBox(lat, lng)) continue; // Google drifts to other cities on thin queries
       // San Diego: Google happily answers "dentist in San Ysidro" with Tijuana.
+      // Tijuana: the mirror image — the box reaches San Diego, so keep the south side only.
+      if (target.requireMx && (usSideOfBorder(lat, lng) || looksLikeUsAddress(r.formatted_address))) {
+        droppedNotUs++;
+        continue;
+      }
       if (target.requireUs && (!usSideOfBorder(lat, lng) || !looksLikeUsAddress(r.formatted_address))) {
         droppedNotUs++;
         continue;
@@ -367,6 +374,7 @@ async function collect() {
 
   console.log(`\n\n  ${found.size} unique places in the ${target.boxLabel} bounding box`);
   if (target.requireUs) console.log(`  (${droppedNotUs} search results dropped as not US-side)`);
+  if (target.requireMx) console.log(`  (${droppedNotUs} search results dropped as US-side)`);
   console.log('  fetching contact details…');
 
   const rows = [...found.values()];
