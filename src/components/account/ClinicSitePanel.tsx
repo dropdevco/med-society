@@ -5,17 +5,19 @@ import { supabase } from '../../lib/supabase';
 import { downscale, validateImageFile, ACCEPTED_IMAGE_TYPES } from '../../utils/imageResize';
 import { clinicPublicUrl, uploadClinicFile } from './uploadWithProgress';
 import { useToast } from './toastContext';
+import { SiteBriefForm, type BriefContent } from './SiteBriefForm';
 
 type Loc = Partial<Record<'es' | 'en', string>>;
 interface StoryItem { src: string; title?: Loc; caption?: Loc }
 interface SiteImages { hero?: string; story?: StoryItem[]; more?: unknown[] }
+interface Found { accent?: string; ink?: string; warm?: string; logo?: string; images: string[] }
 interface Brand { bg?: string; soft?: string; accent?: string; ink?: string; warm?: string; logo?: string }
 export interface SiteRow {
     subdomain: string;
     status: 'preview' | 'active' | 'suspended';
-    content: {
+    content: ({
         headline?: Loc; lead?: Loc; about?: Loc; brand?: Brand; images?: SiteImages;
-    } | null;
+    } & BriefContent) | null;
 }
 
 const SITE_ROOT = 'medsociety.one';
@@ -55,6 +57,9 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
     const [story, setStory] = useState<StoryItem[]>(c.images?.story ?? []);
     const [hero, setHero] = useState(c.images?.hero ?? '');
     const [busy, setBusy] = useState<'save' | 'photo' | 'logo' | null>(null);
+    const [reading, setReading] = useState(false);
+    const [found, setFound] = useState<Found | null>(null);
+    const [grabNote, setGrabNote] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const logoRef = useRef<HTMLInputElement>(null);
@@ -91,6 +96,43 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
         if (src) setLogo(src);
         setBusy(null);
         if (logoRef.current) logoRef.current.value = '';
+    };
+
+    /** Asks the server to read the website on the listing. Suggestions only: nothing is applied or saved yet. */
+    const readWebsite = async () => {
+        if (!supabase) return;
+        setError(null); setGrabNote(null); setFound(null); setReading(true);
+        try {
+            const { data: sess } = await supabase.auth.getSession();
+            const token = sess.session?.access_token;
+            if (!token) { setError(t('account.site.grab.signIn')); return; }
+            const r = await fetch('/api/agent?route=site-grab', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ provider_id: clinic.id }),
+            });
+            const j = (await r.json().catch(() => null)) as { found?: Found | null; reason?: string; error?: { message?: string } } | null;
+            if (!r.ok) { setError(j?.error?.message ?? t('account.site.grab.failed')); return; }
+            if (!j?.found) { setGrabNote(t(j?.reason === 'no_website' ? 'account.site.grab.noSite' : 'account.site.grab.unreachable')); return; }
+            const f = j.found;
+            if (!f.accent && !f.logo && !f.images.length) { setGrabNote(t('account.site.grab.none')); return; }
+            setFound(f);
+        } catch {
+            setError(t('account.site.grab.failed'));
+        } finally {
+            setReading(false);
+        }
+    };
+    const useColours = () => {
+        if (!found) return;
+        if (found.accent && HEX.test(found.accent)) setAccent(found.accent);
+        if (found.ink && HEX.test(found.ink)) setInk(found.ink);
+        if (found.warm && HEX.test(found.warm)) setWarm(found.warm);
+    };
+    const addFound = (src: string) => {
+        if (story.length >= MAX_STORY || story.some((x) => x.src === src)) return;
+        setStory((s) => [...s, { src }]);
+        if (!hero) setHero(src);
     };
 
     const move = (i: number, d: -1 | 1) => setStory((s) => {
@@ -142,9 +184,53 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
                 <p className="acct-row"><a href={url} target="_blank" rel="noreferrer" className="acct-link">{url}</a></p>
             </section>
 
+            <SiteBriefForm clinic={clinic} content={c} onSaved={onSaved} />
+
             <section className="acct-card">
                 <h2 className="acct-card-title">{t('account.site.brand')}</h2>
                 <p className="acct-muted">{t('account.site.brandHint')}</p>
+                <div className="acct-row">
+                    <button type="button" className="acct-btn acct-btn--ghost" disabled={reading || busy !== null} onClick={() => void readWebsite()}>
+                        {reading ? t('account.site.grab.reading') : t('account.site.grab.read')}
+                    </button>
+                    <span className="acct-fine">{t('account.site.grab.hint')}</span>
+                </div>
+                {grabNote && <p className="acct-muted" role="status">{grabNote}</p>}
+                {found && (
+                    <div className="acct-field" aria-live="polite">
+                        <strong>{t('account.site.grab.title')}</strong>
+                        {(found.accent || found.ink) && (
+                            <div className="acct-row">
+                                {[found.accent, found.ink, found.warm].filter((x): x is string => !!x).map((x) => (
+                                    <span key={x} title={x} style={{ width: 28, height: 28, borderRadius: 6, background: x, border: '1px solid rgba(0,0,0,.2)', display: 'inline-block' }} />
+                                ))}
+                                <button type="button" className="acct-btn acct-btn--sm" onClick={useColours}>{t('account.site.grab.colours')}</button>
+                            </div>
+                        )}
+                        {found.logo && (
+                            <div className="acct-row">
+                                <img src={found.logo} alt="" referrerPolicy="no-referrer" style={{ maxHeight: 40, maxWidth: 200, objectFit: 'contain', background: '#fff', borderRadius: 8, padding: 6 }} />
+                                <button type="button" className="acct-btn acct-btn--sm" onClick={() => setLogo(found.logo!)}>{t('account.site.grab.logo')}</button>
+                            </div>
+                        )}
+                        {found.images.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
+                                {found.images.map((src) => {
+                                    const taken = story.some((x) => x.src === src);
+                                    return (
+                                        <div key={src} style={{ display: 'grid', gap: 4 }}>
+                                            <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 8 }} />
+                                            <button type="button" className="acct-btn acct-btn--sm acct-btn--ghost" disabled={taken || story.length >= MAX_STORY} onClick={() => addFound(src)}>
+                                                {taken ? t('account.site.grab.added') : t('account.site.grab.addPhoto')}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        <p className="acct-fine">{t('account.site.grab.note')}</p>
+                    </div>
+                )}
                 <div className="acct-grid2">
                     <div className="acct-field"><label htmlFor="site-accent">{t('account.site.accent')}</label>
                         <input id="site-accent" className="acct-color" type="color" value={HEX.test(accent) ? accent : '#000000'} onChange={(e) => setAccent(e.target.value)} /></div>

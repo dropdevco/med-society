@@ -124,6 +124,62 @@ Photos upload to `clinic-photos/<provider_id>/site/`. Saving calls `update_my_si
 stays `preview` until the team sets it to `active`. A text written in one language only is shown in
 both. Still to build: the GHL email that links to this tab after the plan is bought.
 
+## The brief: what the client wants on the site
+
+The intake is a brief, not a profile. It records what the client wants to *emphasize*, because
+the same facts sell a recovery center and a cardiologist very differently. It has three layers.
+
+**1. Core, asked of everyone** (about 10 questions): the first thing a visitor should do (WhatsApp
+or call), the ideal patient, what that patient worries about before choosing (these become the FAQ),
+what makes the practice different in one sentence, the three things they are proudest of, tone,
+colours, logo, hours, languages, contact. Prefilled from the listing and, later, from their
+existing website, so the client confirms instead of typing.
+
+**2. A module per archetype.** Six groups, not thirty forms. The archetype comes from the
+specialty (`SITE_ARCHETYPE_OF`) unless the brief sets it (a recovery center is filed under
+"general", so it is set to `stay`).
+
+| Archetype | Specialties | Asked beyond the core |
+|---|---|---|
+| `stay` | recovery centers, rehab | rooms, amenities, a typical day, nursing coverage, what is included, packages, guest reviews |
+| `specialist` | cardiology, gastro, neurology, orthopedics, ENT, ob/gyn | training and credentials, procedures, technology and equipment, conditions treated, affiliations |
+| `procedures` | plastic surgery, aesthetics, orthodontics | procedure menu, recovery timeline, financing or travel packages, before and after (with consent) |
+| `routine` | dentist, optometry, pediatrics, general, urgent care, telehealth | services and prices, insurance, same-day availability, family-friendliness |
+| `therapy` | mental health, physical therapy, massage | approach, who it helps, session format, what the first visit is like, online sessions |
+| `multi` | pharmacy, multi-provider clinics | team, locations, services by area |
+
+**3. Priorities, which become the layout.** The client ranks the blocks (drag to order, top 3
+marked as featured, any can be hidden). Each archetype has a default order (`SITE_PRIORITIES`), so a
+client who skips the ranking still gets a sensible site. Ranking, not 1 to 10 scores, because
+people rate everything a 10.
+
+```json
+{
+  "brief":  { "archetype": "stay", "priorities": ["photos", "reviews", "services"], "hidden": ["steps"], "cta": "whatsapp" },
+  "blocks": [{ "key": "credentials", "title": { "es": "…" }, "items": { "es": [{ "title": "…", "body": "…" }] } }]
+}
+```
+
+Block keys: `photos` (story, details, gallery), `reviews` (featured quote, wall), `services`,
+`about` (the "why choose us" cards and the about text), `steps`, `faq` (location and questions),
+and the proof blocks `credentials`, `technology`, `results`, `team`, plus the recovery-center ones
+`rooms`, `amenities`, `day` (a typical day), `packages`, and the specialist ones `conditions`,
+`affiliations`, and `recovery`, `financing` (procedures), `approach`, `sessions` (therapy), `access` (routine care),
+which the listing cannot supply
+and so live in `content.blocks`. The hero, the stats strip, the closing call to action and the footer
+are fixed. The long sticky photo sequence only shows when `photos` ranks in the owner's top four;
+otherwise only the details grid and gallery show. `cta` picks which button leads.
+
+**The questionnaire** is `SiteBriefForm` at the top of the dashboard Website tab: kind of practice, first action, the ranking (drag or arrows, top 3 marked featured, a Hide box per block), the proof blocks that fit the archetype, a confirmation the owner must tick before saving any Results, and four free-text answers (ideal patient, worries, what is different, proudest of) stored in `brief.answers` for the copywriting step. It saves through `update_my_site`, whose whitelist migration 0037 widens to `brief` and `blocks`. The archetype defaults are duplicated in `src/utils/siteBrief.ts` to pre-fill the form; `api/agent.ts` is the authority.
+
+**The copy step** is `POST /api/agent?route=site-copy` (in `api/agent.ts`, because `api/` is at the function limit). It needs the owner's own session token: it checks the user, then asks the database, with that token, whether they own the listing. It builds a facts sheet from the listing and the brief, asks a model through OpenRouter (`OPENROUTER_API_KEY`, already set; model `SITE_COPY_MODEL`, default `anthropic/claude-sonnet-4.5`) for Spanish and English text, and returns a DRAFT. Nothing is saved by the route. The dashboard shows the draft in both languages, lists any number or superlative that is not in the facts as a warning, and writes it through `update_my_site` only when the owner presses Approve (migration 0038 allows `highlights` and `faq`). Limits: five drafts per owner per ten minutes. The email that sends owners to this form is in `ghl-site-email.md`.
+
+**Claims.** Results, "most advanced" and guarantees are regulated in medical advertising. The form
+must make the owner confirm each such claim can be supported, ask for something checkable (years of
+practice, number of procedures) not superlatives, and require a consent checkbox for before and
+after photos. Have someone qualified confirm the rules for Mexico before the `results` block is
+offered to clients.
+
 ## Review checklist before a site goes live
 
 - [ ] The doctor agreed to have a site.
