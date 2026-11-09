@@ -7,7 +7,7 @@
  * pre-fills the form so what the owner sees matches what the site will do.
  */
 export type Archetype = 'stay' | 'specialist' | 'procedures' | 'routine' | 'therapy' | 'multi';
-export type ExtraKey = 'rooms' | 'amenities' | 'day' | 'packages' | 'conditions' | 'affiliations' | 'credentials' | 'technology' | 'results' | 'team';
+export type ExtraKey = 'rooms' | 'amenities' | 'day' | 'packages' | 'conditions' | 'affiliations' | 'recovery' | 'financing' | 'approach' | 'sessions' | 'access' | 'credentials' | 'technology' | 'results' | 'team';
 
 export const ARCHETYPES: Archetype[] = ['stay', 'specialist', 'procedures', 'routine', 'therapy', 'multi'];
 
@@ -22,9 +22,9 @@ export const ARCHETYPE_OF: Record<string, Archetype> = {
 export const PRIORITIES: Record<Archetype, string[]> = {
     stay: ['photos', 'rooms', 'reviews', 'amenities', 'day', 'packages', 'services', 'about', 'team', 'steps', 'faq'],
     specialist: ['credentials', 'technology', 'conditions', 'about', 'services', 'reviews', 'results', 'affiliations', 'team', 'faq', 'photos', 'steps'],
-    procedures: ['results', 'photos', 'services', 'credentials', 'reviews', 'about', 'steps', 'faq'],
-    routine: ['services', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
-    therapy: ['about', 'services', 'reviews', 'credentials', 'steps', 'faq', 'photos'],
+    procedures: ['results', 'photos', 'services', 'recovery', 'credentials', 'financing', 'reviews', 'about', 'steps', 'faq'],
+    routine: ['services', 'access', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
+    therapy: ['about', 'approach', 'sessions', 'services', 'reviews', 'credentials', 'steps', 'faq', 'photos'],
     multi: ['services', 'team', 'photos', 'reviews', 'about', 'faq', 'steps'],
 };
 
@@ -32,13 +32,13 @@ export const PRIORITIES: Record<Archetype, string[]> = {
 export const EXTRAS_FOR: Record<Archetype, ExtraKey[]> = {
     stay: ['rooms', 'amenities', 'day', 'packages', 'team'],
     specialist: ['credentials', 'technology', 'conditions', 'affiliations', 'results'],
-    procedures: ['credentials', 'results'],
-    routine: ['team'],
-    therapy: ['credentials'],
+    procedures: ['credentials', 'results', 'recovery', 'financing'],
+    routine: ['team', 'access'],
+    therapy: ['credentials', 'approach', 'sessions'],
     multi: ['team'],
 };
 
-export const EXTRA_KEYS: ExtraKey[] = ['rooms', 'amenities', 'day', 'packages', 'conditions', 'affiliations', 'credentials', 'technology', 'results', 'team'];
+export const EXTRA_KEYS: ExtraKey[] = ['rooms', 'amenities', 'day', 'packages', 'conditions', 'affiliations', 'recovery', 'financing', 'approach', 'sessions', 'access', 'credentials', 'technology', 'results', 'team'];
 
 /** The saved order, then anything the archetype lists that the owner never ranked. */
 export function orderFor(archetype: Archetype, saved: string[] | undefined): string[] {

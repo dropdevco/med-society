@@ -459,6 +459,11 @@
       "down": "Move down",
       "hide": "Hide",
       "block": {
+        "recovery": "Recovery",
+        "financing": "Payment and financing",
+        "approach": "My approach",
+        "sessions": "What a session is like",
+        "access": "How to be seen",
         "conditions": "Conditions I treat",
         "affiliations": "Hospitals and affiliations",
         "rooms": "The rooms",
@@ -477,6 +482,11 @@
         "results": "Results"
       },
       "extraHint": {
+        "recovery": "What happens after: downtime, follow-up visits, when people return to normal life. Steps in order.",
+        "financing": "Payment plans, accepted cards, deposits. Only what you really offer.",
+        "approach": "How you work and what you believe in, in plain words. One idea per card.",
+        "sessions": "Length, format, online or in person, what the first visit involves.",
+        "access": "Walk-in, same-day visits, telehealth, hours, languages: how a new patient gets seen.",
         "conditions": "The conditions patients come to you for, in plain words, with one line on how you approach each.",
         "affiliations": "Hospitals where you operate or see patients, and professional boards or societies you belong to. Only ones you can show proof of.",
         "rooms": "One card per room type: what it is like and who it suits. Add photos in the Photos section.",
@@ -490,6 +500,11 @@
       },
       "itemTitle": "Title",
       "itemTitlePh": {
+        "recovery": "e.g. Days 1 to 3: rest at the center",
+        "financing": "e.g. Payment in installments",
+        "approach": "e.g. Gentle, step-by-step care",
+        "sessions": "e.g. First visit, 50 minutes",
+        "access": "e.g. Same-day appointments",
         "conditions": "e.g. Atrial fibrillation",
         "affiliations": "e.g. Hospital Angeles Tijuana",
         "rooms": "e.g. Private room with bathroom",

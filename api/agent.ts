@@ -2688,7 +2688,7 @@ interface DoctorSite {
 
 /** The six kinds of practice a brief is shaped by (docs/doctor-sites.md, "The brief"). */
 type Archetype = 'stay' | 'specialist' | 'procedures' | 'routine' | 'therapy' | 'multi';
-type ExtraKey = 'rooms' | 'amenities' | 'day' | 'packages' | 'conditions' | 'affiliations' | 'credentials' | 'technology' | 'results' | 'team';
+type ExtraKey = 'rooms' | 'amenities' | 'day' | 'packages' | 'conditions' | 'affiliations' | 'recovery' | 'financing' | 'approach' | 'sessions' | 'access' | 'credentials' | 'technology' | 'results' | 'team';
 
 /**
  * What a doctor's site says that the listing does not. Everything is optional:
@@ -2858,14 +2858,14 @@ const SITE_ARCHETYPE_OF: Record<string, Archetype> = {
     mental_health: 'therapy', physical_therapy: 'therapy', massage: 'therapy',
     pharmacy: 'multi',
 };
-const SITE_EXTRA_KEYS: string[] = ['rooms', 'amenities', 'day', 'packages', 'conditions', 'affiliations', 'credentials', 'technology', 'results', 'team'];
+const SITE_EXTRA_KEYS: string[] = ['rooms', 'amenities', 'day', 'packages', 'conditions', 'affiliations', 'recovery', 'financing', 'approach', 'sessions', 'access', 'credentials', 'technology', 'results', 'team'];
 /** Block order when the owner has not ranked them, per archetype. `about` includes the "why choose us" cards. */
 const SITE_PRIORITIES: Record<Archetype, string[]> = {
     stay: ['photos', 'rooms', 'reviews', 'amenities', 'day', 'packages', 'services', 'about', 'team', 'steps', 'faq'],
     specialist: ['credentials', 'technology', 'conditions', 'about', 'services', 'reviews', 'results', 'affiliations', 'team', 'faq', 'photos', 'steps'],
-    procedures: ['results', 'photos', 'services', 'credentials', 'reviews', 'about', 'steps', 'faq'],
-    routine: ['services', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
-    therapy: ['about', 'services', 'reviews', 'credentials', 'steps', 'faq', 'photos'],
+    procedures: ['results', 'photos', 'services', 'recovery', 'credentials', 'financing', 'reviews', 'about', 'steps', 'faq'],
+    routine: ['services', 'access', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
+    therapy: ['about', 'approach', 'sessions', 'services', 'reviews', 'credentials', 'steps', 'faq', 'photos'],
     multi: ['services', 'team', 'photos', 'reviews', 'about', 'faq', 'steps'],
 };
 const SITE_EXTRA_TITLES: Record<ExtraKey, Record<Lang, string>> = {
@@ -2873,6 +2873,11 @@ const SITE_EXTRA_TITLES: Record<ExtraKey, Record<Lang, string>> = {
     amenities: { es: 'Qué incluye tu estancia', en: 'What your stay includes' },
     day: { es: 'Un día típico', en: 'A typical day' },
     packages: { es: 'Paquetes', en: 'Packages' },
+    recovery: { es: 'La recuperación', en: 'Recovery' },
+    financing: { es: 'Formas de pago', en: 'Payment and financing' },
+    approach: { es: 'Mi enfoque', en: 'My approach' },
+    sessions: { es: 'Cómo es una sesión', en: 'What a session is like' },
+    access: { es: 'Cómo atenderte', en: 'How to be seen' },
     conditions: { es: 'Qué condiciones atiendo', en: 'Conditions I treat' },
     affiliations: { es: 'Hospitales y afiliaciones', en: 'Hospitals and affiliations' },
     credentials: { es: 'Formación y experiencia', en: 'Training and experience' },

@@ -459,6 +459,11 @@
       "down": "Bajar",
       "hide": "Ocultar",
       "block": {
+        "recovery": "La recuperación",
+        "financing": "Formas de pago",
+        "approach": "Mi enfoque",
+        "sessions": "Cómo es una sesión",
+        "access": "Cómo atenderte",
         "conditions": "Qué condiciones atiendo",
         "affiliations": "Hospitales y afiliaciones",
         "rooms": "Las habitaciones",
@@ -477,6 +482,11 @@
         "results": "Resultados"
       },
       "extraHint": {
+        "recovery": "Qué pasa después: reposo, revisiones, cuándo se regresa a la vida normal. Pasos en orden.",
+        "financing": "Pagos a plazos, tarjetas aceptadas, anticipos. Solo lo que realmente ofreces.",
+        "approach": "Cómo trabajas y en qué crees, en palabras sencillas. Una idea por tarjeta.",
+        "sessions": "Duración, formato, en línea o presencial, qué incluye la primera visita.",
+        "access": "Sin cita, mismo día, telemedicina, horarios, idiomas: cómo se atiende a un paciente nuevo.",
         "conditions": "Las condiciones por las que te consultan, en palabras sencillas, con una línea sobre cómo las abordas.",
         "affiliations": "Hospitales donde operas o atiendes y colegios o sociedades a las que perteneces. Solo las que puedas comprobar.",
         "rooms": "Una tarjeta por tipo de habitación: cómo es y para quién es. Las fotos van en la sección de fotos.",
@@ -490,6 +500,11 @@
       },
       "itemTitle": "Título",
       "itemTitlePh": {
+        "recovery": "p. ej. Días 1 a 3: reposo en el centro",
+        "financing": "p. ej. Pago en mensualidades",
+        "approach": "p. ej. Atención gentil, paso a paso",
+        "sessions": "p. ej. Primera visita, 50 minutos",
+        "access": "p. ej. Citas el mismo día",
         "conditions": "p. ej. Fibrilación auricular",
         "affiliations": "p. ej. Hospital Ángeles Tijuana",
         "rooms": "p. ej. Habitación privada con baño",
