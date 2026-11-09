@@ -453,10 +453,11 @@
       "ctaWhatsapp": "Write to us on WhatsApp",
       "ctaCall": "Call us",
       "rank": "What matters most on your site?",
-      "rankHint": "Drag to reorder, or use the arrows. The first {{count}} are featured. Tick Hide for anything you do not want shown.",
+      "rankHint": "Drag to reorder, or use the arrows. The first {{count}} are featured. Switch off anything you do not want shown.",
       "featured": "Featured",
       "up": "Move up",
       "down": "Move down",
+      "show": "Show",
       "hide": "Hide",
       "block": {
         "recovery": "Recovery",

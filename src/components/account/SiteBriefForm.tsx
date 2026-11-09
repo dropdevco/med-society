@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { supabase } from '../../lib/supabase';
@@ -22,6 +22,23 @@ interface Draft {
     about: Record<Lang, string>;
     highlights: Record<Lang, Item[]>;
     faq: Record<Lang, { q: string; a: string }[]>;
+}
+
+/** A textarea that grows with what is typed (no drag handle, no inner scroll) and counts characters. */
+function AutoArea({ value, max, onValue, ...rest }: { value: string; max: number; onValue: (v: string) => void } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange' | 'maxLength'>) {
+    const ref = useRef<HTMLTextAreaElement>(null);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [value]);
+    return (
+        <div className="sb-area-wrap">
+            <textarea ref={ref} className="sb-area" rows={2} maxLength={max} value={value} onChange={(e) => onValue(e.target.value)} {...rest} />
+            {value.length > max * 0.7 && <span className="sb-count">{value.length}/{max}</span>}
+        </div>
+    );
 }
 
 const MAX_ITEMS = 6;
@@ -52,6 +69,7 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     const [attested, setAttested] = useState(false);
     const [dragKey, setDragKey] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [drafting, setDrafting] = useState(false);
     const [draft, setDraft] = useState<Draft | null>(null);
@@ -64,7 +82,9 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
         setOrder(orderFor(a, undefined));
         setHidden([]);
     };
-    const shown = order.filter((k) => !hidden.includes(k));
+    // A proof block nobody has filled in has nothing to rank: it would not appear on the site anyway.
+    const listed = order.filter((k) => !(EXTRA_KEYS as string[]).includes(k) || (extras[k]?.length ?? 0) > 0);
+    const shown = listed.filter((k) => !hidden.includes(k));
     const featured = new Set(shown.slice(0, FEATURED));
     const move = (key: string, to: number) => setOrder((o) => {
         const from = o.indexOf(key);
@@ -105,6 +125,8 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
         setBusy(false);
         if (!ok) return;
         toast(t('account.site.saved'));
+        setJustSaved(true);
+        window.setTimeout(() => setJustSaved(false), 3000);
         onSaved();
     };
 
@@ -150,7 +172,7 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     const field = (k: keyof NonNullable<typeof answers>, max = 400) => (
         <div className="acct-field" key={k}>
             <label htmlFor={`brief-${k}`}>{t(`account.site.brief.q.${k}`)}</label>
-            <textarea id={`brief-${k}`} rows={3} maxLength={max} value={answers[k] ?? ''} onChange={(e) => setAnswers((a) => ({ ...a, [k]: e.target.value }))} />
+            <AutoArea id={`brief-${k}`} value={answers[k] ?? ''} max={max} onValue={(v) => setAnswers((a) => ({ ...a, [k]: v }))} />
             <p className="acct-hint">{t(`account.site.brief.q.${k}Hint`)}</p>
         </div>
     );
@@ -160,44 +182,54 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
             <section className="acct-card">
                 <h2 className="acct-card-title">{t('account.site.brief.kind')}</h2>
                 <p className="acct-muted">{t('account.site.brief.kindHint')}</p>
-                <div className="acct-field">
-                    <label htmlFor="brief-arch">{t('account.site.brief.kindLabel')}</label>
-                    <select id="brief-arch" value={archetype} onChange={(e) => changeArchetype(e.target.value as Archetype)}>
-                        {ARCHETYPES.map((a) => <option key={a} value={a}>{t(`account.site.brief.arch.${a}`)}</option>)}
-                    </select>
-                    <p className="acct-hint">{t(`account.site.brief.archHint.${archetype}`)}</p>
+                <div className="sb-cards" role="radiogroup" aria-label={t('account.site.brief.kindLabel')}>
+                    {ARCHETYPES.map((a) => (
+                        <label key={a} className="sb-card">
+                            <input type="radio" name="brief-arch" checked={archetype === a} onChange={() => changeArchetype(a)} />
+                            <b>{t(`account.site.brief.arch.${a}`)}</b>
+                            <span>{t(`account.site.brief.archHint.${a}`)}</span>
+                        </label>
+                    ))}
                 </div>
-                <fieldset className="acct-field" style={{ border: 0, padding: 0, margin: 0 }}>
-                    <legend className="acct-fine" style={{ fontWeight: 700, marginBottom: 6 }}>{t('account.site.brief.cta')}</legend>
-                    <label className="acct-row" style={{ gap: 8 }}><input type="radio" name="brief-cta" style={{ width: 'auto' }} checked={cta === 'whatsapp'} onChange={() => setCta('whatsapp')} />{t('account.site.brief.ctaWhatsapp')}</label>
-                    <label className="acct-row" style={{ gap: 8 }}><input type="radio" name="brief-cta" style={{ width: 'auto' }} checked={cta === 'call'} onChange={() => setCta('call')} />{t('account.site.brief.ctaCall')}</label>
+                <fieldset className="sb-fieldset">
+                    <legend>{t('account.site.brief.cta')}</legend>
+                    <div className="sb-cards sb-cards--two">
+                        <label className="sb-card"><input type="radio" name="brief-cta" checked={cta === 'whatsapp'} onChange={() => setCta('whatsapp')} /><b>{t('account.site.brief.ctaWhatsapp')}</b></label>
+                        <label className="sb-card"><input type="radio" name="brief-cta" checked={cta === 'call'} onChange={() => setCta('call')} /><b>{t('account.site.brief.ctaCall')}</b></label>
+                    </div>
                 </fieldset>
             </section>
 
             <section className="acct-card">
                 <h2 className="acct-card-title">{t('account.site.brief.rank')}</h2>
                 <p className="acct-muted">{t('account.site.brief.rankHint', { count: FEATURED })}</p>
-                <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
-                    {order.map((k, i) => (
-                        <li
-                            key={k}
-                            draggable
-                            onDragStart={() => setDragKey(k)}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={() => { if (dragKey && dragKey !== k) move(dragKey, i); setDragKey(null); }}
-                            className="acct-row"
-                            style={{ padding: '0.55rem 0.8rem', border: '1px solid var(--border)', borderRadius: 12, opacity: hidden.includes(k) ? 0.5 : 1, cursor: 'grab', flexWrap: 'nowrap' }}
-                        >
-                            <span aria-hidden style={{ color: 'var(--gray-500)' }}>⋮⋮</span>
-                            <strong style={{ flex: 1 }}>{t(`account.site.brief.block.${k}`)}</strong>
-                            {featured.has(k) && <span className="acct-pill">{t('account.site.brief.featured')}</span>}
-                            <button type="button" className="acct-link" aria-label={t('account.site.brief.up')} disabled={i === 0} onClick={() => move(k, i - 1)}>↑</button>
-                            <button type="button" className="acct-link" aria-label={t('account.site.brief.down')} disabled={i === order.length - 1} onClick={() => move(k, i + 1)}>↓</button>
-                            <label className="acct-fine" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                <input type="checkbox" style={{ width: 'auto', margin: 0 }} checked={hidden.includes(k)} onChange={() => toggleHidden(k)} />{t('account.site.brief.hide')}
-                            </label>
-                        </li>
-                    ))}
+                <ol className="sb-rank">
+                    {listed.map((k, i) => {
+                        const off = hidden.includes(k);
+                        const place = shown.indexOf(k) + 1;
+                        return (
+                            <li
+                                key={k}
+                                draggable
+                                onDragStart={() => setDragKey(k)}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={() => { if (dragKey && dragKey !== k) move(dragKey, order.indexOf(k)); setDragKey(null); }}
+                                className={`sb-rank-row${featured.has(k) ? ' is-featured' : ''}${off ? ' is-off' : ''}`}
+                            >
+                                <span className="sb-grip" aria-hidden>⋮⋮</span>
+                                <span className="sb-place" aria-hidden>{off ? '–' : place}</span>
+                                <strong className="sb-rank-name">{t(`account.site.brief.block.${k}`)}</strong>
+                                {featured.has(k) && <span className="sb-badge">{t('account.site.brief.featured')}</span>}
+                                <button type="button" className="sb-icon" aria-label={t('account.site.brief.up')} disabled={i === 0} onClick={() => move(k, order.indexOf(listed[i - 1]))}>↑</button>
+                                <button type="button" className="sb-icon" aria-label={t('account.site.brief.down')} disabled={i === listed.length - 1} onClick={() => move(k, order.indexOf(listed[i + 1]))}>↓</button>
+                                <label className="sb-switch">
+                                    <input type="checkbox" role="switch" checked={!off} onChange={() => toggleHidden(k)} />
+                                    <span className="sb-track" aria-hidden />
+                                    <span>{t('account.site.brief.show')}</span>
+                                </label>
+                            </li>
+                        );
+                    })}
                 </ol>
             </section>
 
@@ -206,10 +238,13 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
                     <h2 className="acct-card-title">{t(`account.site.brief.block.${key}`)}</h2>
                     <p className="acct-muted">{t(`account.site.brief.extraHint.${key}`)}</p>
                     {(extras[key] ?? []).map((it, i) => (
-                        <div key={i} className="acct-field" style={{ padding: '0.7rem', border: '1px solid var(--border)', borderRadius: 12 }}>
-                            <input aria-label={t('account.site.brief.itemTitle')} placeholder={t(`account.site.brief.itemTitlePh.${key}`)} maxLength={70} value={it.title} onChange={(e) => setItem(key, i, 'title', e.target.value)} />
-                            <textarea aria-label={t('account.site.brief.itemBody')} placeholder={t('account.site.brief.itemBody')} rows={2} maxLength={220} value={it.body} onChange={(e) => setItem(key, i, 'body', e.target.value)} />
-                            <button type="button" className="acct-link acct-link--danger" style={{ alignSelf: 'flex-start' }} onClick={() => removeItem(key, i)}>{t('account.site.remove')}</button>
+                        <div key={i} className="sb-item">
+                            <span className="sb-item-no" aria-hidden>{i + 1}</span>
+                            <div className="sb-item-fields">
+                                <input aria-label={t('account.site.brief.itemTitle')} placeholder={t(`account.site.brief.itemTitlePh.${key}`)} maxLength={70} value={it.title} onChange={(e) => setItem(key, i, 'title', e.target.value)} />
+                                <AutoArea aria-label={t('account.site.brief.itemBody')} placeholder={t('account.site.brief.itemBody')} max={220} value={it.body} onValue={(v) => setItem(key, i, 'body', v)} />
+                            </div>
+                            <button type="button" className="sb-icon sb-icon--danger" aria-label={t('account.site.remove')} onClick={() => removeItem(key, i)}>×</button>
                         </div>
                     ))}
                     {(extras[key]?.length ?? 0) < MAX_ITEMS && (
@@ -220,8 +255,9 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
 
             {hasResults && (
                 <section className="acct-card">
-                    <label className="acct-row" style={{ gap: 10, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-                        <input type="checkbox" style={{ width: 'auto', marginTop: 4 }} checked={attested} onChange={(e) => setAttested(e.target.checked)} />
+                    <label className="sb-check">
+                        <input type="checkbox" checked={attested} onChange={(e) => setAttested(e.target.checked)} />
+                        <span className="sb-box" aria-hidden />
                         <span className="acct-muted">{t('account.site.brief.attest')}</span>
                     </label>
                 </section>
@@ -237,9 +273,9 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
             </section>
 
             {error && <p className="acct-msg acct-msg--error acct-msg--block" role="alert">{error}</p>}
-            <div className="acct-row">
+            <div className="sb-actions">
                 <button type="button" className="acct-btn acct-btn--ghost" disabled={busy || drafting} onClick={() => void save()}>
-                    {busy ? t('account.site.saving') : t('account.site.brief.save')}
+                    {busy ? t('account.site.saving') : justSaved ? `✓ ${t('account.site.saved')}` : t('account.site.brief.save')}
                 </button>
                 <button type="button" className="acct-btn" disabled={busy || drafting} onClick={() => void writeText()}>
                     {drafting ? t('account.site.brief.copy.writing') : t('account.site.brief.copy.write')}

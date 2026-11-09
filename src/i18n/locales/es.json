@@ -453,10 +453,11 @@
       "ctaWhatsapp": "Escribirnos por WhatsApp",
       "ctaCall": "Llamarnos",
       "rank": "¿Qué es lo más importante en tu sitio?",
-      "rankHint": "Arrastra para ordenar, o usa las flechas. Los primeros {{count}} se destacan. Marca Ocultar en lo que no quieras mostrar.",
+      "rankHint": "Arrastra para ordenar, o usa las flechas. Los primeros {{count}} se destacan. Apaga lo que no quieras mostrar.",
       "featured": "Destacado",
       "up": "Subir",
       "down": "Bajar",
+      "show": "Mostrar",
       "hide": "Ocultar",
       "block": {
         "recovery": "La recuperación",
