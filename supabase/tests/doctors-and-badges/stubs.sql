@@ -1,4 +1,4 @@
--- Stand-ins for production objects migration 0035 references. Not production's definitions.
+-- Stand-ins for production objects these migrations reference. Not production's definitions.
 -- Production keeps these in an extensions schema; matching that catches search_path mistakes.
 create schema extensions;
 create extension if not exists pg_trgm schema extensions;
@@ -9,6 +9,7 @@ create role anon; create role authenticated; create role service_role bypassrls;
 grant usage on schema extensions to anon, authenticated, service_role;
 create schema auth;
 create table auth.users (id uuid primary key);
+create table public.doctoralia_doctors (doctoralia_id text primary key, entity_type text, name text, cedulas text[], provider_id uuid);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
 grant usage on schema auth to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
@@ -44,3 +45,4 @@ create function public.is_app_admin() returns boolean language sql stable securi
     select exists (select 1 from public.app_admins where user_id = auth.uid()) $$;
 create function public._admin_guard() returns void language plpgsql stable security definer set search_path = public, auth as $$
 begin if not public.is_app_admin() then raise exception 'not authorized' using errcode = '42501'; end if; end $$;
+grant all on public.doctoralia_doctors to service_role;

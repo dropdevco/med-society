@@ -27,5 +27,5 @@ These are places, not people. [ADR 0007](0007-people-and-person-badges.md) alrea
 
 - A badge needs a listing, and none of these centers has one. Adding them is catalog work (David); the sandbox creates them from the register as a test build.
 - The listing has no "recovery center" specialty yet, so they are found by name.
-- The migration is separate (0036), so Carlos's review of 0035 stands. It needs 0035 applied first.
+- The migration is separate (0041), so Carlos's review of the doctor tables stands. It needs 0039 and 0040 applied first.
 - The Padrón's link is the proof for REPSSABI where it exists, because COEPRIS's own QR links answered a database error on 6 Nov 2026. See [the source page](../sources/coepris-bc.md).

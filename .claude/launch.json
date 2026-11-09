@@ -29,6 +29,28 @@
         "sources:dashboard"
       ],
       "port": 5180
+    },
+    {
+      "name": "sandbox-proxy",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "scripts/sources/sandbox/proxy.ts"
+      ],
+      "port": 54331
+    },
+    {
+      "name": "medsociety-sandbox",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--mode",
+        "sandbox",
+        "--port",
+        "5176",
+        "--strictPort"
+      ],
+      "port": 5176
     }
   ]
 }

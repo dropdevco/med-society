@@ -6,13 +6,17 @@
  *   npm run sources:selftest
  */
 import { ADAPTERS } from './adapters';
+import { cedulasOf, comparableName, groupPeople, heldConfidence, heldForReview, leadOf, type DoctoraliaRow } from './backfill-doctors';
+import { buildReport } from './cedula-report';
+import { changedIds, extendRegistry } from './doctor-registry';
+import { bhNorm, similarity } from './lib/trigram';
+import { buildSheet, csvCell, topListings } from './review-sheet';
 import { parseDirectory as parseDirectory2 } from './adapters/baja-health-cluster';
 import { isRecoveryCenter, parseFeed, validationUrl, type RepssabiRecord } from './adapters/coepris-bc';
 import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
 import { dmyToIso, parseDetail, parseList } from './adapters/padron-salud-bc';
 import { doctorUrl, parseCard } from './adapters/starmedica';
-import { cedulasOf, groupPeople, type DoctoraliaRow } from './backfill-doctors';
 import { entryRow } from './lib/load';
 import { decide, decideFacility, type NameCandidate } from './lib/match';
 import { nameKey, parseName } from './lib/names';
@@ -293,6 +297,90 @@ check('all six sources run', slugs.length === 6 && ['hospital-angeles', 'starmed
 check('facilities are marked, doctors are not', slugs.filter((s) => ADAPTERS[s].entity === 'facility').length === 3);
 check('COEPRIS loads before the sources that match on its numbers', slugs.indexOf('coepris-bc') < slugs.indexOf('padron-salud-bc'));
 check('no source runs without open access or a recorded letter', Object.values(ADAPTERS).every((a) => a.access === 'open' || !!a.permission));
+
+// ── Doctor identity (made-up doctors) ─────────────────────────────────────
+const person = (id: string, name: string, cedulas: string[] | null, provider: string | null = null): DoctoraliaRow => ({ doctoralia_id: id, name, cedulas, provider_id: provider });
+
+check('names compare without title, accents, case or word order', comparableName('Dra. María  LÓPEZ Ruiz') === comparableName('Ruiz Lopez Maria'));
+check('a different surname is a different name', comparableName('Ana Lopez Ruiz') !== comparableName('Ana Lopez Soto'));
+check('a shortened name counts as a different name, so it is reviewed', comparableName('Ana Lopez') !== comparableName('Ana Lopez Ruiz'));
+
+{
+    // {A,B} and {B,C}: the case that broke "one doctor per distinct set".
+    const chained = groupPeople([person('1', 'Ana Lopez', ['1111111', '2222222']), person('2', 'Ana Lopez', ['2222222', '3333333']), person('3', 'Ana Lopez', ['3333333'])]);
+    check('records chained through a shared cédula are one person', chained.length === 1 && chained[0].length === 3);
+    const apart = groupPeople([person('1', 'Ana', ['1111111']), person('2', 'Ana', ['2222222']), person('3', 'Ana', []), person('4', 'Ana', null)]);
+    check('no shared cédula means separate people, even with one name', apart.length === 4);
+
+    const mixed = groupPeople([person('1', 'Dra. Ana Lopez Ruiz', ['1111111'], 'p1'), person('2', 'ANA LÓPEZ RUIZ', ['1111111'], 'p2'), person('3', 'Pedro Soto Vega', ['1111111'], 'p3')])[0];
+    const held = heldForReview(mixed);
+    check('a same-name duplicate is not held', !held.some((r) => r.doctoralia_id === '2'));
+    check('a different name sharing a cédula is held', held.length === 1 && held[0].doctoralia_id === '3');
+    check('the lead is a record with a cédula', cedulasOf(leadOf([person('1', 'A B', []), person('2', 'C D', ['1111111'])])).length === 1);
+    check('one record alone is never held', heldForReview([person('1', 'Ana Lopez', ['1111111'])]).length === 0);
+    check('reordered names stay under the exact-match bulk confirm', heldConfidence('Ana Lopez Ruiz', 'Ruiz Lopez Ana') < 0.99);
+}
+
+check('cédulas: spaces and dashes removed, repeats collapsed', cedulasOf(person('1', 'A', ['123-4567', '1234567'])).join() === '1234567');
+check('cédulas: 5 and 10 digit values are dropped (phones and partials)', cedulasOf(person('1', 'A', ['12345', '6561234567', 'abc', ''])).length === 0);
+check('cédulas: a missing list is empty', cedulasOf(person('1', 'A', null)).length === 0);
+
+check('bh_norm: production value for a titled name', bhNorm('Dra. María de la Luz Ñáñez') === 'maria luz nanez');
+check('bh_norm: empty input', bhNorm(null) === '' && bhNorm('Dr. De La') === '');
+check('similarity: identical', similarity('maria lopez', 'maria lopez') === 1);
+check('similarity: nothing in common', similarity('abc', 'xyz') === 0);
+check('similarity: empty input', similarity('', 'maria') === 0);
+check('similarity: matches pg_trgm on a known pair', Math.abs(similarity('maria lopez', 'maria lopes') - 10 / 14) < 0.001);
+
+{
+    let n = 0;
+    const makeId = () => `id-${++n}`;
+    const run = (id: string, ids: string[], status: 'green' | 'red' = 'green') => ({ id, startedAt: '2026-11-01T00:00:00.000Z', status, entries: ids.map((externalId) => ({ externalId })) as never });
+    const first = extendRegistry({}, [run('r2', ['b', 'c']), run('r1', ['a', 'b'])], makeId);
+    check('registry: one ID per record, duplicates across runs merged', Object.keys(first.registry).length === 3 && first.added === 3);
+    check('registry: firstRunId is the oldest run', first.registry.b.firstRunId === 'r1');
+    const again = extendRegistry(first.registry, [run('r1', ['a', 'b']), run('r2', ['b', 'c'])], makeId);
+    check('registry: reading the same runs again changes nothing', again.added === 0 && changedIds(first.registry, again.registry).length === 0);
+    const more = extendRegistry(first.registry, [run('r3', ['d'])], makeId);
+    check('registry: a new record gets a new ID, old ones stay', more.added === 1 && changedIds(first.registry, more.registry).length === 0);
+    check('registry: a red run adds nothing', extendRegistry({}, [run('r9', ['z'], 'red')], makeId).added === 0);
+    check('registry: a changed ID is detected', changedIds({ a: { doctorId: '1', firstRunId: 'r', createdAt: '' } }, { a: { doctorId: '2', firstRunId: 'r', createdAt: '' } }).length === 1);
+    check('registry: a lost ID is detected', changedIds({ a: { doctorId: '1', firstRunId: 'r', createdAt: '' } }, {}).length === 1);
+}
+
+{
+    const listings = [
+        { id: '1', name: 'Dra. Maria Lopez Ruiz', region: 'elpaso-juarez' },
+        { id: '2', name: 'Maria Lopez Soto', region: 'elpaso-juarez' },
+        { id: '3', name: 'Dra. Maria Lopez Ruiz', region: 'sandiego-tijuana' },
+        { id: '4', name: 'Pedro Vega', region: 'elpaso-juarez' },
+    ];
+    const top = topListings('Maria Lopez Ruiz', 'elpaso-juarez', listings);
+    check('sheet: closest listing first', top[0]?.id === '1' && top[0].similarity === 1);
+    check('sheet: another region is left out', !top.some((c) => c.id === '3'));
+    check('sheet: unrelated names are left out', !top.some((c) => c.id === '4'));
+    check('sheet: never more than five', topListings('Ana', null, Array.from({ length: 9 }, (_, i) => ({ id: String(i), name: 'Ana', region: null }))).length === 5);
+    check('sheet: no candidates is an empty list', topListings('Zacarias', 'x', []).length === 0);
+    check('csv: commas and quotes are escaped', csvCell('a,"b"') === '"a,""b"""');
+    check('csv: a formula cannot run in Excel', csvCell('=HYPERLINK("x")').startsWith("\"'=") || csvCell('=1').startsWith("'="));
+    const sheet = buildSheet({ id: 'run-1', startedAt: '2026-11-01T00:00:00.000Z', entries: [{ externalId: 'x', name: 'Maria Lopez Ruiz', specialties: ['A', 'B'], region: 'elpaso-juarez', url: 'u' }] as never }, listings);
+    const [head, row] = sheet.replace('\ufeff', '').trim().split('\n');
+    check('sheet: every row carries the run ID and a UTC time', row.startsWith('run-1,2026-11-01T00:00:00.000Z,'));
+    check('sheet: has a decision column, and rows line up with it', head.includes('decision') && head.split(',').length === row.split(',').length);
+    check('sheet: no contact columns', !/phone|email|website/i.test(head));
+}
+
+{
+    const rows = [person('1', 'Ana Lopez', ['1111111']), person('2', 'Ana Lopez', ['1111111']), person('3', 'Pedro Vega', ['2222222']), person('4', 'Luis Mora', ['2222222', '12345']), person('5', 'Sin Cedula', [])];
+    const r = buildReport(rows, new Set(['1111111']));
+    check('report: counts records and cédula holders', r.records === 5 && r.withCedula === 4);
+    check('report: counts invalid values', r.droppedAsInvalid === 1);
+    check('report: counts shared cédulas', r.sharedCedulas === 2);
+    check('report: counts people with several names', r.multiRecordPeople === 2 && r.multiNamePeople === 1 && r.recordsHeldForReview === 1);
+    check('report: counts values that are phones', r.matchingPhones === 1);
+    check('report: phones unavailable is not zero', buildReport(rows, null).matchingPhones === null);
+    check('report: prints totals only', Object.values(r).every((v) => typeof v === 'number'));
+}
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

@@ -16,7 +16,7 @@ export interface ParsedName {
     ambiguous: boolean;
 }
 
-function tokens(name: string): string[] {
+export function tokens(name: string): string[] {
     let s = strip(name).toUpperCase().replace(/[^A-Z\s.]/g, ' ').replace(/\s+/g, ' ').trim();
     while (TITLE.test(s)) s = s.replace(TITLE, '');
     return s.replace(/\./g, ' ').split(/\s+/).filter(Boolean);

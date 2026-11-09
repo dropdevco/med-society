@@ -33,7 +33,7 @@ Permissions received on 4 Nov 2026 (Star Médica, CONACEM) are recorded from the
 
 ## Logo use
 
-Authorization to show the logo on medsociety.one, recorded 6 Nov 2026 for all six organizations below. A logo shows only when `organizations.logo_permission_at` is set, which migration 0037 does for these six. Any new organization starts without one.
+Authorization to show the logo on medsociety.one, recorded 6 Nov 2026 for all six organizations below. A logo shows only when `organizations.logo_permission_at` is set, which migration 0042 does for these six. Any new organization starts without one.
 
 | Organization | Slug | File | Note |
 |---|---|---|---|

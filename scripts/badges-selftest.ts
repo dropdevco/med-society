@@ -7,6 +7,7 @@
  *   npm run badges:selftest
  */
 import { existsSync, readFileSync, statSync } from 'fs';
+import { readdirSync } from 'fs';
 import { __test } from '../api/agent';
 import en from '../src/i18n/locales/en.json';
 import es from '../src/i18n/locales/es.json';
@@ -94,8 +95,8 @@ check('the "about" link names the organization', en.badges.about.includes('{{nam
 
 // ── Nothing left out ─────────────────────────────────────────────────────────
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
-const seeds = read('supabase/migrations/0035_doctors_sources_badges.sql') + read('supabase/migrations/0036_facility_badges.sql');
-const logos = read('supabase/migrations/0037_organization_logos.sql');
+const seeds = read('supabase/migrations/0040_sources_and_badges.sql') + read('supabase/migrations/0041_facility_badges.sql');
+const logos = read('supabase/migrations/0042_organization_logos.sql');
 const register = read('docs/sources/README.md');
 for (const b of all) {
     check(`${b.org}: seeded`, seeds.includes(`('${b.org}', `));
@@ -107,6 +108,37 @@ for (const b of all) {
 }
 
 check('logos ship with the site', !read('.gitignore').includes('public/logos/orgs'));
+
+// ── A doctor is never asked for the internal ID ───────────────────────────
+{
+    const walk = (dir: string): string[] => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })
+        .flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
+    const publicCode = walk('src').filter((f) => /\.tsx?$/.test(f) && !f.includes('/admin/') && f !== 'src/lib/adminApi.ts');
+    const leaks = publicCode.filter((f) => /doctor_id|doctorId|doctors\.id/.test(read(f)));
+    check('no public page or form uses the doctor ID', leaks.length === 0, leaks);
+    check('the agent API never sends the doctor ID', !/doctor_id|doctorId/.test(read('api/agent.ts')));
+    check('neither language asks for a doctor ID', ![en, es].some((l) => /doctor id|id del doctor|id de doctor|uuid/i.test(JSON.stringify(l))));
+}
+
+// ── Migrations ────────────────────────────────────────────────────────────
+{
+    const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql'));
+    const ours = ['0039_doctor_identity.sql', '0040_sources_and_badges.sql', '0041_facility_badges.sql', '0042_organization_logos.sql'];
+    for (const f of ours) {
+        check(`${f}: exists and no other file has its number`, files.filter((x) => x.startsWith(f.slice(0, 4))).join() === f);
+        check(`${f}: says how to undo it`, /rollback/i.test(read(`supabase/migrations/${f}`)));
+    }
+    const identity = read('supabase/migrations/0039_doctor_identity.sql');
+    const tables = [...identity.matchAll(/^create table public\.(\w+)/gm)].map((m) => m[1]);
+    check('identity migration: the five doctor tables', ['doctors', 'doctor_cedulas', 'doctor_source_ids', 'doctor_listings', 'doctor_merges'].every((t) => tables.includes(t)));
+    check('identity migration: every table locked down', tables.every((t) => identity.includes(`'${t}'`)));
+    check('identity migration: no RPCs', [...identity.matchAll(/^create function public\.(\w+)/gm)].map((m) => m[1]).join() === 'sources_name_norm_trg');
+    const all = ours.map((f) => read(`supabase/migrations/${f}`)).join('\n');
+    check('no migration brings back the unthrottled cédula lookup', !all.includes('listings_for_cedula'));
+    for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
+        check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
+    }
+}
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

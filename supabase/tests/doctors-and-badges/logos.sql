@@ -1,4 +1,4 @@
--- Runs after migration 0037. Checks the six logos are on, and that it only touched those six.
+-- Runs after migration 0042. Checks the six logos are on, and that it only touched those six.
 select 'all six organizations have a logo and a permission date' as check,
   (select count(*) = 6 from public.organizations
    where logo_url = '/logos/orgs/' || slug || '.png' and logo_permission_at is not null

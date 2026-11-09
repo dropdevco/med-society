@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A throwaway copy of the database on this machine, never production: Postgres 17
-# with migration 0035, PostgREST in front, and a small proxy so the pipeline's
+# with migrations 0039 to 0042, PostgREST in front, and a small proxy so the pipeline's
 # Supabase client talks to it unchanged.
 #   bash scripts/sources/sandbox/up.sh       # start, then seed with seed.mts
 #   bash scripts/sources/sandbox/down.sh     # remove everything
@@ -16,11 +16,13 @@ docker run -d --name ms-sandbox-db --network ms-sandbox -e POSTGRES_PASSWORD=san
 for _ in $(seq 1 40); do docker exec ms-sandbox-db pg_isready -U postgres -q && break; sleep 1; done
 sleep 2
 psql() { docker exec ms-sandbox-db psql -U postgres -v ON_ERROR_STOP=1 -q -X "$@"; }
-psql -f /supabase/tests/0035/stubs.sql
+psql -f /supabase/tests/doctors-and-badges/stubs.sql
 psql -f /sandbox/extra.sql
-psql -f /supabase/migrations/0035_doctors_sources_badges.sql
-psql -f /supabase/migrations/0036_facility_badges.sql
-psql -f /supabase/migrations/0037_organization_logos.sql
+psql -f /supabase/migrations/0039_doctor_identity.sql
+psql -f /supabase/migrations/0040_sources_and_badges.sql
+psql -f /supabase/migrations/0041_facility_badges.sql
+psql -f /supabase/migrations/0042_organization_logos.sql
+psql -f /sandbox/admin.sql
 docker run -d --name ms-sandbox-api --network ms-sandbox \
     -e PGRST_DB_URI=postgres://postgres:sandbox@ms-sandbox-db:5432/postgres \
     -e PGRST_DB_SCHEMAS=public -e PGRST_DB_EXTRA_SEARCH_PATH=extensions -e PGRST_DB_ANON_ROLE=service_role \

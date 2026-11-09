@@ -31,6 +31,7 @@ scripts/.cache
 # All others contain real credentials and must never reach the remote.
 .env
 .env.*
+!.env.sandbox
 !.env.example
 
 

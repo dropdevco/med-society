@@ -111,15 +111,13 @@ do $$ begin perform 1 from public.doctors; raise exception 'anon read doctors'; 
 do $$ begin perform 1 from public.doctor_cedulas; raise exception 'anon read cedulas'; exception when insufficient_privilege then raise notice 'ok: anon cannot read cédulas'; end $$;
 do $$ begin perform public.refresh_provider_badges(array[]::uuid[]); raise exception 'anon ran refresh'; exception when insufficient_privilege then raise notice 'ok: anon cannot run refresh'; end $$;
 do $$ begin perform public.doctor_name_candidates('x', 'x'); raise exception 'anon ran candidates'; exception when insufficient_privilege then raise notice 'ok: anon cannot search doctors'; end $$;
-do $$ begin perform public.listings_for_cedula('1234567'); raise exception 'anon ran lookup'; exception when insufficient_privilege then raise notice 'ok: anon cannot run the cédula lookup'; end $$;
 reset role;
 set role authenticated;
 do $$ begin perform 1 from public.doctors; raise exception 'user read doctors'; exception when insufficient_privilege then raise notice 'ok: signed-in users cannot read doctors'; end $$;
 do $$ begin update public.providers set badges = '[]'; raise exception 'user wrote badges'; exception when insufficient_privilege then raise notice 'ok: signed-in users cannot write badges'; end $$;
-select 'onboarding lookup finds the listings' as check, (select count(*) from public.listings_for_cedula('123 4567')) = 2 as ok;
 reset role;
 
--- ── Clinics (migration 0036, docs/adr/0008). Made-up centers. ────────────────
+-- ── Clinics (migration 0041, docs/adr/0008). Made-up centers. ────────────────
 \set R4 '''01a00000-0000-7000-8000-000000000004'''
 \set R5 '''01a00000-0000-7000-8000-000000000005'''
 \set R6 '''01a00000-0000-7000-8000-000000000006'''
@@ -236,3 +234,40 @@ do $$ begin perform public.refresh_listing_badges(array[]::uuid[]); raise except
 do $$ begin perform public.facility_name_candidates('x', 'x'); raise exception 'anon ran candidates'; exception when insufficient_privilege then raise notice 'ok: anon cannot search clinics'; end $$;
 do $$ begin perform public.sync_facility_badges('coepris-bc', '01a00000-0000-7000-8000-000000000004', false); raise exception 'anon ran sync'; exception when insufficient_privilege then raise notice 'ok: anon cannot sync clinics'; end $$;
 reset role;
+
+-- ── Backfill: a record whose name disagrees waits for a person (made-up) ─────
+\set R9 '''01a00000-0000-7000-8000-000000000009'''
+reset role;
+select set_config('test.uid', '00000000-0000-4000-8000-00000000aaaa', false);
+insert into public.source_runs (id, source_slug, started_at, status) values (:R9, 'doctoralia', now(), 'green');
+insert into public.providers (id, name, region, specialty) values ('00000000-0000-4000-8000-0000000000d1', 'Dra. Otra Persona', 'elpaso-juarez', '{}');
+insert into public.doctoralia_doctors (doctoralia_id, entity_type, name, cedulas, provider_id) values ('held1', 'doctor', 'Dra. Otra Persona', '{7650001}', '00000000-0000-4000-8000-0000000000d1');
+insert into public.source_entries (source_slug, external_id, name, cedulas, first_seen_run_id, last_seen_run_id) values ('doctoralia', 'held1', 'Dra. Otra Persona', '{7650001}', :R9, :R9);
+insert into public.doctor_source_ids (source_slug, external_id, doctor_id, status, tier, confidence, first_run_id, last_run_id) values ('doctoralia', 'held1', '00000000-0000-4000-8000-000000000001', 'probable', 1, 0.2, :R9, :R9);
+select 'a held-back record is in the review queue' as check, (select count(*) = 1 from jsonb_array_elements(public.admin_match_queue('doctoralia')->'items') x where x->>'external_id' = 'held1') as ok;
+select 'while waiting its listing has no doctor' as check, (select count(*) = 0 from public.doctor_listings where provider_id = '00000000-0000-4000-8000-0000000000d1') as ok;
+select public.admin_match_decide('doctoralia', 'held1', 'confirm', null);
+select 'confirming links the listing, tagged as a review' as check, (select method = 'review' and doctor_id = '00000000-0000-4000-8000-000000000001' from public.doctor_listings where provider_id = '00000000-0000-4000-8000-0000000000d1') as ok;
+select 'confirming keeps its cédula' as check, (select doctor_id = '00000000-0000-4000-8000-000000000001' from public.doctor_cedulas where cedula = '7650001') as ok;
+select 'confirming creates no badge for Doctoralia' as check, (select count(*) = 0 from public.doctor_affiliations where source_slug = 'doctoralia') as ok;
+insert into public.doctoralia_doctors (doctoralia_id, entity_type, name, cedulas, provider_id) values ('held2', 'doctor', 'Dr. Tercero', '{}', null);
+insert into public.source_entries (source_slug, external_id, name, first_seen_run_id, last_seen_run_id) values ('doctoralia', 'held2', 'Dr. Tercero', :R9, :R9);
+insert into public.doctor_source_ids (source_slug, external_id, doctor_id, status, tier, confidence, first_run_id, last_run_id) values ('doctoralia', 'held2', '00000000-0000-4000-8000-000000000001', 'probable', 1, 0.2, :R9, :R9);
+select public.admin_match_decide('doctoralia', 'held2', 'reject', null);
+select 'rejecting links nothing' as check, (select status = 'rejected' from public.doctor_source_ids where external_id = 'held2') as ok;
+
+-- ── Doctor identity rules ────────────────────────────────────────────────────
+do $$ begin insert into public.doctor_cedulas (cedula, doctor_id, first_source) values ('1234567', '00000000-0000-4000-8000-000000000002', 'x'); raise exception 'cédula on two doctors'; exception when unique_violation then raise notice 'ok: one cédula, one doctor'; end $$;
+do $$ begin insert into public.doctor_cedulas (cedula, doctor_id, first_source) values ('12a4567', '00000000-0000-4000-8000-000000000002', 'x'); raise exception 'bad cédula saved'; exception when check_violation then raise notice 'ok: a cédula must be 6 to 9 digits'; end $$;
+do $$ begin update public.doctors set status = 'merged' where id = '00000000-0000-4000-8000-000000000002'; raise exception 'merged with no target'; exception when check_violation then raise notice 'ok: a merged doctor must say into whom'; end $$;
+do $$ begin insert into public.doctor_source_ids (source_slug, external_id, status) values ('starmedica', 'no-doc', 'confirmed'); raise exception 'confirmed with no doctor'; exception when check_violation then raise notice 'ok: a confirmed match needs a doctor'; end $$;
+select 'the removed cédula lookup is gone' as check, to_regproc('public.listings_for_cedula') is null as ok;
+select 'the unused credential table is gone' as check, to_regclass('public.doctor_credential_status') is null as ok;
+select 'every new table has row level security' as check,
+  (select bool_and(c.relrowsecurity) from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+     and c.relname in ('organizations','data_sources','source_runs','source_entries','source_observations','doctors','doctor_cedulas','doctor_source_ids','doctor_listings','doctor_merges','doctor_affiliations','facility_source_ids','listing_affiliations')) as ok;
+select 'no new table is readable by anon or signed-in users' as check,
+  (select count(*) = 0 from information_schema.role_table_grants where table_schema = 'public' and grantee in ('anon','authenticated')
+     and table_name in ('organizations','data_sources','source_runs','source_entries','source_observations','doctors','doctor_cedulas','doctor_source_ids','doctor_listings','doctor_merges','doctor_affiliations','facility_source_ids','listing_affiliations')) as ok;
+select 'provider_list exposes no doctor ID' as check, (select count(*) = 0 from information_schema.columns where table_name = 'provider_list' and column_name ilike '%doctor%') as ok;
+select 'no badge carries a doctor ID' as check, (select count(*) = 0 from public.providers p, jsonb_array_elements(p.badges) b where b ? 'doctor_id') as ok;

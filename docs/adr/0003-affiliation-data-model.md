@@ -1,6 +1,6 @@
 # 0003. Affiliations in their own tables
 
-Status: Accepted as revised by 0007 (Carlos, Nov 2026) · Owner: Emilio · Built in migration 0035
+Status: Accepted as revised by 0007 (Carlos, Nov 2026) · Owner: Emilio · Built in migrations 0039 and 0040
 
 > **Revised by [0007](0007-people-and-person-badges.md):** affiliations attach to a doctor, not a listing. `provider_affiliations` below became `doctors`, `doctor_cedulas`, `doctor_source_ids`, `doctor_listings` and `doctor_affiliations`; the source of truth is `supabase/migrations/0035_doctors_sources_badges.sql`. The run-ID rules here are unchanged.
 

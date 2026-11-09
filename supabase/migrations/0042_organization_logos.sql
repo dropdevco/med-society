@@ -1,5 +1,5 @@
 -- Organization logos: all six organizations authorized logo use, recorded 6 Nov 2026
--- (docs/sources/README.md). Needs 0035 and 0036, and the files in public/logos/orgs.
+-- (docs/sources/README.md). Needs 0039 to 0041, and the files in public/logos/orgs.
 -- Safe to run twice.
 
 update public.organizations
@@ -11,3 +11,7 @@ where slug in ('hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padro
 select public.refresh_listing_badges(coalesce(array_agg(id), '{}'::uuid[]))
 from public.providers
 where badges <> '[]'::jsonb;
+
+-- Rollback:
+--     update public.organizations set logo_url = null, logo_permission_at = null;
+--     then rebuild badges with the select above.

@@ -1,6 +1,6 @@
 # 0007. Badges belong to doctors, not listings
 
-Status: Accepted (Carlos, Nov 2026) · Owner: Emilio · Revises the table list in [0003](0003-affiliation-data-model.md) · Built in migration 0035
+Status: Accepted (Carlos, Nov 2026) · Owner: Emilio · Revises the table list in [0003](0003-affiliation-data-model.md) · Built in migrations 0039 and 0040
 
 ## Context
 

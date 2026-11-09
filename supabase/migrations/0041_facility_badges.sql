@@ -1,5 +1,5 @@
 -- Facility badges: registers and directories that describe a place, not a person
--- (docs/adr/0008). A badge sits on the listing. Needs 0035. Not applied to production.
+-- (docs/adr/0008). A badge sits on the listing. Needs 0039 and 0040. Not applied to production.
 begin;
 
 alter table public.data_sources
@@ -279,3 +279,14 @@ grant execute on function public.admin_facility_queue(integer, integer) to authe
 grant execute on function public.admin_facility_decide(text, text, text, uuid) to authenticated;
 
 commit;
+
+-- Rollback (undo 0042 first):
+--     begin;
+--     drop function public.admin_facility_decide(text, text, text, uuid), public.admin_facility_queue(integer, integer),
+--                   public.sync_facility_badges(text, uuid, boolean), public.facility_name_candidates(text, text, integer);
+--     drop table public.listing_affiliations, public.facility_source_ids;
+--     delete from public.data_sources where entity = 'facility'; delete from public.organizations where slug in ('coepris-bc', 'padron-salud-bc', 'baja-health-cluster');
+--     -- then re-run the definitions of refresh_provider_badges and admin_sources_overview from 0040
+--     drop function public.refresh_listing_badges(uuid[]);
+--     alter table public.data_sources drop column entity;
+--     commit;
