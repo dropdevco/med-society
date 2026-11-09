@@ -16,6 +16,14 @@ export interface BriefContent {
     blocks?: { key: ExtraKey; title?: Loc; items?: Partial<Record<Lang, Item[]>> }[];
 }
 
+interface Draft {
+    headline: Record<Lang, string>;
+    lead: Record<Lang, string>;
+    about: Record<Lang, string>;
+    highlights: Record<Lang, Item[]>;
+    faq: Record<Lang, { q: string; a: string }[]>;
+}
+
 const MAX_ITEMS = 6;
 const FEATURED = 3;
 
@@ -45,6 +53,10 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     const [dragKey, setDragKey] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [drafting, setDrafting] = useState(false);
+    const [draft, setDraft] = useState<Draft | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
+    const [draftLang, setDraftLang] = useState<Lang>(lang);
 
     const changeArchetype = (a: Archetype) => {
         setArchetype(a);
@@ -68,10 +80,10 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     const addItem = (key: string) => setExtras((e) => ({ ...e, [key]: [...(e[key] ?? []), { title: '', body: '' }] }));
     const removeItem = (key: string, i: number) => setExtras((e) => ({ ...e, [key]: (e[key] ?? []).filter((_, k) => k !== i) }));
 
-    const save = async () => {
-        if (!supabase) return;
-        if (hasResults && !attested) { setError(t('account.site.brief.attestNeeded')); return; }
-        setError(null); setBusy(true);
+    /** Writes the brief to the database. Returns false (and says why) if it could not. */
+    const persist = async (): Promise<boolean> => {
+        if (!supabase) return false;
+        if (hasResults && !attested) { setError(t('account.site.brief.attestNeeded')); return false; }
         const blocks = EXTRA_KEYS.flatMap((key) => {
             const items = (extras[key] ?? []).map((i) => ({ title: i.title.trim(), body: i.body.trim() })).filter((i) => i.title && i.body);
             if (!items.length) return [];
@@ -83,9 +95,55 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
             blocks,
         };
         const { error: err } = await supabase.rpc('update_my_site', { target: clinic.id, patch });
+        if (err) { setError(err.message); return false; }
+        return true;
+    };
+
+    const save = async () => {
+        setError(null); setBusy(true);
+        const ok = await persist();
+        setBusy(false);
+        if (!ok) return;
+        toast(t('account.site.saved'));
+        onSaved();
+    };
+
+    /** Saves the answers, then asks for a draft written from them. Nothing goes live from here. */
+    const writeText = async () => {
+        if (!supabase) return;
+        setError(null); setDrafting(true); setDraft(null); setWarnings([]);
+        try {
+            if (!(await persist())) return;
+            const { data: sess } = await supabase.auth.getSession();
+            const token = sess.session?.access_token;
+            if (!token) { setError(t('account.site.brief.copy.errSignIn')); return; }
+            const r = await fetch('/api/agent?route=site-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ provider_id: clinic.id }),
+            });
+            const j = (await r.json().catch(() => null)) as { draft?: Draft; warnings?: string[]; error?: { message?: string } } | null;
+            if (!r.ok || !j?.draft) { setError(j?.error?.message ?? t('account.site.brief.copy.errFailed')); return; }
+            setDraft(j.draft); setWarnings(j.warnings ?? []); setDraftLang(lang);
+        } catch {
+            setError(t('account.site.brief.copy.errFailed'));
+        } finally {
+            setDrafting(false);
+        }
+    };
+
+    /** The owner read it and said yes: only now does it reach the site. */
+    const approve = async () => {
+        if (!supabase || !draft) return;
+        setError(null); setBusy(true);
+        const { error: err } = await supabase.rpc('update_my_site', {
+            target: clinic.id,
+            patch: { headline: draft.headline, lead: draft.lead, about: draft.about, highlights: draft.highlights, faq: draft.faq },
+        });
         setBusy(false);
         if (err) { setError(err.message); return; }
-        toast(t('account.site.saved'));
+        setDraft(null);
+        toast(t('account.site.brief.copy.applied'));
         onSaved();
     };
 
@@ -180,10 +238,46 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
 
             {error && <p className="acct-msg acct-msg--error acct-msg--block" role="alert">{error}</p>}
             <div className="acct-row">
-                <button type="button" className="acct-btn" disabled={busy} onClick={() => void save()}>
+                <button type="button" className="acct-btn acct-btn--ghost" disabled={busy || drafting} onClick={() => void save()}>
                     {busy ? t('account.site.saving') : t('account.site.brief.save')}
                 </button>
+                <button type="button" className="acct-btn" disabled={busy || drafting} onClick={() => void writeText()}>
+                    {drafting ? t('account.site.brief.copy.writing') : t('account.site.brief.copy.write')}
+                </button>
             </div>
+            <p className="acct-fine">{t('account.site.brief.copy.note')}</p>
+
+            {draft && (
+                <section className="acct-card" aria-live="polite">
+                    <div className="acct-card-head">
+                        <h2 className="acct-card-title">{t('account.site.brief.copy.title')}</h2>
+                        <div className="acct-row">
+                            {(['es', 'en'] as Lang[]).map((l) => (
+                                <button key={l} type="button" className={`acct-btn acct-btn--sm${draftLang === l ? '' : ' acct-btn--ghost'}`} onClick={() => setDraftLang(l)}>{l.toUpperCase()}</button>
+                            ))}
+                        </div>
+                    </div>
+                    {warnings.length > 0 && (
+                        <p className="acct-msg acct-msg--error acct-msg--block" role="alert">{t('account.site.brief.copy.warn', { items: warnings.join(', ') })}</p>
+                    )}
+                    <p className="acct-fine">{t('account.site.brief.copy.headline')}</p>
+                    <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>{draft.headline[draftLang]}</p>
+                    <p className="acct-fine">{t('account.site.brief.copy.lead')}</p>
+                    <p style={{ margin: 0 }}>{draft.lead[draftLang]}</p>
+                    <p className="acct-fine">{t('account.site.brief.copy.aboutLabel')}</p>
+                    <p style={{ margin: 0 }}>{draft.about[draftLang]}</p>
+                    <p className="acct-fine">{t('account.site.brief.copy.highlights')}</p>
+                    <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>{draft.highlights[draftLang].map((h) => <li key={h.title}><strong>{h.title}.</strong> {h.body}</li>)}</ul>
+                    <p className="acct-fine">{t('account.site.brief.copy.faq')}</p>
+                    <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>{draft.faq[draftLang].map((f) => <li key={f.q}><strong>{f.q}</strong> {f.a}</li>)}</ul>
+                    <p className="acct-muted">{t('account.site.brief.copy.ask')}</p>
+                    <div className="acct-row">
+                        <button type="button" className="acct-btn" disabled={busy} onClick={() => void approve()}>{t('account.site.brief.copy.approve')}</button>
+                        <button type="button" className="acct-btn acct-btn--ghost" disabled={busy || drafting} onClick={() => void writeText()}>{t('account.site.brief.copy.again')}</button>
+                        <button type="button" className="acct-link" onClick={() => setDraft(null)}>{t('account.site.brief.copy.discard')}</button>
+                    </div>
+                </section>
+            )}
         </>
     );
 }

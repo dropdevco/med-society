@@ -360,5 +360,23 @@ let limited = 0;
 for (let i = 0; i < 320; i++) if ((await get('route=openapi', undefined, '198.51.100.9')).status === 429) limited++;
 check('per-IP rate limit kicks in with Retry-After', limited > 0);
 
+// ── Website copy: the draft parser and the guard on what the model may claim ──
+const goodDraft = JSON.stringify({
+    headline: { es: 'Tu recuperación, bien acompañada', en: 'Your recovery, well looked after' },
+    lead: { es: 'Enfermería todos los días.', en: 'Nursing every day.' },
+    about: { es: 'Somos un centro en Tijuana.', en: 'We are a center in Tijuana.' },
+    highlights: { es: [{ title: 'Enfermería', body: 'Todos los días.' }], en: [{ title: 'Nursing', body: 'Every day.' }] },
+    faq: { es: [{ q: '¿Dónde están?', a: 'En Tijuana.' }], en: [{ q: 'Where are you?', a: 'In Tijuana.' }] },
+});
+const parsedCopy = __test.parseCopy(`Here you go:\n${goodDraft}\nHope it helps`);
+check('copy: JSON is found inside surrounding chatter', parsedCopy !== null && parsedCopy.headline.es.startsWith('Tu recuperación'));
+check('copy: a draft missing a language is rejected', __test.parseCopy(JSON.stringify({ headline: { es: 'x' }, lead: { es: 'x', en: 'x' }, about: { es: 'x', en: 'x' } })) === null);
+check('copy: not JSON is rejected', __test.parseCopy('sorry, I cannot') === null);
+check('copy: a draft with no numbers or superlatives has no warnings', __test.copyWarnings(parsedCopy!, 'Nursing every day').length === 0);
+const risky = __test.parseCopy(goodDraft.replace('Enfermería todos los días.', 'Más de 20 años, los mejores').replace('Nursing every day.', 'Over 20 years, the best'))!;
+const flagged = __test.copyWarnings(risky, 'Nursing every day in Tijuana');
+check('copy: an unsupported number and a superlative are flagged', flagged.includes('20') && flagged.some((w) => /mejores|best/i.test(w)), flagged);
+check('copy: a number that is in the facts passes', !__test.copyWarnings(risky, 'Over 20 years of practice').includes('20'));
+
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

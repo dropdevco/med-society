@@ -411,6 +411,25 @@
     "findYourClinic": "Find your clinic",
     "site": {
       "brief": {
+        "copy": {
+      "write": "Write my site's text",
+      "writing": "Writing…",
+      "note": "We save your answers, then draft your headline, intro, about text and common questions from them. Nothing goes on your site until you approve it.",
+      "title": "Your draft",
+      "headline": "Headline",
+      "lead": "Line under the headline",
+      "aboutLabel": "About",
+      "highlights": "Why choose you",
+      "faq": "Common questions",
+      "warn": "Check these before approving, they are not in what you told us: {{items}}.",
+      "ask": "Read it in both languages. If it says anything that is not true, do not approve it: change your answers above and write it again.",
+      "approve": "Approve and use this text",
+      "again": "Write it again",
+      "discard": "Discard",
+      "applied": "Text added to your site",
+      "errSignIn": "Please sign in again.",
+      "errFailed": "We could not write the draft. Try again in a minute."
+        },
       "kind": "What kind of practice is this?",
       "kindHint": "This sets what your site puts first. You can change the order below.",
       "kindLabel": "Kind of practice",

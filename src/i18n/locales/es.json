@@ -411,6 +411,25 @@
     "findYourClinic": "Buscar mi clínica",
     "site": {
       "brief": {
+        "copy": {
+      "write": "Escribir el texto de mi sitio",
+      "writing": "Escribiendo…",
+      "note": "Guardamos tus respuestas y con ellas redactamos tu titular, introducción, texto sobre ti y preguntas frecuentes. Nada se publica en tu sitio hasta que lo apruebes.",
+      "title": "Tu borrador",
+      "headline": "Titular",
+      "lead": "Línea bajo el titular",
+      "aboutLabel": "Sobre ti",
+      "highlights": "Por qué elegirte",
+      "faq": "Preguntas frecuentes",
+      "warn": "Revisa esto antes de aprobar, no está en lo que nos contaste: {{items}}.",
+      "ask": "Léelo en los dos idiomas. Si dice algo que no es verdad, no lo apruebes: cambia tus respuestas arriba y vuelve a escribirlo.",
+      "approve": "Aprobar y usar este texto",
+      "again": "Escribirlo de nuevo",
+      "discard": "Descartar",
+      "applied": "Texto agregado a tu sitio",
+      "errSignIn": "Vuelve a iniciar sesión.",
+      "errFailed": "No pudimos escribir el borrador. Inténtalo en un minuto."
+        },
       "kind": "¿Qué tipo de consulta es?",
       "kindHint": "Esto define qué pone primero tu sitio. Puedes cambiar el orden más abajo.",
       "kindLabel": "Tipo de consulta",
