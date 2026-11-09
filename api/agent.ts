@@ -50,6 +50,8 @@
  *   The symptom search additionally needs what api/ai-search.ts needs.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { lookup as dnsLookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 type Req = IncomingMessage & {
@@ -3413,7 +3415,7 @@ export default async function handler(req: Req, res: Res) {
     const route = params.get('route') || 'v1';
     try {
         // The copy route carries the owner's session token, not an API key.
-        const access = route === 'site-copy' ? { ...ANON_ACCESS } : accessOf(req);
+        const access = route === 'site-copy' || route === 'site-grab' ? { ...ANON_ACCESS } : accessOf(req);
         const ip = firstHeader(req.headers['x-forwarded-for']) || req.socket?.remoteAddress || '';
         const isApi = route === 'v1' || route === 'mcp';
         const limited = access.keyed
@@ -3433,6 +3435,7 @@ export default async function handler(req: Req, res: Res) {
             case 'page': return await pageRoute(req, res, params);
             case 'site': return await siteRoute(res, params);
             case 'site-copy': return await siteCopyRoute(req, res);
+            case 'site-grab': return await siteGrabRoute(req, res);
             default: throw new ApiError(404, 'not_found', 'Unknown route.');
         }
     } catch (err) {
@@ -3440,9 +3443,184 @@ export default async function handler(req: Req, res: Res) {
     }
 }
 
+// ── Doctor websites: reading the clinic's own website for colours, logo and photos ──
+//
+// POST /api/agent?route=site-grab  { provider_id }   Authorization: Bearer <owner's session token>
+// Reads ONLY the website address already on the owner's listing (never a URL from the request, so this
+// cannot be used as an open proxy) and suggests colours, a logo and photos. Nothing is saved: the
+// dashboard shows the suggestions and the owner chooses. Fetching is guarded against reaching private
+// networks (every address a name resolves to must be public, redirects are re-checked, size and time capped).
+
+/** True when an IP address is on the public internet (not loopback, private, link-local, CGNAT, multicast). */
+function isPublicIp(ip: string): boolean {
+    const v = isIP(ip);
+    if (v === 4) {
+        const [a, b] = ip.split('.').map(Number);
+        if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+        if (a === 169 && b === 254) return false;
+        if (a === 172 && b >= 16 && b <= 31) return false;
+        if (a === 192 && b === 168) return false;
+        if (a === 100 && b >= 64 && b <= 127) return false;
+        if (a === 192 && b === 0) return false;
+        if (a === 198 && (b === 18 || b === 19)) return false;
+        return true;
+    }
+    if (v === 6) {
+        const low = ip.toLowerCase();
+        const mapped = low.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+        if (mapped) return isPublicIp(mapped[1]);
+        if (low === '::' || low === '::1') return false;
+        if (/^f[cd]/.test(low) || /^fe[89ab]/.test(low) || /^ff/.test(low)) return false;
+        return true;
+    }
+    return false;
+}
+
+/** Fetches a public web page as text: at most 4 redirects, each checked, 6 seconds, 700 KB. Null if it cannot be read. */
+async function fetchPublicHtml(start: string): Promise<{ html: string; url: string } | null> {
+    let current = start;
+    for (let hop = 0; hop < 5; hop++) {
+        let u: URL;
+        try { u = new URL(current); } catch { return null; }
+        if ((u.protocol !== 'https:' && u.protocol !== 'http:') || u.username || u.password) return null;
+        if (u.port && u.port !== '80' && u.port !== '443') return null;
+        try {
+            const addrs = isIP(u.hostname.replace(/^\[|\]$/g, ''))
+                ? [{ address: u.hostname.replace(/^\[|\]$/g, '') }]
+                : await dnsLookup(u.hostname, { all: true });
+            if (!addrs.length || !addrs.every((a) => isPublicIp(a.address))) return null;
+            const r = await fetch(u, {
+                redirect: 'manual',
+                signal: AbortSignal.timeout(6000),
+                headers: { 'User-Agent': 'MedSocietyBot/1.0 (+https://www.medsociety.one)', Accept: 'text/html' },
+            });
+            if (r.status >= 300 && r.status < 400) {
+                const loc = r.headers.get('location');
+                if (!loc) return null;
+                current = new URL(loc, u).toString();
+                continue;
+            }
+            if (!r.ok || !(r.headers.get('content-type') ?? '').includes('html') || !r.body) return null;
+            const reader = r.body.getReader();
+            const chunks: Uint8Array[] = [];
+            let size = 0;
+            while (size < 700_000) {
+                const { done, value } = await reader.read();
+                if (done || !value) break;
+                chunks.push(value); size += value.length;
+            }
+            void reader.cancel().catch(() => undefined);
+            return { html: Buffer.concat(chunks).toString('utf8'), url: u.toString() };
+        } catch { return null; }
+    }
+    return null;
+}
+
+interface GrabResult { accent?: string; ink?: string; warm?: string; logo?: string; images: string[] }
+
+function hslOf(hexColor: string): { h: number; s: number; l: number } {
+    const n = parseInt(hexColor.slice(1), 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+    if (!d) return { h: 0, s: 0, l };
+    const s = d / (1 - Math.abs(2 * l - 1));
+    const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (h * 60 + 360) % 360, s, l };
+}
+
+/** What a page's own HTML says about its look: dominant colours, a logo, and its main photos. Pure, so it is testable. */
+function parseSiteHtml(html: string, base: string): GrabResult {
+    const abs = (v: string | undefined): string | null => {
+        if (!v) return null;
+        try { const u = new URL(v.trim().replace(/&amp;/g, '&'), base); return u.protocol === 'https:' ? u.toString() : null; } catch { return null; }
+    };
+    const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, 'i'))?.slice(2).find(Boolean);
+    const meta = (key: string) => {
+        for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
+            const k = attr(m[0], 'property') ?? attr(m[0], 'name');
+            if (k?.toLowerCase() === key) return attr(m[0], 'content');
+        }
+        return undefined;
+    };
+
+    // Colours: counted in <style> blocks and style="" attributes, with the page's declared theme colour weighted up.
+    const css = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join(' ')
+        + ' ' + [...html.matchAll(/\bstyle\s*=\s*"([^"]*)"/gi)].map((m) => m[1]).join(' ');
+    const count = new Map<string, number>();
+    const add = (raw: string, w: number) => {
+        let h = raw.toLowerCase();
+        if (h.length === 4) h = '#' + [...h.slice(1)].map((c) => c + c).join('');
+        count.set(h, (count.get(h) ?? 0) + w);
+    };
+    for (const m of css.matchAll(/#([0-9a-f]{6}|[0-9a-f]{3})\b/gi)) add(m[0], 1);
+    const theme = meta('theme-color');
+    if (theme && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(theme.trim())) add(theme.trim(), 6);
+    const ranked = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => ({ c, ...hslOf(c) }));
+    const vivid = ranked.filter((x) => x.s >= 0.3 && x.l >= 0.18 && x.l <= 0.75);
+    const out: GrabResult = { images: [] };
+    if (vivid[0]) {
+        out.accent = vivid[0].c;
+        const w = vivid.find((x) => Math.min(Math.abs(x.h - vivid[0].h), 360 - Math.abs(x.h - vivid[0].h)) >= 40);
+        if (w) out.warm = w.c;
+    }
+    const dark = ranked.find((x) => x.l < 0.22 && x.s < 0.5);
+    if (dark) out.ink = dark.c;
+
+    // Logo: an <img> that says "logo", else the largest touch icon.
+    const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]);
+    const srcOf = (tag: string) => {
+        const set = attr(tag, 'srcset') ?? attr(tag, 'data-srcset');
+        const fromSet = set?.split(',').map((p) => p.trim().split(/\s+/)[0]).filter(Boolean).pop();
+        return abs(attr(tag, 'src') ?? attr(tag, 'data-src') ?? attr(tag, 'data-lazy-src') ?? fromSet);
+    };
+    const logoTag = imgs.find((t) => /logo/i.test(`${attr(t, 'src') ?? ''} ${attr(t, 'alt') ?? ''} ${attr(t, 'class') ?? ''} ${attr(t, 'id') ?? ''}`));
+    out.logo = (logoTag && srcOf(logoTag)) || undefined;
+    if (!out.logo) {
+        const icons = [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]).filter((t) => /apple-touch-icon/i.test(attr(t, 'rel') ?? ''));
+        const best = icons.sort((a, b) => parseInt(attr(b, 'sizes') ?? '0', 10) - parseInt(attr(a, 'sizes') ?? '0', 10))[0];
+        out.logo = (best && abs(attr(best, 'href'))) || undefined;
+    }
+
+    // Photos: the share image first, then pictures in page order; not icons, trackers, GIFs, SVGs or tiny images.
+    const seen = new Set<string>();
+    const push = (u: string | null) => {
+        if (!u || seen.has(u) || u === out.logo) return;
+        if (/\.(svg|gif|ico)(\?|$)/i.test(u) || /sprite|pixel|spacer|blank|favicon|icon|logo|avatar|emoji|badge/i.test(u)) return;
+        seen.add(u); out.images.push(u);
+    };
+    push(abs(meta('og:image') ?? meta('twitter:image')));
+    for (const t of imgs) {
+        const w = parseInt(attr(t, 'width') ?? '', 10), h = parseInt(attr(t, 'height') ?? '', 10);
+        if ((w && w < 200) || (h && h < 150)) continue;
+        push(srcOf(t));
+        if (out.images.length >= 12) break;
+    }
+    return out;
+}
+
+async function siteGrabRoute(req: Req, res: Res) {
+    if (req.method !== 'POST') throw new ApiError(405, 'method_not_allowed', 'POST only.');
+    const token = firstHeader(req.headers.authorization).replace(/^Bearer\s+/i, '');
+    const uid = token ? await sessionUserId(token) : null;
+    if (!uid) throw new ApiError(401, 'sign_in', 'Sign in to use this.');
+    if (rateLimited(`grab:${uid}`, 6)) throw new ApiError(429, 'slow_down', 'Try again in a few minutes.');
+
+    const body = (await readJsonBody(req)) as { provider_id?: unknown };
+    const id = typeof body.provider_id === 'string' ? body.provider_id : '';
+    if (!UUID.test(id) || !(await userOwns(token, id))) throw new ApiError(403, 'not_yours', 'That listing is not yours.');
+
+    const detail = await fetchDetail(id);
+    if (!detail) throw new ApiError(404, 'not_found', 'Listing not found.');
+    const site = detail.website;
+    if (!site) return sendJson(res, 200, { ok: true, found: null, reason: 'no_website' }, 'private, no-store');
+    const page = await fetchPublicHtml(site);
+    if (!page) return sendJson(res, 200, { ok: true, found: null, reason: 'unreachable' }, 'private, no-store');
+    return sendJson(res, 200, { ok: true, found: parseSiteHtml(page.html, page.url), source: new URL(page.url).hostname }, 'private, no-store');
+}
+
 /** Exported for scripts/agent-selftest.ts, which checks these against the site's own src/utils. */
 export const __test = {
     tokenize, scoreDoc, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown,
     openApiSpec, languageCodes, expandTerm, fold, SEARCH_PARAMS, MCP_TOOLS, providerJsonLd, rpcHandle,
-    parseCopy, copyWarnings,
+    parseCopy, copyWarnings, parseSiteHtml, isPublicIp, fetchPublicHtml,
 };
