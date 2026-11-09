@@ -177,7 +177,7 @@ const four = parseName('Dr. René Ricardo Prueba Núñez');
 check('names: four words split, title and accents gone', four?.given === 'RENE RICARDO' && four?.surname1 === 'PRUEBA' && four?.surname2 === 'NUNEZ' && !four?.ambiguous, four);
 check('names: "de la" stays with its surname', parseName('Uno Dos de la Prueba Núñez')?.surname1 === 'DE LA PRUEBA', parseName('Uno Dos de la Prueba Núñez'));
 check('names: three words flagged as ambiguous', parseName('Ana Prueba Uno')?.ambiguous === true);
-check('name_key skips particles', nameKey(parseName('Uno Dos de la Prueba Núñez')) === 'ANPR', nameKey(parseName('Uno Dos de la Prueba Núñez')));
+check('name_key skips particles', nameKey(parseName('Uno Dos de la Prueba Núñez')) === 'UNPR', nameKey(parseName('Uno Dos de la Prueba Núñez')));
 check('name_key needs a surname', nameKey(parseName('Prueba')) === null);
 
 // ── Match decision ───────────────────────────────────────────────────────────
@@ -206,7 +206,7 @@ const obs = { externalId: '1', name: 'X', title: null, specialties: ['Radiologí
     extra: { consejo: 'Consejo de Prueba', certificate: '9999', validFrom: '2024-01-01', validTo: '2029-01-01', query: 'x' } };
 const row = entryRow(obs, 'conacem');
 check('entry row: a certification badge is labelled by its specialty', row.label === 'Radiología e Imagen' && row.valid_to === '2029-01-01', row);
-check('entry row: only public facts kept for the badge', JSON.stringify(row.facts) === '{"consejo":"Consejo de Prueba","certificate":"4842"}', row.facts);
+check('entry row: only public facts kept for the badge', JSON.stringify(row.facts) === '{"consejo":"Consejo de Prueba","certificate":"9999"}', row.facts);
 const hosp = entryRow({ ...obs, extra: undefined, specialties: ['Urología'], sites: [{ name: 'Star Médica Ciudad Juárez', address: null, tower: null, office: '1' }] }, 'starmedica');
 check('entry row: a hospital badge is labelled by its site', hosp.label === 'Star Médica Ciudad Juárez' && hosp.valid_to === null, hosp);
 
