@@ -2688,7 +2688,7 @@ interface DoctorSite {
 
 /** The six kinds of practice a brief is shaped by (docs/doctor-sites.md, "The brief"). */
 type Archetype = 'stay' | 'specialist' | 'procedures' | 'routine' | 'therapy' | 'multi';
-type ExtraKey = 'credentials' | 'technology' | 'results' | 'team';
+type ExtraKey = 'rooms' | 'amenities' | 'day' | 'packages' | 'credentials' | 'technology' | 'results' | 'team';
 
 /**
  * What a doctor's site says that the listing does not. Everything is optional:
@@ -2858,10 +2858,10 @@ const SITE_ARCHETYPE_OF: Record<string, Archetype> = {
     mental_health: 'therapy', physical_therapy: 'therapy', massage: 'therapy',
     pharmacy: 'multi',
 };
-const SITE_EXTRA_KEYS: string[] = ['credentials', 'technology', 'results', 'team'];
+const SITE_EXTRA_KEYS: string[] = ['rooms', 'amenities', 'day', 'packages', 'credentials', 'technology', 'results', 'team'];
 /** Block order when the owner has not ranked them, per archetype. `about` includes the "why choose us" cards. */
 const SITE_PRIORITIES: Record<Archetype, string[]> = {
-    stay: ['photos', 'reviews', 'services', 'about', 'team', 'steps', 'faq'],
+    stay: ['photos', 'rooms', 'reviews', 'amenities', 'day', 'packages', 'services', 'about', 'team', 'steps', 'faq'],
     specialist: ['credentials', 'technology', 'about', 'services', 'reviews', 'results', 'team', 'faq', 'photos', 'steps'],
     procedures: ['results', 'photos', 'services', 'credentials', 'reviews', 'about', 'steps', 'faq'],
     routine: ['services', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
@@ -2869,6 +2869,10 @@ const SITE_PRIORITIES: Record<Archetype, string[]> = {
     multi: ['services', 'team', 'photos', 'reviews', 'about', 'faq', 'steps'],
 };
 const SITE_EXTRA_TITLES: Record<ExtraKey, Record<Lang, string>> = {
+    rooms: { es: 'Las habitaciones', en: 'The rooms' },
+    amenities: { es: 'Qué incluye tu estancia', en: 'What your stay includes' },
+    day: { es: 'Un día típico', en: 'A typical day' },
+    packages: { es: 'Paquetes', en: 'Packages' },
     credentials: { es: 'Formación y experiencia', en: 'Training and experience' },
     technology: { es: 'Tecnología y equipo', en: 'Technology and equipment' },
     results: { es: 'Resultados', en: 'Results' },

@@ -459,6 +459,10 @@
       "down": "Move down",
       "hide": "Hide",
       "block": {
+        "rooms": "The rooms",
+        "amenities": "What your stay includes",
+        "day": "A typical day",
+        "packages": "Packages",
         "photos": "Photos of the place",
         "reviews": "Patient reviews",
         "services": "Services and prices",
@@ -471,6 +475,10 @@
         "results": "Results"
       },
       "extraHint": {
+        "rooms": "One card per room type: what it is like and who it suits. Add photos in the Photos section.",
+        "amenities": "Care, meals and comforts that come with a stay: nursing hours, meals, transfers, Wi-Fi.",
+        "day": "Morning to night, in order. Put the time in the title.",
+        "packages": "Each stay length or plan, and what is in it. Say the price only if you want it public.",
         "credentials": "Degrees, residencies, certifications, years in practice. Facts a patient can check.",
         "technology": "The machines and techniques you use, and what they are for.",
         "results": "Only what you can back up with numbers or records, such as years of practice or procedures performed. Avoid words like best or guaranteed.",
@@ -478,6 +486,10 @@
       },
       "itemTitle": "Title",
       "itemTitlePh": {
+        "rooms": "e.g. Private room with bathroom",
+        "amenities": "e.g. Nurse on site 24 hours",
+        "day": "e.g. 8:00 Breakfast and medication",
+        "packages": "e.g. 7-night recovery stay",
         "credentials": "e.g. Cardiology residency, UNAM",
         "technology": "e.g. 3D echocardiography",
         "results": "e.g. 12 years in practice",

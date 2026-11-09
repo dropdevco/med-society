@@ -7,7 +7,7 @@
  * pre-fills the form so what the owner sees matches what the site will do.
  */
 export type Archetype = 'stay' | 'specialist' | 'procedures' | 'routine' | 'therapy' | 'multi';
-export type ExtraKey = 'credentials' | 'technology' | 'results' | 'team';
+export type ExtraKey = 'rooms' | 'amenities' | 'day' | 'packages' | 'credentials' | 'technology' | 'results' | 'team';
 
 export const ARCHETYPES: Archetype[] = ['stay', 'specialist', 'procedures', 'routine', 'therapy', 'multi'];
 
@@ -20,7 +20,7 @@ export const ARCHETYPE_OF: Record<string, Archetype> = {
 };
 
 export const PRIORITIES: Record<Archetype, string[]> = {
-    stay: ['photos', 'reviews', 'services', 'about', 'team', 'steps', 'faq'],
+    stay: ['photos', 'rooms', 'reviews', 'amenities', 'day', 'packages', 'services', 'about', 'team', 'steps', 'faq'],
     specialist: ['credentials', 'technology', 'about', 'services', 'reviews', 'results', 'team', 'faq', 'photos', 'steps'],
     procedures: ['results', 'photos', 'services', 'credentials', 'reviews', 'about', 'steps', 'faq'],
     routine: ['services', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
@@ -30,7 +30,7 @@ export const PRIORITIES: Record<Archetype, string[]> = {
 
 /** The proof blocks worth asking about for each kind of practice (the listing cannot supply these). */
 export const EXTRAS_FOR: Record<Archetype, ExtraKey[]> = {
-    stay: ['team'],
+    stay: ['rooms', 'amenities', 'day', 'packages', 'team'],
     specialist: ['credentials', 'technology', 'results'],
     procedures: ['credentials', 'results'],
     routine: ['team'],
@@ -38,7 +38,7 @@ export const EXTRAS_FOR: Record<Archetype, ExtraKey[]> = {
     multi: ['team'],
 };
 
-export const EXTRA_KEYS: ExtraKey[] = ['credentials', 'technology', 'results', 'team'];
+export const EXTRA_KEYS: ExtraKey[] = ['rooms', 'amenities', 'day', 'packages', 'credentials', 'technology', 'results', 'team'];
 
 /** The saved order, then anything the archetype lists that the owner never ranked. */
 export function orderFor(archetype: Archetype, saved: string[] | undefined): string[] {

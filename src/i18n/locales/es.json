@@ -459,6 +459,10 @@
       "down": "Bajar",
       "hide": "Ocultar",
       "block": {
+        "rooms": "Las habitaciones",
+        "amenities": "Qué incluye tu estancia",
+        "day": "Un día típico",
+        "packages": "Paquetes",
         "photos": "Fotos del lugar",
         "reviews": "Reseñas de pacientes",
         "services": "Servicios y precios",
@@ -471,6 +475,10 @@
         "results": "Resultados"
       },
       "extraHint": {
+        "rooms": "Una tarjeta por tipo de habitación: cómo es y para quién es. Las fotos van en la sección de fotos.",
+        "amenities": "Cuidados, comidas y comodidades de la estancia: horas de enfermería, comidas, traslados, Wi-Fi.",
+        "day": "De la mañana a la noche, en orden. Pon la hora en el título.",
+        "packages": "Cada duración o plan de estancia y qué incluye. Pon el precio solo si quieres que sea público.",
         "credentials": "Títulos, residencias, certificaciones, años de práctica. Datos que un paciente pueda verificar.",
         "technology": "Los equipos y técnicas que usas, y para qué sirven.",
         "results": "Solo lo que puedas respaldar con cifras o registros, como años de práctica o procedimientos realizados. Evita palabras como el mejor o garantizado.",
@@ -478,6 +486,10 @@
       },
       "itemTitle": "Título",
       "itemTitlePh": {
+        "rooms": "p. ej. Habitación privada con baño",
+        "amenities": "p. ej. Enfermera en sitio las 24 horas",
+        "day": "p. ej. 8:00 Desayuno y medicamentos",
+        "packages": "p. ej. Estancia de recuperación de 7 noches",
         "credentials": "p. ej. Residencia en cardiología, UNAM",
         "technology": "p. ej. Ecocardiografía 3D",
         "results": "p. ej. 12 años de práctica",

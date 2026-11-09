@@ -162,7 +162,8 @@ people rate everything a 10.
 
 Block keys: `photos` (story, details, gallery), `reviews` (featured quote, wall), `services`,
 `about` (the "why choose us" cards and the about text), `steps`, `faq` (location and questions),
-and the proof blocks `credentials`, `technology`, `results`, `team`, which the listing cannot supply
+and the proof blocks `credentials`, `technology`, `results`, `team`, plus the recovery-center ones
+`rooms`, `amenities`, `day` (a typical day), `packages`, which the listing cannot supply
 and so live in `content.blocks`. The hero, the stats strip, the closing call to action and the footer
 are fixed. The long sticky photo sequence only shows when `photos` ranks in the owner's top four;
 otherwise only the details grid and gallery show. `cta` picks which button leads.
