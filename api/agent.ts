@@ -383,6 +383,9 @@ interface OrganizationBadge {
     organization_url: string | null;
 }
 
+// Same rule as src/utils/orgBadges.ts: these addresses come from scraped pages.
+const isWebLink = (url: unknown): url is string => typeof url === 'string' && /^https?:\/\/[^\s]+$/i.test(url.trim());
+
 function organizationsOf(raw: unknown): OrganizationBadge[] {
     if (!Array.isArray(raw)) return [];
     return raw.map((b: Record<string, unknown>) => ({
@@ -391,8 +394,8 @@ function organizationsOf(raw: unknown): OrganizationBadge[] {
         label: String(b.label ?? ''),
         confirmed_at: typeof b.confirmed_at === 'string' ? b.confirmed_at : null,
         valid_until: typeof b.valid_to === 'string' ? b.valid_to : null,
-        source_url: typeof b.url === 'string' ? b.url : null,
-        organization_url: typeof b.info_url === 'string' ? b.info_url : null,
+        source_url: isWebLink(b.url) ? b.url : null,
+        organization_url: isWebLink(b.info_url) ? b.info_url : null,
     }));
 }
 

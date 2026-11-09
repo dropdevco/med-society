@@ -235,15 +235,19 @@ create function public._decide_match(p_source text, p_external text, p_decision 
 returns void language plpgsql security definer set search_path = public, auth as $$
 declare
     v_doctor uuid;
+    v_status text;
     v_org uuid;
     v_entry public.source_entries;
 begin
     if p_decision not in ('confirm','reject') then
         raise exception 'decision must be confirm or reject';
     end if;
-    select coalesce(p_doctor, m.doctor_id) into v_doctor from public.doctor_source_ids m
-    where m.source_slug = p_source and m.external_id = p_external;
+    select coalesce(p_doctor, m.doctor_id), m.status into v_doctor, v_status from public.doctor_source_ids m
+    where m.source_slug = p_source and m.external_id = p_external
+    for update;
     if not found then raise exception 'no such match'; end if;
+    -- Final: rejecting a confirmed match here would leave its badge showing. Two reviewers can also race.
+    if v_status in ('confirmed','rejected') then raise exception 'this match was already decided'; end if;
 
     update public.doctor_source_ids
        set status = case p_decision when 'confirm' then 'confirmed' else 'rejected' end,

@@ -199,6 +199,7 @@ create function public.admin_facility_decide(p_source text, p_external text, p_d
 returns void language plpgsql security definer set search_path = public, auth as $$
 declare
     v_provider uuid;
+    v_status text;
     v_org uuid;
     v_entry public.source_entries;
 begin
@@ -206,9 +207,11 @@ begin
     if p_decision not in ('confirm','reject') then
         raise exception 'decision must be confirm or reject';
     end if;
-    select coalesce(p_provider, m.provider_id) into v_provider from public.facility_source_ids m
-    where m.source_slug = p_source and m.external_id = p_external;
+    select coalesce(p_provider, m.provider_id), m.status into v_provider, v_status from public.facility_source_ids m
+    where m.source_slug = p_source and m.external_id = p_external
+    for update;
     if not found then raise exception 'no such match'; end if;
+    if v_status in ('confirmed','rejected') then raise exception 'this match was already decided'; end if;
     if p_decision = 'confirm' and v_provider is null then raise exception 'no listing to confirm'; end if;
 
     update public.facility_source_ids

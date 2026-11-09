@@ -5,6 +5,7 @@ import { badgeLink, cardRow, GROUPS, groupOf, idOf, monogram } from '../../utils
 import './orgBadges.css';
 
 function Tile({ badge, on, onToggle }: { badge: ProviderBadge; on: boolean; onToggle: () => void }) {
+    const [broken, setBroken] = useState(false);
     return (
         <button
             type="button"
@@ -14,7 +15,7 @@ function Tile({ badge, on, onToggle }: { badge: ProviderBadge; on: boolean; onTo
             // A card is one big link: a tile opens its details, not the profile.
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(); }}
         >
-            {badge.logo ? <img src={badge.logo} alt="" loading="lazy" /> : monogram(badge.name)}
+            {badge.logo && !broken ? <img src={badge.logo} alt="" loading="lazy" onError={() => setBroken(true)} /> : monogram(badge.name)}
         </button>
     );
 }

@@ -13,7 +13,7 @@ import en from '../src/i18n/locales/en.json';
 import es from '../src/i18n/locales/es.json';
 import type { Provider, ProviderBadge } from '../src/types/provider';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
-import { badgeLink, cardRow, GROUPS, groupOf, idOf, monogram } from '../src/utils/orgBadges';
+import { badgeLink, cardRow, GROUPS, groupOf, idOf, isWebLink, monogram } from '../src/utils/orgBadges';
 import { providerJsonLd } from '../src/utils/structuredData';
 
 let failures = 0;
@@ -50,6 +50,12 @@ for (const [b, group, kind] of expected) {
 check('Hospital Ángeles links to one doctor', badgeLink(angeles)?.href.includes('/medico/') === true);
 check('Star Médica links to one doctor', badgeLink(star)?.href.includes('doctorId=') === true);
 check('CONACEM links to what it is, never the empty search', badgeLink(conacem)?.href.endsWith('/quienes-somos') === true && !badgeLink(conacem)?.href.includes('/buscador'));
+for (const bad of ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,x', 'vbscript:x', '//evil.test', 'www.example.test', ' ', 'https://a b']) {
+    check(`a scraped address never becomes a link: ${bad}`, !isWebLink(bad) && badgeLink({ ...cluster, url: bad, info_url: null }) === null);
+}
+check('a bad doctor link falls back to the information page', badgeLink({ ...cluster, url: 'javascript:x', info_url: 'https://example.test/about' })?.kind === 'about');
+check('http and https are links', isWebLink('http://example.test/a?b=1') && isWebLink('HTTPS://example.test'));
+check('agent: a scraped script address is not passed on', __test.organizationsOf([{ ...cluster, url: 'javascript:x', info_url: 'data:x' }])[0].source_url === null && __test.organizationsOf([{ ...cluster, url: 'javascript:x', info_url: 'data:x' }])[0].organization_url === null);
 check('no link at all when nothing is known', badgeLink({ ...cluster, url: null, info_url: null }) === null);
 check('every badge has its own key', new Set(all.map(idOf)).size === all.length);
 
@@ -102,7 +108,7 @@ for (const b of all) {
     check(`${b.org}: seeded`, seeds.includes(`('${b.org}', `));
     check(`${b.org}: logo turned on`, logos.includes(`'${b.org}'`));
     const file = new URL(`../public/logos/orgs/${b.org}.png`, import.meta.url);
-    check(`${b.org}: logo file exists, because a tile has no fallback`, existsSync(file));
+    check(`${b.org}: logo file exists`, existsSync(file));
     check(`${b.org}: logo file is small enough for a card`, existsSync(file) && statSync(file).size < 40_000);
     check(`${b.org}: in the permissions register`, register.includes(`\`${b.org}\``));
 }

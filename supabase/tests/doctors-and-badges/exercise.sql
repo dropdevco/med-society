@@ -271,3 +271,10 @@ select 'no new table is readable by anon or signed-in users' as check,
      and table_name in ('organizations','data_sources','source_runs','source_entries','source_observations','doctors','doctor_cedulas','doctor_source_ids','doctor_listings','doctor_merges','doctor_affiliations','facility_source_ids','listing_affiliations')) as ok;
 select 'provider_list exposes no doctor ID' as check, (select count(*) = 0 from information_schema.columns where table_name = 'provider_list' and column_name ilike '%doctor%') as ok;
 select 'no badge carries a doctor ID' as check, (select count(*) = 0 from public.providers p, jsonb_array_elements(p.badges) b where b ? 'doctor_id') as ok;
+
+-- ── Decisions are final ──────────────────────────────────────────────────────
+do $$ begin perform public.admin_match_decide('doctoralia', 'held1', 'reject', null); raise exception 'undid a decision'; exception when raise_exception then if sqlerrm = 'undid a decision' then raise; end if; raise notice 'ok: a confirmed match cannot be rejected'; end $$;
+do $$ begin perform public.admin_match_decide('doctoralia', 'held2', 'confirm', null); raise exception 'undid a decision'; exception when raise_exception then if sqlerrm = 'undid a decision' then raise; end if; raise notice 'ok: a rejected match cannot be confirmed'; end $$;
+do $$ begin perform public.admin_match_decide('doctoralia', 'no-such', 'confirm', null); raise exception 'unknown accepted'; exception when raise_exception then if sqlerrm = 'unknown accepted' then raise; end if; raise notice 'ok: an unknown record is refused'; end $$;
+do $$ begin perform public.admin_match_decide('doctoralia', 'held1', 'maybe', null); raise exception 'bad decision accepted'; exception when raise_exception then if sqlerrm = 'bad decision accepted' then raise; end if; raise notice 'ok: only confirm or reject'; end $$;
+select 'a rejected match stayed rejected' as check, (select status = 'rejected' from public.doctor_source_ids where external_id = 'held2') as ok;

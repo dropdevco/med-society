@@ -33,9 +33,12 @@ export interface BadgeLink {
     kind: 'source' | 'about';
 }
 
+/** These addresses come from scraped pages, so only web links may reach an href. */
+export const isWebLink = (url: unknown): url is string => typeof url === 'string' && /^https?:\/\/[^\s]+$/i.test(url.trim());
+
 export function badgeLink(b: ProviderBadge): BadgeLink | null {
-    if (b.url) return { href: b.url, kind: 'source' };
-    if (b.info_url) return { href: b.info_url, kind: 'about' };
+    if (isWebLink(b.url)) return { href: b.url, kind: 'source' };
+    if (isWebLink(b.info_url)) return { href: b.info_url, kind: 'about' };
     return null;
 }
 

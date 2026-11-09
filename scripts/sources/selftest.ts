@@ -317,6 +317,7 @@ check('a shortened name counts as a different name, so it is reviewed', comparab
     check('a same-name duplicate is not held', !held.some((r) => r.doctoralia_id === '2'));
     check('a different name sharing a cédula is held', held.length === 1 && held[0].doctoralia_id === '3');
     check('the lead is a record with a cédula', cedulasOf(leadOf([person('1', 'A B', []), person('2', 'C D', ['1111111'])])).length === 1);
+    check('a blank name agrees with nothing', heldForReview([person('1', 'Dr.', ['1111111']), person('2', 'Dra.', ['1111111'])]).length === 1);
     check('one record alone is never held', heldForReview([person('1', 'Ana Lopez', ['1111111'])]).length === 0);
     check('reordered names stay under the exact-match bulk confirm', heldConfidence('Ana Lopez Ruiz', 'Ruiz Lopez Ana') < 0.99);
 }

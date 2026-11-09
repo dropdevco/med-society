@@ -53,8 +53,10 @@ export const leadOf = (group: DoctoraliaRow[]) => group.find((r) => cedulasOf(r)
 
 /** The records in a group whose name is not the lead's. */
 export function heldForReview(group: DoctoraliaRow[]): DoctoraliaRow[] {
-    const lead = comparableName(leadOf(group).name);
-    return group.filter((r) => comparableName(r.name) !== lead);
+    const first = leadOf(group);
+    const lead = comparableName(first.name);
+    // A blank name agrees with nothing, not with another blank.
+    return group.filter((r) => r !== first && (!lead || comparableName(r.name) !== lead));
 }
 
 /** Below 0.99, so a bulk "confirm exact names" can never take a held record. */

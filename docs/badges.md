@@ -44,7 +44,7 @@ source run (run_id) → source_entries → doctor_source_ids (matched once) → 
 - **Profile:** `ProfileBadges`: every badge under Credentials / Affiliations / Facility.
 - **Details:** organization, consejo, certificate, verified on, valid from/to, link to the source.
 - **Links:** a badge links to the doctor's own page at the source ("See the source"): Hospital Ángeles' profile, Star Médica's card. **Where a source cannot show the doctor, the badge links to the organization's information page instead** ("What is CONACEM?"), so nobody lands on an empty search. For a new source like that, set `data_sources.doctor_links = false` and `organizations.info_url`.
-- **Logos:** a tile shows the organization's logo only when `organizations.logo_permission_at` is set; until then, its initials (HA, SM, CON). All six organizations are authorized ([Logo use](sources/README.md#logo-use)), and migration 0042 turns them on. For a new organization, record its OK first. Files live in `public/logos/orgs/` and ship with the site; keep them at 324×114 or smaller, because a tile has no fallback for a missing file.
+- **Logos:** a tile shows the organization's logo only when `organizations.logo_permission_at` is set; until then, its initials (HA, SM, CON). All six organizations are authorized ([Logo use](sources/README.md#logo-use)), and migration 0042 turns them on. For a new organization, record its OK first. Files live in `public/logos/orgs/` and ship with the site; keep them at 324×114 or smaller. A tile falls back to initials if its file fails to load.
 - **Text:** `badges.*` in `src/i18n/locales/{en,es}.json`. **Component:** `src/components/provider/OrgBadges.tsx`. **Rules:** `src/utils/orgBadges.ts`.
 
 ## Checks
