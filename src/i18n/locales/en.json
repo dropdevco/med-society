@@ -410,6 +410,78 @@
     "pendingBody": "A person is checking your claim. We will email you as soon as it is approved.",
     "findYourClinic": "Find your clinic",
     "site": {
+      "brief": {
+      "kind": "What kind of practice is this?",
+      "kindHint": "This sets what your site puts first. You can change the order below.",
+      "kindLabel": "Kind of practice",
+      "arch": {
+        "stay": "Recovery or stay (rooms, nursing)",
+        "specialist": "Specialist physician",
+        "procedures": "Procedures and surgery",
+        "routine": "Routine care",
+        "therapy": "Therapy and wellness",
+        "multi": "Several providers, or a pharmacy"
+      },
+      "archHint": {
+        "stay": "Leads with photos of the place, guest reviews and what is included.",
+        "specialist": "Leads with your training, your technology and the conditions you treat.",
+        "procedures": "Leads with results, photos and your procedure menu.",
+        "routine": "Leads with services and prices, then reviews.",
+        "therapy": "Leads with your approach, then services and reviews.",
+        "multi": "Leads with services and your team."
+      },
+      "cta": "What should a visitor do first?",
+      "ctaWhatsapp": "Write to us on WhatsApp",
+      "ctaCall": "Call us",
+      "rank": "What matters most on your site?",
+      "rankHint": "Drag to reorder, or use the arrows. The first {{count}} are featured. Tick Hide for anything you do not want shown.",
+      "featured": "Featured",
+      "up": "Move up",
+      "down": "Move down",
+      "hide": "Hide",
+      "block": {
+        "photos": "Photos of the place",
+        "reviews": "Patient reviews",
+        "services": "Services and prices",
+        "about": "About you and why choose you",
+        "team": "The team",
+        "steps": "How to get started",
+        "faq": "Location and questions",
+        "credentials": "Training and experience",
+        "technology": "Technology and equipment",
+        "results": "Results"
+      },
+      "extraHint": {
+        "credentials": "Degrees, residencies, certifications, years in practice. Facts a patient can check.",
+        "technology": "The machines and techniques you use, and what they are for.",
+        "results": "Only what you can back up with numbers or records, such as years of practice or procedures performed. Avoid words like best or guaranteed.",
+        "team": "Who patients will meet: names, roles, and one line each."
+      },
+      "itemTitle": "Title",
+      "itemTitlePh": {
+        "credentials": "e.g. Cardiology residency, UNAM",
+        "technology": "e.g. 3D echocardiography",
+        "results": "e.g. 12 years in practice",
+        "team": "e.g. Dr. Ana Ruiz, nurse lead"
+      },
+      "itemBody": "One or two sentences",
+      "add": "Add one",
+      "attest": "I confirm I can support every statement under Results with records, and that I have patient consent for any before and after photos.",
+      "attestNeeded": "Please confirm the statement under Results before saving.",
+      "about": "Tell us about your practice",
+      "aboutHint": "A few honest lines. We write your site's text from these, and you approve it before it goes live.",
+      "q": {
+        "patient": "Who is your ideal patient?",
+        "patientHint": "Who do you most want to hear from?",
+        "worry": "What do patients worry about before choosing you?",
+        "worryHint": "These become the questions answered on your site.",
+        "different": "What makes you different, in one sentence?",
+        "differentHint": "Only what is true and that a patient could confirm.",
+        "proud": "The three things you are proudest of",
+        "proudHint": "One per line."
+      },
+      "save": "Save my answers"
+      },
       "title": "Your website",
       "intro": "Your own page to share with patients. Set your colours, photos and words here; our team reviews it before it goes public.",
       "status": { "preview": "Preview, not public yet", "active": "Live", "suspended": "Paused" },

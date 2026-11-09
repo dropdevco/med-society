@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { downscale, validateImageFile, ACCEPTED_IMAGE_TYPES } from '../../utils/imageResize';
 import { clinicPublicUrl, uploadClinicFile } from './uploadWithProgress';
 import { useToast } from './toastContext';
+import { SiteBriefForm, type BriefContent } from './SiteBriefForm';
 
 type Loc = Partial<Record<'es' | 'en', string>>;
 interface StoryItem { src: string; title?: Loc; caption?: Loc }
@@ -13,9 +14,9 @@ interface Brand { bg?: string; soft?: string; accent?: string; ink?: string; war
 export interface SiteRow {
     subdomain: string;
     status: 'preview' | 'active' | 'suspended';
-    content: {
+    content: ({
         headline?: Loc; lead?: Loc; about?: Loc; brand?: Brand; images?: SiteImages;
-    } | null;
+    } & BriefContent) | null;
 }
 
 const SITE_ROOT = 'medsociety.one';
@@ -141,6 +142,8 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
                 <p className="acct-muted">{t('account.site.intro')}</p>
                 <p className="acct-row"><a href={url} target="_blank" rel="noreferrer" className="acct-link">{url}</a></p>
             </section>
+
+            <SiteBriefForm clinic={clinic} content={c} onSaved={onSaved} />
 
             <section className="acct-card">
                 <h2 className="acct-card-title">{t('account.site.brand')}</h2>

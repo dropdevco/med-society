@@ -167,6 +167,8 @@ and so live in `content.blocks`. The hero, the stats strip, the closing call to 
 are fixed. The long sticky photo sequence only shows when `photos` ranks in the owner's top four;
 otherwise only the details grid and gallery show. `cta` picks which button leads.
 
+**The questionnaire** is `SiteBriefForm` at the top of the dashboard Website tab: kind of practice, first action, the ranking (drag or arrows, top 3 marked featured, a Hide box per block), the proof blocks that fit the archetype, a confirmation the owner must tick before saving any Results, and four free-text answers (ideal patient, worries, what is different, proudest of) stored in `brief.answers` for the copywriting step. It saves through `update_my_site`, whose whitelist migration 0037 widens to `brief` and `blocks`. The archetype defaults are duplicated in `src/utils/siteBrief.ts` to pre-fill the form; `api/agent.ts` is the authority.
+
 **Claims.** Results, "most advanced" and guarantees are regulated in medical advertising. The form
 must make the owner confirm each such claim can be supported, ask for something checkable (years of
 practice, number of procedures) not superlatives, and require a consent checkbox for before and

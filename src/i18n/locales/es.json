@@ -410,6 +410,78 @@
     "pendingBody": "Una persona está revisando tu solicitud. Te escribimos en cuanto se apruebe.",
     "findYourClinic": "Buscar mi clínica",
     "site": {
+      "brief": {
+      "kind": "¿Qué tipo de consulta es?",
+      "kindHint": "Esto define qué pone primero tu sitio. Puedes cambiar el orden más abajo.",
+      "kindLabel": "Tipo de consulta",
+      "arch": {
+        "stay": "Recuperación o estancia (habitaciones, enfermería)",
+        "specialist": "Médico especialista",
+        "procedures": "Procedimientos y cirugía",
+        "routine": "Atención de rutina",
+        "therapy": "Terapia y bienestar",
+        "multi": "Varios profesionales, o una farmacia"
+      },
+      "archHint": {
+        "stay": "Empieza con fotos del lugar, reseñas de huéspedes y lo que incluye.",
+        "specialist": "Empieza con tu formación, tu tecnología y las condiciones que atiendes.",
+        "procedures": "Empieza con resultados, fotos y tu lista de procedimientos.",
+        "routine": "Empieza con servicios y precios, luego reseñas.",
+        "therapy": "Empieza con tu enfoque, luego servicios y reseñas.",
+        "multi": "Empieza con servicios y tu equipo."
+      },
+      "cta": "¿Qué debe hacer primero quien visite tu sitio?",
+      "ctaWhatsapp": "Escribirnos por WhatsApp",
+      "ctaCall": "Llamarnos",
+      "rank": "¿Qué es lo más importante en tu sitio?",
+      "rankHint": "Arrastra para ordenar, o usa las flechas. Los primeros {{count}} se destacan. Marca Ocultar en lo que no quieras mostrar.",
+      "featured": "Destacado",
+      "up": "Subir",
+      "down": "Bajar",
+      "hide": "Ocultar",
+      "block": {
+        "photos": "Fotos del lugar",
+        "reviews": "Reseñas de pacientes",
+        "services": "Servicios y precios",
+        "about": "Sobre ti y por qué elegirte",
+        "team": "El equipo",
+        "steps": "Cómo empezar",
+        "faq": "Ubicación y preguntas",
+        "credentials": "Formación y experiencia",
+        "technology": "Tecnología y equipo",
+        "results": "Resultados"
+      },
+      "extraHint": {
+        "credentials": "Títulos, residencias, certificaciones, años de práctica. Datos que un paciente pueda verificar.",
+        "technology": "Los equipos y técnicas que usas, y para qué sirven.",
+        "results": "Solo lo que puedas respaldar con cifras o registros, como años de práctica o procedimientos realizados. Evita palabras como el mejor o garantizado.",
+        "team": "A quién conocerán los pacientes: nombres, cargos y una línea de cada uno."
+      },
+      "itemTitle": "Título",
+      "itemTitlePh": {
+        "credentials": "p. ej. Residencia en cardiología, UNAM",
+        "technology": "p. ej. Ecocardiografía 3D",
+        "results": "p. ej. 12 años de práctica",
+        "team": "p. ej. Dra. Ana Ruiz, jefa de enfermería"
+      },
+      "itemBody": "Una o dos frases",
+      "add": "Agregar uno",
+      "attest": "Confirmo que puedo respaldar cada afirmación de Resultados con registros, y que tengo el consentimiento de los pacientes para cualquier foto de antes y después.",
+      "attestNeeded": "Confirma la declaración de Resultados antes de guardar.",
+      "about": "Cuéntanos sobre tu consulta",
+      "aboutHint": "Unas líneas honestas. Con ellas escribimos el texto de tu sitio, y tú lo apruebas antes de publicarlo.",
+      "q": {
+        "patient": "¿Quién es tu paciente ideal?",
+        "patientHint": "¿De quién quieres recibir más mensajes?",
+        "worry": "¿Qué le preocupa a un paciente antes de elegirte?",
+        "worryHint": "Esto se convierte en las preguntas que responde tu sitio.",
+        "different": "¿Qué te hace diferente, en una frase?",
+        "differentHint": "Solo lo que sea verdad y que un paciente pueda confirmar.",
+        "proud": "Las tres cosas de las que te sientes más orgulloso",
+        "proudHint": "Una por línea."
+      },
+      "save": "Guardar mis respuestas"
+      },
       "title": "Tu sitio web",
       "intro": "Tu propia página para compartir con tus pacientes. Aquí eliges colores, fotos y textos; nuestro equipo la revisa antes de hacerla pública.",
       "status": { "preview": "Vista previa, aún no es pública", "active": "Publicada", "suspended": "En pausa" },

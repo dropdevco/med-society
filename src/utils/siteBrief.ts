@@ -1,0 +1,46 @@
+/**
+ * What a doctor's website can emphasise, by kind of practice.
+ *
+ * KEEP IN STEP with SITE_ARCHETYPE_OF / SITE_PRIORITIES in api/agent.ts: the
+ * renderer there is self-contained (api/ cannot import from src/), so the same
+ * defaults live in both places. The renderer is the authority; this copy only
+ * pre-fills the form so what the owner sees matches what the site will do.
+ */
+export type Archetype = 'stay' | 'specialist' | 'procedures' | 'routine' | 'therapy' | 'multi';
+export type ExtraKey = 'credentials' | 'technology' | 'results' | 'team';
+
+export const ARCHETYPES: Archetype[] = ['stay', 'specialist', 'procedures', 'routine', 'therapy', 'multi'];
+
+export const ARCHETYPE_OF: Record<string, Archetype> = {
+    cardiology: 'specialist', gastroenterology: 'specialist', neurology: 'specialist', orthopedics: 'specialist', otolaryngology: 'specialist', obgyn: 'specialist',
+    plastic_surgery: 'procedures', aesthetician: 'procedures', orthodontist: 'procedures',
+    dentist: 'routine', optometry: 'routine', pediatrics: 'routine', general: 'routine', urgent_care: 'routine', telehealth: 'routine',
+    mental_health: 'therapy', physical_therapy: 'therapy', massage: 'therapy',
+    pharmacy: 'multi',
+};
+
+export const PRIORITIES: Record<Archetype, string[]> = {
+    stay: ['photos', 'reviews', 'services', 'about', 'team', 'steps', 'faq'],
+    specialist: ['credentials', 'technology', 'about', 'services', 'reviews', 'results', 'team', 'faq', 'photos', 'steps'],
+    procedures: ['results', 'photos', 'services', 'credentials', 'reviews', 'about', 'steps', 'faq'],
+    routine: ['services', 'reviews', 'about', 'photos', 'team', 'steps', 'faq'],
+    therapy: ['about', 'services', 'reviews', 'credentials', 'steps', 'faq', 'photos'],
+    multi: ['services', 'team', 'photos', 'reviews', 'about', 'faq', 'steps'],
+};
+
+/** The proof blocks worth asking about for each kind of practice (the listing cannot supply these). */
+export const EXTRAS_FOR: Record<Archetype, ExtraKey[]> = {
+    stay: ['team'],
+    specialist: ['credentials', 'technology', 'results'],
+    procedures: ['credentials', 'results'],
+    routine: ['team'],
+    therapy: ['credentials'],
+    multi: ['team'],
+};
+
+export const EXTRA_KEYS: ExtraKey[] = ['credentials', 'technology', 'results', 'team'];
+
+/** The saved order, then anything the archetype lists that the owner never ranked. */
+export function orderFor(archetype: Archetype, saved: string[] | undefined): string[] {
+    return [...new Set([...(saved ?? []), ...PRIORITIES[archetype]])];
+}
