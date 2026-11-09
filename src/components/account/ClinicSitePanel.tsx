@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { supabase } from '../../lib/supabase';
@@ -6,6 +6,7 @@ import { downscale, validateImageFile, ACCEPTED_IMAGE_TYPES } from '../../utils/
 import { clinicPublicUrl, uploadClinicFile } from './uploadWithProgress';
 import { useToast } from './toastContext';
 import { SiteBriefForm, type BriefContent } from './SiteBriefForm';
+import { SiteKnown } from './SiteKnown';
 
 type Loc = Partial<Record<'es' | 'en', string>>;
 interface StoryItem { src: string; title?: Loc; caption?: Loc }
@@ -39,7 +40,7 @@ function tint(hex: string, amount: number): string {
  * accepts only these fields. The site stays a preview until the team publishes
  * it, so nothing here can put a page in front of patients by accident.
  */
-export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; site: SiteRow; onSaved: () => void }) {
+export function ClinicSitePanel({ clinic, site, onSaved, onEditProfile }: { clinic: Provider; site: SiteRow; onSaved: () => void; onEditProfile: (field: string) => void }) {
     const { t, i18n } = useTranslation();
     const toast = useToast();
     const lang: 'es' | 'en' = i18n.language?.startsWith('es') ? 'es' : 'en';
@@ -57,7 +58,9 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
     const [story, setStory] = useState<StoryItem[]>(c.images?.story ?? []);
     const [hero, setHero] = useState(c.images?.hero ?? '');
     const [busy, setBusy] = useState<'save' | 'photo' | 'logo' | null>(null);
-    const [reading, setReading] = useState(false);
+    // First visit with a website on the listing and nothing chosen yet: look at the website straight away.
+    const autoRead = !!clinic.website && !c.brand?.accent && !c.images?.story?.length;
+    const [reading, setReading] = useState(autoRead);
     const [found, setFound] = useState<Found | null>(null);
     const [grabNote, setGrabNote] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -98,31 +101,45 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
         if (logoRef.current) logoRef.current.value = '';
     };
 
-    /** Asks the server to read the website on the listing. Suggestions only: nothing is applied or saved yet. */
-    const readWebsite = async () => {
-        if (!supabase) return;
-        setError(null); setGrabNote(null); setFound(null); setReading(true);
+    /** Asks the server to read the website on the listing. Suggestions only: nothing is applied or saved. */
+    const fetchFound = async (): Promise<{ found?: Found; note?: string; error?: string }> => {
+        if (!supabase) return {};
         try {
             const { data: sess } = await supabase.auth.getSession();
             const token = sess.session?.access_token;
-            if (!token) { setError(t('account.site.grab.signIn')); return; }
+            if (!token) return { error: t('account.site.grab.signIn') };
             const r = await fetch('/api/agent?route=site-grab', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ provider_id: clinic.id }),
             });
             const j = (await r.json().catch(() => null)) as { found?: Found | null; reason?: string; error?: { message?: string } } | null;
-            if (!r.ok) { setError(j?.error?.message ?? t('account.site.grab.failed')); return; }
-            if (!j?.found) { setGrabNote(t(j?.reason === 'no_website' ? 'account.site.grab.noSite' : 'account.site.grab.unreachable')); return; }
+            if (!r.ok) return { error: j?.error?.message ?? t('account.site.grab.failed') };
+            if (!j?.found) return { note: t(j?.reason === 'no_website' ? 'account.site.grab.noSite' : 'account.site.grab.unreachable') };
             const f = j.found;
-            if (!f.accent && !f.logo && !f.images.length) { setGrabNote(t('account.site.grab.none')); return; }
-            setFound(f);
+            if (!f.accent && !f.logo && !f.images.length) return { note: t('account.site.grab.none') };
+            return { found: f };
         } catch {
-            setError(t('account.site.grab.failed'));
-        } finally {
-            setReading(false);
+            return { error: t('account.site.grab.failed') };
         }
     };
+    const readWebsite = async () => {
+        setError(null); setGrabNote(null); setFound(null); setReading(true);
+        const res = await fetchFound();
+        if (res.error) setError(res.error); else if (res.note) setGrabNote(res.note); else if (res.found) setFound(res.found);
+        setReading(false);
+    };
+    useEffect(() => {
+        if (!autoRead) return;
+        let live = true;
+        void fetchFound().then((res) => {
+            if (!live) return;
+            if (res.found) setFound(res.found);
+            setReading(false);
+        });
+        return () => { live = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const useColours = () => {
         if (!found) return;
         if (found.accent && HEX.test(found.accent)) setAccent(found.accent);
@@ -184,7 +201,9 @@ export function ClinicSitePanel({ clinic, site, onSaved }: { clinic: Provider; s
                 <p className="acct-row"><a href={url} target="_blank" rel="noreferrer" className="acct-link">{url}</a></p>
             </section>
 
-            <SiteBriefForm clinic={clinic} content={c} onSaved={onSaved} />
+            <SiteKnown clinic={clinic} onEdit={onEditProfile} suggesting={reading} found={!!found} />
+
+            <SiteBriefForm clinic={clinic} content={c} onSaved={onSaved} onEditProfile={onEditProfile} />
 
             <section className="acct-card">
                 <h2 className="acct-card-title">{t('account.site.brand')}</h2>

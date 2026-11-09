@@ -2386,3 +2386,20 @@ select option {
 @media (prefers-reduced-motion: reduce) {
   .sb-card, .sb-rank-row, .sb-track, .sb-track::after, .sb-box { transition: none; }
 }
+
+.sb-card.is-unavailable { opacity: 0.55; cursor: default; }
+.sb-card.is-unavailable input { cursor: default; }
+.sb-known { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.sb-known li { display: grid; grid-template-columns: 22px minmax(84px, 130px) minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; min-height: 44px; border-top: 1px solid var(--border); font-size: 0.88rem; }
+.sb-known li:first-child { border-top: 0; }
+.sb-known-mark { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; background: var(--surface); color: var(--gray-500); }
+.is-have .sb-known-mark { background: var(--accent); color: var(--navy); }
+.sb-known-label { font-weight: 700; color: var(--gray-300); }
+.sb-known-value { color: var(--white); overflow-wrap: anywhere; }
+.is-missing .sb-known-value { color: var(--gray-500); }
+@media (max-width: 520px) {
+  .sb-known li { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 0; padding: 0.4rem 0; }
+  .sb-known-label { grid-column: 2; }
+  .sb-known-value { grid-column: 2; grid-row: 2; }
+  .sb-known li .acct-link { grid-column: 3; grid-row: 1 / span 2; }
+}

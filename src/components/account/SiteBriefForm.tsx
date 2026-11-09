@@ -50,7 +50,7 @@ const FEATURED = 3;
  * the proof the listing cannot supply, and a few lines about the practice that
  * the copy is written from. Saved through `update_my_site` (migration 0037).
  */
-export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; content: BriefContent; onSaved: () => void }) {
+export function SiteBriefForm({ clinic, content, onSaved, onEditProfile }: { clinic: Provider; content: BriefContent; onSaved: () => void; onEditProfile?: (field: string) => void }) {
     const { t, i18n } = useTranslation();
     const toast = useToast();
     const lang: Lang = i18n.language?.startsWith('es') ? 'es' : 'en';
@@ -59,7 +59,10 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     const [archetype, setArchetype] = useState<Archetype>(saved.archetype ?? ARCHETYPE_OF[clinic.specialty?.[0] ?? ''] ?? 'routine');
     const [order, setOrder] = useState<string[]>(() => orderFor(saved.archetype ?? ARCHETYPE_OF[clinic.specialty?.[0] ?? ''] ?? 'routine', saved.priorities));
     const [hidden, setHidden] = useState<string[]>(saved.hidden ?? []);
-    const [cta, setCta] = useState<'whatsapp' | 'call'>(saved.cta ?? 'whatsapp');
+    const hasWhatsapp = !!clinic.socials?.whatsapp;
+    const hasPhone = !!clinic.phone?.trim();
+    // Start from what the visitor can actually do: a number we have, not one we do not.
+    const [cta, setCta] = useState<'whatsapp' | 'call'>(saved.cta ?? (hasWhatsapp || !hasPhone ? 'whatsapp' : 'call'));
     const [answers, setAnswers] = useState(saved.answers ?? {});
     const [extras, setExtras] = useState<Record<string, Item[]>>(() => {
         const out: Record<string, Item[]> = {};
@@ -194,9 +197,12 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
                 <fieldset className="sb-fieldset">
                     <legend>{t('account.site.brief.cta')}</legend>
                     <div className="sb-cards sb-cards--two">
-                        <label className="sb-card"><input type="radio" name="brief-cta" checked={cta === 'whatsapp'} onChange={() => setCta('whatsapp')} /><b>{t('account.site.brief.ctaWhatsapp')}</b></label>
-                        <label className="sb-card"><input type="radio" name="brief-cta" checked={cta === 'call'} onChange={() => setCta('call')} /><b>{t('account.site.brief.ctaCall')}</b></label>
+                        <label className={`sb-card${hasWhatsapp ? '' : ' is-unavailable'}`}><input type="radio" name="brief-cta" disabled={!hasWhatsapp} checked={cta === 'whatsapp'} onChange={() => setCta('whatsapp')} /><b>{t('account.site.brief.ctaWhatsapp')}</b>{!hasWhatsapp && <span>{t('account.site.brief.ctaNeedWhatsapp')}</span>}</label>
+                        <label className={`sb-card${hasPhone ? '' : ' is-unavailable'}`}><input type="radio" name="brief-cta" disabled={!hasPhone} checked={cta === 'call'} onChange={() => setCta('call')} /><b>{t('account.site.brief.ctaCall')}</b>{!hasPhone && <span>{t('account.site.brief.ctaNeedPhone')}</span>}</label>
                     </div>
+                    {!hasWhatsapp && !hasPhone && onEditProfile && (
+                        <p className="acct-fine">{t('account.site.brief.ctaNone')} <button type="button" className="acct-link" onClick={() => onEditProfile('acct-phone')}>{t('account.site.known.add')}</button></p>
+                    )}
                 </fieldset>
             </section>
 
