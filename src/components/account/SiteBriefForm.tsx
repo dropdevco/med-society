@@ -178,7 +178,7 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     );
 
     return (
-        <>
+        <div className="acct-form">
             <section className="acct-card">
                 <h2 className="acct-card-title">{t('account.site.brief.kind')}</h2>
                 <p className="acct-muted">{t('account.site.brief.kindHint')}</p>
@@ -314,6 +314,6 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
                     </div>
                 </section>
             )}
-        </>
+        </div>
     );
 }
