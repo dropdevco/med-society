@@ -12,5 +12,6 @@ One file per decision that had a real alternative. Each has: Context, Decision, 
 | [0006](0006-pipeline-runtime.md) | The pipeline ships as one Docker image and runs weekly on a Hetzner VM | Proposed |
 | [0007](0007-people-and-person-badges.md) | Badges belong to doctors (a random internal UUID), not listings; revises 0003 | Accepted |
 | [0008](0008-facility-badges.md) | Facility badges sit on the listing; a register number is the match key | Proposed |
+| [0009](0009-identity-review-outcome.md) | After the identity review: migrations split, disagreeing names reviewed, decisions final | Proposed |
 
 Status values: Proposed, Accepted, Superseded by NNNN. A decision that contradicts an accepted one supersedes it explicitly; never edit an accepted record to mean something else.

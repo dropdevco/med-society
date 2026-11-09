@@ -52,6 +52,19 @@ bash scripts/sources/sandbox/down.sh                              # remove it al
 
 `bash supabase/tests/doctors-and-badges/run.sh` is the quicker check: the migrations against made-up data.
 
+To see it in a browser, run the proxy and `npx vite --mode sandbox --port 5176` (both are in `.claude/launch.json`). Sign in at `/admin` with `reviewer@sandbox.test` / `sandbox-only`, a made-up reviewer only the sandbox proxy knows. The other `/admin` tabs need functions the sandbox doesn't have, so their "could not load" message is expected. To restart it without losing data, use `docker start ms-sandbox-db ms-sandbox-api`: `up.sh` wipes it.
+
+### Doctor identity tools
+
+These read and write nothing in production unless pointed at it, and their output stays in `.data` (git-ignored). See [ADR 0009](../../docs/adr/0009-identity-review-outcome.md).
+
+```bash
+npx tsx scripts/sources/doctor-registry.ts                         # one stable UUID per Hospital Ángeles record; never changes an existing one
+npx tsx --env-file=.env.local scripts/sources/review-sheet.ts      # each record, its top 5 listings, and a decision column (CSV)
+npx tsx --env-file=.env.local scripts/sources/cedula-report.ts     # totals only: shared cédulas, names that disagree, cédulas that are phones
+npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --undo=<run ID>   # removes one backfill
+```
+
 ## Weekly timer and health dashboard
 
 ```bash

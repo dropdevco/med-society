@@ -10,6 +10,8 @@ Written permission received 30 Oct 2026 to scrape, store and display the directo
 
 Keeping it up to date means: the pipeline runs weekly, and a doctor missing from two consecutive good runs loses the badge ([ADR 0004](../adr/0004-matching-and-freshness.md)).
 
+The site's [terms of use](https://hospitalangeles.com/legales/terminos-de-uso), checked 9 Nov 2026, bar reproducing its content without authorization ("está prohibida la comunicación, transmisión, utilización"). They do not mention automated collection. The letter above is that authorization.
+
 ## What we read
 
 | Target | URL | Doctors (30 Oct 2026) |

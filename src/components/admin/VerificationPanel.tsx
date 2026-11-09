@@ -73,7 +73,7 @@ export function VerificationPanel() {
     };
 
     if (error && !sources) {
-        return <p className="adm-empty">Verification isn’t available yet. If this is the first time, apply supabase/migrations/0035_doctors_sources_badges.sql and 0036_facility_badges.sql, then refresh. ({error})</p>;
+        return <p className="adm-empty">Verification isn’t available yet. If this is the first time, apply migrations 0039 to 0042 in supabase/migrations, then refresh. ({error})</p>;
     }
     if (!sources || !queue) return <p className="adm-empty">Loading data…</p>;
 
@@ -94,6 +94,8 @@ export function VerificationPanel() {
                         <button key={s.slug} type="button" className={`adm-btn${source === s.slug ? '' : ' ghost'}`} aria-pressed={source === s.slug}
                             onClick={() => { setSource(s.slug); setOffset(0); }}>{s.name}</button>
                     ))}
+                    <button type="button" className={`adm-btn${source === 'doctoralia' ? '' : ' ghost'}`} aria-pressed={source === 'doctoralia'}
+                        onClick={() => { setSource('doctoralia'); setOffset(0); }}>Doctoralia: names that disagree</button>
                     {source && queue.exact > 0 && (
                         <button type="button" className="adm-btn" disabled={busy !== null} onClick={() => void bulk()}>Confirm {fmt(queue.exact)} exact names</button>
                     )}

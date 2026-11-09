@@ -12,7 +12,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 |---|---|
 | `src/` | The app: pages, components, hooks, `lib/` (Supabase, auth, billing), `utils/` (search, filters, region) |
 | `api/` | Vercel functions. **Self-contained**: they cannot import from `src/`; shared logic is copied and checked by self-tests |
-| `supabase/migrations/` | Applied by hand to production. Check production's `schema_migrations` before choosing a number |
+| `supabase/migrations/` | Applied by hand to production. Check production's `schema_migrations` and open PRs before choosing a number |
 | `scripts/doctoralia/` | One-off listing importer (Doctoralia, Google Places) |
 | `scripts/sources/` | Recurring organization-source pipeline for badges and verification. See its [README](scripts/sources/README.md) |
 | `docs/adr/` | Architecture decision records |
@@ -40,6 +40,7 @@ npm run build                # tsc -b && vite build
 npm run lint                 # has known errors, see HANDOFF.md section 10
 npm run sources:selftest     # source pipeline checks, no network
 npm run badges:selftest      # organization badges: links, card layout, API, both languages
+bash supabase/tests/doctors-and-badges/run.sh  # doctor and badge migrations in a throwaway Postgres
 npm run sources -- --source=hospital-angeles   # one source, dry run
 docker compose up -d scheduler dashboard       # weekly timer + health page on http://localhost:5180
 ```
