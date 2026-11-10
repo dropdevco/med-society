@@ -1,6 +1,6 @@
 # Recovery centers: marking and promoting them (PLAN, nothing applied)
 
-Status 2026-11-09. Staged by the sweep (PR #18): `google_places_tijuana` 72 rows, `google_places_juarez` +67 (24 new). Nothing is in `providers` yet. No migration below is applied.
+Status 2026-11-09 (updated after implementation; ids re-checked against the staging tables, all 27 found). Staged by the sweep (PR #18): `google_places_tijuana` 72 rows, `google_places_juarez` +67 (24 new). Nothing is in `providers` yet. No migration below is applied.
 
 ## 1. How to mark them
 
@@ -43,7 +43,7 @@ Extend `scripts/doctoralia/promote-google.ts` (it already reads `target.table` a
 ## 3. Border filters
 
 - Tijuana (done in PR #18): `requireMx` drops anything north of the border survey line or with a US-style address. 0 results were dropped in the full run, so no San Diego leak was observed.
-- Juárez (**not yet done**): the box 31.58-31.83 N includes El Paso (31.76 N), and the English queries returned 3 El Paso places (Las Palmas Rehabilitation Hospital, Mountain View Health and Rehabilitation, R&R Rest and Recover Massage). Fix: give `juarez-recovery` `requireMx` too (the survey-line check is for the Pacific-to-Colorado line, so it is valid at Juárez; use a Rio Grande-safe rule instead: reject US addresses via `looksLikeUsAddress` plus `, TX` / `El Paso, TX`), and add a country check from Place Details. Do this before any Juárez promote. Staged El Paso rows should be excluded by the allow-list and can be deleted from `google_places_juarez` on request.
+- Juárez (**done in this PR**): the box 31.58-31.83 N includes El Paso (31.76 N), and the English queries returned 3 El Paso places (Las Palmas Rehabilitation Hospital, Mountain View Health and Rehabilitation, R&R Rest and Recover Massage). `juarez-recovery` now has `requireMx` with a new `isUsAddress()` (TX/NM/CA/AZ + ZIP or "USA", never when the address says Chih./México/Juárez), applied to search results and again to the Details address. The survey-line check applies to Tijuana only (it models the Pacific coast, not the Rio Grande). The 3 El Paso rows already staged are not on the allow-list, and `promote-google.ts` re-checks `isUsAddress` per candidate.
 
 ## 4. Hand-picked review list
 
@@ -57,7 +57,7 @@ Tijuana (staging `google_places_tijuana`):
 | Cocoon Recovery Home | ChIJuckNdf9L2YARBWVtI24oGmI | 637 | name, health type, website | clear |
 | Recovery House Tijuana | ChIJTyaUqOVJ2YARTuGh2dBQ6cc | 454 | name, lodging type | clear |
 | Zen & Healthy Recovery | ChIJHSzXvV1J2YARZI0Q214gikY | 235 | lodging, found via bariatric query | clear |
-| Dollhouse Recovery | ChIJoTiyEjUu2YARUoMalF4flJE | 118 | name, website | clear |
+| Dollhouse Recovery TIJUANA MEXICO | ChIJoTiyEjUu2YARUoMalF4flJE | 118 | name, website | clear |
 | Luma Recovery House | ChIJTd-JxvVH2YARR2SkiCFiL4Y | 71 | name, website | clear |
 | Princess palace recovery | ChIJd4oXFIE32YARvmxHOxehFVo | 62 | name, website | clear |
 | Palmas Recovery | ChIJe0EF-TJJ2YARdnIOBcfIjGw | 34 | lodging + doctor type | clear |
@@ -97,8 +97,36 @@ Juárez (staging `google_places_juarez`): Casa Nefertiti - Recovery Home (`ChIJF
 - **Spend/data**: Places fields are staged only in the two staging tables (the repo's existing practice); nothing new is retained beyond `googlePlaceId` on providers rows.
 - **Rollback of the sweep**: `delete from google_places_tijuana` and the 24 new `google_places_juarez` rows (by `found_via`) if unwanted; both tables are service-role only.
 
+## Implemented in PR #18 (code only)
+
+- `sweep-targets.ts` / `sweep.ts`: Juárez border filter (above).
+- `scripts/doctoralia/recovery-allowlist.ts`: the hand-picked ids (20 Tijuana + Casa Nefertiti) and TS ports of `bh_norm` / `bh_phone`.
+- `promote-google.ts`: `--target=tijuana-recovery|juarez-recovery` -> allow-list only; skip on same googlePlaceId, phone_norm, or name_norm+city_norm (never updates); inserts `status:'pending'`, `specialty:['general']`, `kind:'stay'`; dry run prints INSERT/SKIP per candidate; `--commit` refuses to run until `providers.kind` exists.
+- `supabase/migrations/0040_providers_kind.sql` (draft, not applied): column + check, partial index, `grant select (kind)`, `provider_list` view recreated with `kind` appended.
+- `kind` is read by: `api/agent.ts` (Row + `SITE_ARCHETYPE_OF` fallback: brief.archetype, then kind, then specialty), `src/utils/siteBrief.ts` `archetypeFor()` used by `SiteBriefForm`, `normalizeProvider`, `Provider` type. The owner dashboard gets `kind` from `my_providers` (`to_jsonb(p)`), so no RPC change; `provider_list` needs the view change above for directory/agent list reads.
+
+## Production steps, in order (none run yet; each needs the user's yes)
+
+1. Apply `0040_providers_kind.sql` (shown in the repo file). Verify: `select count(*) from providers where kind is not null;` returns 0, and an anon-key `select kind from provider_list limit 1` works.
+2. Dry-run (read-only, can run any time): `npx tsx scripts/doctoralia/promote-google.ts --target=tijuana-recovery` and `--target=juarez-recovery`.
+3. Insert as pending: same commands with `--commit` (21 inserts, `status='pending'`).
+4. Mark the two existing rows (each is a single named row):
+```sql
+update providers set kind = 'stay', "googlePlaceId" = 'ChIJ19bJrWZJ2YARL4pQm98DBCM'
+ where id = '6f1f2c83-ca5c-418e-88f9-0e42ef7fb808' and "googlePlaceId" is null;  -- Better Than Ever (paying client)
+update providers set kind = 'stay' where id = 'de42ad23-4358-4e2e-bf8a-f0a04111bbd2';  -- Exclusive care recovery house
+```
+5. After review, per listing: `update providers set status = 'live' where id = '...' and kind = 'stay';`.
+Rollback: `update providers set status='hidden' where kind='stay' and source='google' and status='pending';` or `delete from providers where "googlePlaceId" in (<allow-list ids>) and source='google' and status='pending';`; the column rollback is at the bottom of the migration.
+
+## Open questions I could not settle
+
+- Better Than Ever must still render exactly as today: its site stores `brief.archetype`, which wins over `kind`. Confirm in `doctor_sites.content` before step 4.
+- 9 of the 21 allow-listed rows have no phone or website, and 6 carry US numbers (+1 619 / 858 / 559): normal for medical-tourism houses, but they will look odd as "Tijuana" listings with no Mexican number.
+- The allow-list is the 20 "clear" Tijuana rows I judged by name/type/reviews; nobody has opened their Maps pages yet.
+
 ## Decisions for the user
 1. Marker: A (`providers.kind`) recommended. Yes/no, and who applies the migration.
-2. Promote the 22 "clear" Tijuana names + Casa Nefertiti as `pending` first, or hold until the 5-6 "possible" names are checked?
+2. Promote the 20 "clear" Tijuana names + Casa Nefertiti as `pending` first, or hold until the 5-6 "possible" names are checked?
 3. Approve the Better Than Ever place-id backfill + `kind='stay'`.
 4. Fix the Juárez border filter now (small) before any Juárez promote.

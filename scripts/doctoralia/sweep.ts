@@ -46,6 +46,7 @@ import {
   JUAREZ_RADIUS_M,
   buildStaticQueries,
   inBox,
+  isUsAddress,
   looksLikeUsAddress,
   resolveTarget,
   usAddressParts,
@@ -335,7 +336,8 @@ async function collect() {
       if (!inTargetBox(lat, lng)) continue; // Google drifts to other cities on thin queries
       // San Diego: Google happily answers "dentist in San Ysidro" with Tijuana.
       // Tijuana: the mirror image — the box reaches San Diego, so keep the south side only.
-      if (target.requireMx && (usSideOfBorder(lat, lng) || looksLikeUsAddress(r.formatted_address))) {
+      // The survey-line check only models the Tijuana/San Diego border; Juárez relies on the address.
+      if (target.requireMx && ((target.id === 'tijuana-recovery' && usSideOfBorder(lat, lng)) || isUsAddress(r.formatted_address))) {
         droppedNotUs++;
         continue;
       }
@@ -400,6 +402,13 @@ async function collect() {
     if ((i + 1) % 25 === 0 || i === rows.length - 1) {
       process.stdout.write(`\r  details ${i + 1}/${rows.length} · ${calls.details} calls, ${calls.cached} cached   `);
     }
+  }
+
+  if (target.requireMx) {
+    // Details may carry a fuller address than the search result did.
+    const before = rows.length;
+    for (let i = rows.length - 1; i >= 0; i--) if (isUsAddress(rows[i].formatted_address)) rows.splice(i, 1);
+    if (rows.length < before) console.log(`\n  dropped ${before - rows.length} places whose Details address is in the US`);
   }
 
   if (target.requireUs) {

@@ -153,6 +153,8 @@ const JUAREZ_RECOVERY: SweepTarget = {
   label: 'Ciudad Juárez — recovery centers',
   querySource: 'static',
   textSearchExtra: '&language=es&region=mx',
+  // The box takes in El Paso; requireMx drops US addresses (English queries return them).
+  requireMx: true,
   doctoraliaLink: false,
   // Few, niche results per query and heavy overlap between the Spanish and English phrasings.
   estimate: { searchesPerQuery: 1.3, newPlacesPerQuery: 3 },
@@ -380,6 +382,18 @@ export function looksLikeUsAddress(addr: string | null | undefined): boolean {
   // required: a California state + 5-digit ZIP is the US marker instead. Place
   // Details then confirms country_code = 'US' before anything is stored.
   return /,\s*CA\s+9\d{4}\b|,\s*California\s+9\d{4}\b|,\s*CA\b[^,]*,\s*(USA|United States)\s*$/i.test(addr);
+}
+
+/**
+ * Any US address ("…, El Paso, TX 79902, USA", "…, Chula Vista, CA 91910"), for
+ * Mexico-side targets (`requireMx`). The Juárez box contains El Paso, and the
+ * border there is the Rio Grande, not the straight survey line `usSideOfBorder`
+ * models for the Pacific coast, so the address is the check.
+ */
+export function isUsAddress(addr: string | null | undefined): boolean {
+  if (!addr) return false;
+  if (/m[eé]xico|\bChih\.?\b|\bB\.?\s?C\.?\b|baja california|tijuana|ju[aá]rez/i.test(addr)) return false;
+  return /,\s*(TX|Texas|NM|New Mexico|CA|California|AZ|Arizona)\b[\s\d-]*(,\s*(USA|United States))?\s*$/i.test(addr) || /,\s*(USA|United States)\s*$/i.test(addr);
 }
 
 export interface UsAddressParts {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { supabase } from '../../lib/supabase';
-import { ARCHETYPES, ARCHETYPE_OF, EXTRAS_FOR, EXTRA_KEYS, orderFor, type Archetype, type ExtraKey } from '../../utils/siteBrief';
+import { ARCHETYPES, archetypeFor, EXTRAS_FOR, EXTRA_KEYS, orderFor, type Archetype, type ExtraKey } from '../../utils/siteBrief';
 import { useToast } from './toastContext';
 
 type Lang = 'es' | 'en';
@@ -39,8 +39,8 @@ export function SiteBriefForm({ clinic, content, onSaved }: { clinic: Provider; 
     const lang: Lang = i18n.language?.startsWith('es') ? 'es' : 'en';
     const saved = content.brief ?? {};
 
-    const [archetype, setArchetype] = useState<Archetype>(saved.archetype ?? ARCHETYPE_OF[clinic.specialty?.[0] ?? ''] ?? 'routine');
-    const [order, setOrder] = useState<string[]>(() => orderFor(saved.archetype ?? ARCHETYPE_OF[clinic.specialty?.[0] ?? ''] ?? 'routine', saved.priorities));
+    const [archetype, setArchetype] = useState<Archetype>(saved.archetype ?? archetypeFor(clinic.specialty, clinic.kind));
+    const [order, setOrder] = useState<string[]>(() => orderFor(saved.archetype ?? archetypeFor(clinic.specialty, clinic.kind), saved.priorities));
     const [hidden, setHidden] = useState<string[]>(saved.hidden ?? []);
     const [cta, setCta] = useState<'whatsapp' | 'call'>(saved.cta ?? 'whatsapp');
     const [answers, setAnswers] = useState(saved.answers ?? {});
