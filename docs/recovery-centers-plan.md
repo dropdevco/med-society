@@ -122,7 +122,7 @@ Rollback: `update providers set status='hidden' where kind='stay' and source='go
 ## Open questions I could not settle
 
 - Better Than Ever must still render exactly as today: its site stores `brief.archetype`, which wins over `kind`. Confirm in `doctor_sites.content` before step 4.
-- 9 of the 21 allow-listed rows have no phone or website, and 6 carry US numbers (+1 619 / 858 / 559): normal for medical-tourism houses, but they will look odd as "Tijuana" listings with no Mexican number.
+- 4 of the 21 allow-listed rows have neither phone nor website (VIVE, LULUK, Excellence, Phoenix), 5 more have a phone but no website, and 6 carry US numbers (+1 619 / 858 / 559): normal for medical-tourism houses, but they will look odd as "Tijuana" listings with no Mexican number.
 - The allow-list is the 20 "clear" Tijuana rows I judged by name/type/reviews; nobody has opened their Maps pages yet.
 
 ## Decisions for the user
