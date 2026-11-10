@@ -385,10 +385,125 @@ async function pushToGhl(cfg: Cfg, row: PendingRow): Promise<string> {
     return id;
 }
 
+// ── Doctor websites: reserved when a Featured plan switches on ───────────────
+//
+// A Featured (US$99) clinic gets <name>.medsociety.one. When its payment is mirrored to GHL we
+//   1. create the doctor_sites row (private preview, never public by itself),
+//   2. add the subdomain to the Vercel project (needs VERCEL_TOKEN),
+//   3. tag the GHL contact `site-brief-invite`, which starts the "set up your website" email.
+// Every step is safe to repeat: the row is looked up first, a domain that is already on the project
+// counts as done, and the tag is only sent when something was newly created. A failure throws so the
+// daily sync retries the whole thing. Set SITE_AUTOCREATE=0 to switch it off without a deploy.
+
+const SITE_ROOT = 'medsociety.one';
+export const SITE_INVITE_TAG = 'site-brief-invite';
+const SITE_RESERVED = new Set([
+    'www', 'api', 'app', 'admin', 'mail', 'email', 'smtp', 'imap', 'pop', 'ftp', 'ns1', 'ns2',
+    'support', 'help', 'blog', 'docs', 'status', 'dashboard', 'account', 'accounts', 'login',
+    'auth', 'billing', 'pay', 'pricing', 'cdn', 'static', 'assets', 'media', 'files', 'dev',
+    'staging', 'test', 'demo', 'preview', 'beta', 'medsociety',
+]);
+
+/** A subdomain from a clinic's name: ASCII, lower case, hyphens, at most 30 characters; `attempt` adds -2, -3... */
+export function siteSubdomain(name: string, attempt = 0): string {
+    let slug = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (slug.length > 30) slug = slug.slice(0, 30).replace(/-[^-]*$/, '') || slug.slice(0, 30);
+    slug = slug.replace(/^-+|-+$/g, '');
+    if (slug.length < 3) slug = `clinic-${slug}`.replace(/-+$/, '');
+    if (attempt > 0) slug = `${slug}-${attempt + 1}`;
+    return slug;
+}
+
+async function supa(cfg: Cfg, method: 'GET' | 'POST', path: string, payload?: unknown): Promise<{ ok: boolean; status: number; json: unknown }> {
+    const r = await fetch(`${cfg.supaUrl}/rest/v1/${path}`, {
+        method,
+        headers: {
+            apikey: cfg.supaKey, Authorization: `Bearer ${cfg.supaKey}`, 'Content-Type': 'application/json',
+            ...(method === 'POST' ? { Prefer: 'return=representation' } : {}),
+        },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+    });
+    const text = await r.text();
+    let json: unknown = null;
+    try { json = text ? JSON.parse(text) : null; } catch { json = text; }
+    return { ok: r.ok, status: r.status, json };
+}
+
+export interface SiteOutcome { subdomain: string; rowCreated: boolean; domain: 'created' | 'exists'; tagged: boolean }
+
+/** Makes sure a Featured clinic has its site row, its domain on Vercel and its invite tag. Null when switched off. */
+export async function ensureSite(cfg: Cfg, row: { provider_id: string; provider_name: string }, contactId: string): Promise<SiteOutcome | null> {
+    const token = process.env.VERCEL_TOKEN;
+    if (!token || process.env.SITE_AUTOCREATE === '0') return null;
+    const projectId = process.env.VERCEL_PROJECT_ID || 'prj_K8fOI7RFDxAkN6SIGGQSUtSVt1ko';
+    const teamId = process.env.VERCEL_TEAM_ID || 'team_u2N7euFcusjSyjyA6t6kRDha';
+
+    // 1. the row
+    let subdomain = '';
+    let rowCreated = false;
+    const have = await supa(cfg, 'GET', `doctor_sites?select=subdomain&provider_id=eq.${encodeURIComponent(row.provider_id)}&limit=1`);
+    if (!have.ok) throw new Error(`site lookup ${have.status}`);
+    const existing = (have.json as { subdomain: string }[])[0];
+    if (existing) {
+        subdomain = existing.subdomain;
+    } else {
+        for (let attempt = 0; attempt < 6 && !subdomain; attempt++) {
+            const candidate = siteSubdomain(row.provider_name, attempt);
+            if (SITE_RESERVED.has(candidate)) continue;
+            const made = await supa(cfg, 'POST', 'doctor_sites', { provider_id: row.provider_id, subdomain: candidate, status: 'preview' });
+            if (made.ok) { subdomain = candidate; rowCreated = true; break; }
+            if (made.status === 409) {
+                // Either someone created this clinic's row a moment ago, or the name is taken: look again, else try the next name.
+                const again = await supa(cfg, 'GET', `doctor_sites?select=subdomain&provider_id=eq.${encodeURIComponent(row.provider_id)}&limit=1`);
+                const found = again.ok ? (again.json as { subdomain: string }[])[0] : undefined;
+                if (found) { subdomain = found.subdomain; break; }
+                continue;
+            }
+            throw new Error(`site insert ${made.status}: ${JSON.stringify(made.json).slice(0, 200)}`);
+        }
+        if (!subdomain) throw new Error('site insert: no free subdomain after 6 tries');
+    }
+
+    // 2. the domain on the Vercel project
+    const domain = `${subdomain}.${SITE_ROOT}`;
+    const vercel = (path: string, init?: RequestInit) => fetch(`https://api.vercel.com${path}${path.includes('?') ? '&' : '?'}teamId=${teamId}`, {
+        ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    const added = await vercel(`/v10/projects/${projectId}/domains`, { method: 'POST', body: JSON.stringify({ name: domain }) });
+    let domainState: 'created' | 'exists';
+    if (added.ok) {
+        domainState = 'created';
+    } else if (added.status === 409) {
+        // Already attached to this project is fine; attached to another one is not.
+        const check = await vercel(`/v9/projects/${projectId}/domains/${encodeURIComponent(domain)}`);
+        if (!check.ok) throw new Error(`vercel domain ${domain} is in use elsewhere (${added.status})`);
+        domainState = 'exists';
+    } else {
+        throw new Error(`vercel domain ${added.status}: ${(await added.text().catch(() => '')).slice(0, 200)}`);
+    }
+
+    // 3. the email trigger, only when something is new
+    let tagged = false;
+    if (rowCreated || domainState === 'created') {
+        const t = await ghl(cfg, 'POST', `/contacts/${contactId}/tags`, { tags: [SITE_INVITE_TAG] });
+        if (!t.ok) throw new Error(`site tag ${t.status}: ${t.text.slice(0, 200)}`);
+        tagged = true;
+        const note = await ghl(cfg, 'POST', `/contacts/${contactId}/notes`, { body: `Website reserved: https://${domain} (private preview until the team publishes it).` });
+        if (!note.ok) console.error('billing: site note non-2xx', note.status);
+        await alertTeam(`MedSociety: website reserved for ${row.provider_name}`, [
+            `https://${domain} (preview, not public). The owner was sent the set-up email via the ${SITE_INVITE_TAG} tag.`,
+            `${SITE}/providers/${row.provider_id}`,
+        ]);
+    }
+    return { subdomain, rowCreated, domain: domainState, tagged };
+}
+
 /** Pushes one row and records the result, so a failure is retried tomorrow instead of lost. */
 async function syncRow(cfg: Cfg, row: PendingRow): Promise<boolean> {
     try {
         const contactId = await pushToGhl(cfg, row);
+        if (row.plan === 'featured' && row.status === 'active') await ensureSite(cfg, row, contactId);
         await rpc(cfg, 'billing_mark_synced', { sid: row.id, ok: true, err: null, contact_id: contactId });
         return true;
     } catch (e) {
