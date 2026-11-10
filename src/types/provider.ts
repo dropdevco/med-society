@@ -82,6 +82,8 @@ export interface Provider {
   id: string;
   name: string;
   specialty: Specialty[];
+  /** 'stay' = recovery house / lodging-style practice; starts the Website brief as "Recovery or stay". */
+  kind?: 'stay';
   country: Country;
   city: string;
   address: string;

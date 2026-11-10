@@ -21,6 +21,14 @@
  *                     is 'San Diego'), postalCode from the address, English
  *                     classifier. Rows not confirmed US-side are skipped again.
  *
+ *   tijuana-recovery / juarez-recovery
+ *                     Post-surgery recovery houses (docs/recovery-centers-plan.md).
+ *                     Only the hand-picked place ids in recovery-allowlist.ts are
+ *                     considered. Inserts status 'pending', specialty ['general'],
+ *                     kind 'stay' (needs the providers.kind migration). Dedupe:
+ *                     googlePlaceId, then phone_norm, then name_norm + city_norm.
+ *                     The dry run prints every candidate with INSERT or SKIP.
+ *
  * Both read and write Supabase only — never Google.
  *
  * Insert-only: an existing providers row is never updated or deleted. Anything
@@ -31,7 +39,8 @@ import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { distanceMeters, nameSimilarity } from './load';
 import type { Specialty } from '../../src/types/provider';
-import { buildStaticQueries, classifyEnglish, resolveTarget, usSideOfBorder } from './sweep-targets';
+import { buildStaticQueries, classifyEnglish, isUsAddress, resolveTarget, usSideOfBorder } from './sweep-targets';
+import { RECOVERY_ALLOWLIST, nameNorm, phoneNorm } from './recovery-allowlist';
 
 const argv = process.argv.slice(2);
 const commit = argv.includes('--commit');
@@ -164,7 +173,95 @@ interface ProviderRow {
 
 const digits = (s: string | null) => (s ? s.replace(/\D/g, '') : '');
 
+const isRecovery = target.id === 'tijuana-recovery' || target.id === 'juarez-recovery';
+
+/** Recovery houses: allow-list only, three-way dedupe (skip, never update), pending + kind 'stay'. */
+async function runRecovery() {
+  const allowed = RECOVERY_ALLOWLIST[target.id as 'tijuana-recovery' | 'juarez-recovery'];
+  const ids = allowed.map((a) => a.placeId);
+  const places = await selectAll<GoogleRow>(
+    target.table,
+    'place_id,name,formatted_address,lat,lng,phone,website,rating,review_count,types,business_status',
+    (q) => q.in('place_id', ids),
+  );
+  const providers = await selectAll<{ id: string; name: string; googlePlaceId: string | null; name_norm: string | null; city_norm: string | null; phone_norm: string | null }>(
+    'providers',
+    'id,name,"googlePlaceId",name_norm,city_norm,phone_norm',
+  );
+  const city = target.provider.defaultCity;
+  const cityN = nameNorm(city);
+  const byPlace = new Map(providers.filter((p) => p.googlePlaceId).map((p) => [p.googlePlaceId!, p]));
+  const byPhone = new Map(providers.filter((p) => p.phone_norm).map((p) => [p.phone_norm!, p]));
+  const byName = new Map(providers.filter((p) => p.name_norm).map((p) => [`${p.name_norm}|${p.city_norm}`, p]));
+  const staged = new Map(places.map((g) => [g.place_id, g]));
+
+  console.log(`\n⬆ Recovery houses → providers [${target.label}]${commit ? '' : ' (dry run, read-only)'}\n`);
+  console.log(`  allow-list ${allowed.length} · found in ${target.table} ${places.length} · providers checked ${providers.length}\n`);
+
+  const toInsert: GoogleRow[] = [];
+  for (const a of allowed) {
+    const g = staged.get(a.placeId);
+    if (!g) {
+      console.log(`  SKIP   ${a.name} — place id not in ${target.table}`);
+      continue;
+    }
+    const hit =
+      (g.business_status && g.business_status !== 'OPERATIONAL' && 'not operational') ||
+      (isUsAddress(g.formatted_address) && 'US address') ||
+      (g.lat == null || g.lng == null ? 'no coordinates' : null) ||
+      (byPlace.has(g.place_id) && `same googlePlaceId as ${byPlace.get(g.place_id)!.name}`) ||
+      (phoneNorm(g.phone) && byPhone.has(phoneNorm(g.phone)!) && `same phone as ${byPhone.get(phoneNorm(g.phone)!)!.name}`) ||
+      (byName.has(`${nameNorm(g.name)}|${cityN}`) && `same name+city as ${byName.get(`${nameNorm(g.name)}|${cityN}`)!.name}`) ||
+      null;
+    if (hit) {
+      console.log(`  SKIP   ${g.name} — ${hit}`);
+      continue;
+    }
+    toInsert.push(g);
+    console.log(`  INSERT ${g.name} · ${city} · ${g.phone ?? 'no phone'} · ${g.website ? 'website' : 'no website'} · pending · general · kind=stay`);
+  }
+  console.log(`\n  ${commit ? 'inserting' : 'would insert'}: ${toInsert.length}`);
+
+  if (!commit) {
+    console.log('\n  Dry run — nothing written. Re-run with --commit (needs the providers.kind migration).\n');
+    return;
+  }
+  const probe = await supabase.from('providers').select('kind').limit(1);
+  if (probe.error) throw new Error(`providers.kind is not available (${probe.error.message}); apply the kind migration first.`);
+
+  let inserted = 0;
+  for (const g of toInsert) {
+    const { error } = await supabase.from('providers').insert({
+      id: crypto.randomUUID(),
+      name: g.name,
+      specialty: ['general'],
+      kind: 'stay',
+      country: target.provider.country,
+      city,
+      address: g.formatted_address,
+      lat: g.lat,
+      lng: g.lng,
+      rating: g.rating ?? 0,
+      reviewCount: g.review_count ?? 0,
+      phone: g.phone,
+      website: g.website,
+      email: null,
+      languages: [],
+      promoted: false,
+      verified: false,
+      source: 'google',
+      clicks: 0,
+      googlePlaceId: g.place_id,
+      status: 'pending',
+    });
+    if (error) console.error(`  ✖ ${g.name}: ${error.message}`);
+    else inserted++;
+  }
+  console.log(`\n  ✅ inserted ${inserted} (status pending: review, then set live)`);
+}
+
 async function run() {
+  if (isRecovery) return runRecovery();
   const places = isUs
     ? await selectAll<GoogleRow>(
         target.table,

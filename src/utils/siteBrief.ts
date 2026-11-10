@@ -19,6 +19,12 @@ export const ARCHETYPE_OF: Record<string, Archetype> = {
     pharmacy: 'multi',
 };
 
+/** The archetype a listing starts from: its kind ('stay') first, then its first specialty. */
+export function archetypeFor(specialty: string[] | undefined, kind?: string | null): Archetype {
+    if (kind === 'stay') return 'stay';
+    return ARCHETYPE_OF[specialty?.[0] ?? ''] ?? 'routine';
+}
+
 export const PRIORITIES: Record<Archetype, string[]> = {
     stay: ['photos', 'rooms', 'reviews', 'amenities', 'day', 'packages', 'services', 'about', 'team', 'steps', 'faq'],
     specialist: ['credentials', 'technology', 'conditions', 'about', 'services', 'reviews', 'results', 'affiliations', 'team', 'faq', 'photos', 'steps'],
