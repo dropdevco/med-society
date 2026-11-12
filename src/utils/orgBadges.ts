@@ -42,6 +42,19 @@ export function badgeLink(b: ProviderBadge): BadgeLink | null {
     return null;
 }
 
+/** UTC calendar day, the same day the database's current_date uses. */
+export const today = (now = new Date()) => now.toISOString().slice(0, 10);
+
+/**
+ * The badges to show. The cache drops an expired certification only when it is
+ * rebuilt, and nothing rebuilds it the day a certification ends, so the date is
+ * checked again here.
+ */
+export function currentBadges(raw: unknown, day = today()): ProviderBadge[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((b): b is ProviderBadge => !!b && typeof b === 'object' && (typeof b.valid_to !== 'string' || b.valid_to >= day));
+}
+
 export const AFFILIATIONS_ON_CARD = 2;
 
 /** The row on a search card: everything verified, a separator, two affiliations, then "+N". */

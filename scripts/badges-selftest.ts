@@ -13,7 +13,7 @@ import en from '../src/i18n/locales/en.json';
 import es from '../src/i18n/locales/es.json';
 import type { Provider, ProviderBadge } from '../src/types/provider';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
-import { badgeLink, cardRow, GROUPS, groupOf, idOf, isWebLink, monogram } from '../src/utils/orgBadges';
+import { badgeLink, cardRow, currentBadges, GROUPS, groupOf, idOf, isWebLink, monogram } from '../src/utils/orgBadges';
 import { providerJsonLd } from '../src/utils/structuredData';
 import { isDate, isWebLink as manualLink, levelFor, parseArgs, pick, removal, type Row } from './sources/badges-manual';
 
@@ -149,6 +149,16 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
         check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
     }
+}
+
+// ── Expired certifications, read again at display time ─────────────────────
+{
+    const b = (valid_to: string | null) => ({ org: 'conacem', name: 'CONACEM', kind: 'consejo', label: 'Pediatría', logo: null, url: null, confirmed_at: null, valid_from: null, valid_to });
+    const raw = [b('2026-11-11'), b('2026-11-12'), b(null)];
+    check('expired: the site drops a certification past its end date', currentBadges(raw, '2026-11-12').length === 2 && currentBadges(raw, '2026-11-13').length === 1);
+    check('expired: the API copy drops it the same way', __test.organizationsOf(raw, '2026-11-12').length === 2 && __test.organizationsOf(raw, '2026-11-13').length === 1);
+    check('expired: a provider row with an expired badge shows none of it', normalizeProvider({ id: 'x', name: 'x', badges: [b('2000-01-01')] }).badges?.length === 0);
+    check('expired: anything that is not a badge is dropped', currentBadges([null, 'x', b(null)]).length === 1 && currentBadges('nope').length === 0);
 }
 
 // ── Badges changed by hand (scripts/sources/badges-manual.ts) ─────────────

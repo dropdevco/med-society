@@ -283,8 +283,9 @@ begin
            v_entry.valid_from, v_entry.valid_to, v_entry.facts, v_entry.url
     from public.source_runs r where r.id = v_entry.last_seen_run_id
     on conflict (doctor_id, organization_id, label) do update
-        set status = 'confirmed', last_confirmed_run_id = excluded.last_confirmed_run_id,
-            last_confirmed_at = excluded.last_confirmed_at, valid_to = excluded.valid_to
+        set status = 'confirmed', evidence_entry_id = excluded.evidence_entry_id,
+            last_confirmed_run_id = excluded.last_confirmed_run_id, last_confirmed_at = excluded.last_confirmed_at,
+            valid_from = excluded.valid_from, valid_to = excluded.valid_to, facts = excluded.facts, url = excluded.url
         where a.status <> 'hidden' and a.source_slug <> 'manual';
 
     perform public.refresh_provider_badges(array[v_doctor]);

@@ -31,6 +31,7 @@
 import { pathToFileURL } from 'url';
 import { database, isSandbox } from './lib/db';
 import { uuidv7 } from './lib/snapshot';
+import { isWebLink } from '../../src/utils/orgBadges';
 
 export type Command = 'find' | 'list' | 'add' | 'change' | 'remove' | 'restore' | 'undo';
 export const COMMANDS: Command[] = ['find', 'list', 'add', 'change', 'remove', 'restore', 'undo'];
@@ -61,10 +62,8 @@ export function isDate(s: string): boolean {
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-/** Same rule as the site: only http and https links reach a badge. */
-export function isWebLink(s: string): boolean {
-    try { return ['http:', 'https:'].includes(new URL(s).protocol); } catch { return false; }
-}
+/** The site's own rule (src/utils/orgBadges.ts): only http and https links reach a badge. */
+export { isWebLink };
 
 /** Parses argv; throws a message a person can act on. */
 export function parseArgs(argv: string[]): Args {
@@ -247,7 +246,8 @@ async function main() {
     let write: (runId: string, now: string) => Promise<void>;
 
     if (a.command === 'add') {
-        const label = a.label ?? '';
+        const label = (a.label ?? '').trim();
+        if (!label && org.kind === 'consejo') throw new Error('a certification badge needs --label with the specialty, for example --label="Pediatría"');
         const clash = existing.find((r) => r.label === label);
         if (clash) throw new Error(clash.status === 'hidden' ? 'that badge was removed; use restore' : clash.source_slug === 'manual' ? 'that badge exists; use change' : `that badge already comes from ${clash.source_slug}`);
         after = { [keyOf(level)]: targetId, organization_id: org.id, label, status: 'confirmed', source_slug: 'manual', url: a.url || null, valid_from: a.validFrom ?? null, valid_to: a.validTo ?? null, facts: {} };
@@ -260,7 +260,8 @@ async function main() {
         if (a.command === 'change') {
             if (before.source_slug !== 'manual') throw new Error(`this badge comes from ${before.source_slug}; its next run would undo a change. Remove it, then add your own`);
             const patch: Record<string, unknown> = {};
-            if (a.newLabel !== undefined) patch.label = a.newLabel;
+            if (a.newLabel !== undefined) patch.label = a.newLabel.trim();
+            if (patch.label === '' && org.kind === 'consejo') throw new Error('a certification badge needs a label with the specialty');
             if (a.url !== undefined) patch.url = a.url || null;
             if (a.validFrom !== undefined) patch.valid_from = a.validFrom;
             if (a.validTo !== undefined) patch.valid_to = a.validTo;
@@ -301,7 +302,7 @@ async function main() {
 
 /** Put a row back as it was before one manual run, if nobody has changed it since. */
 async function undo(db: Db, a: Args, where: string) {
-    const runs = await must<{ id: string; source_slug: string; counts: ReturnType<typeof Object> }[]>(db.from('source_runs').select('id,source_slug,counts').eq('id', a.run!));
+    const runs = await must<{ id: string; source_slug: string; counts: unknown }[]>(db.from('source_runs').select('id,source_slug,counts').eq('id', a.run!));
     const run = runs[0];
     if (!run || run.source_slug !== 'manual') throw new Error('no manual run with that ID');
     const r = run.counts as { action: string; level: Level; listing: string; organization: string; before: Row | null; after: (Row & Record<string, unknown>) | null };
@@ -319,10 +320,14 @@ async function undo(db: Db, a: Args, where: string) {
     const match = <Q extends { eq(column: string, value: unknown): Q }>(q: Q) => oneRow(q, level, targetId, ref.organization_id as string, ref.label);
     if (r.before === null) await must(match(db.from(tableOf(level)).delete()).select('label'));
     else if (now === null) await must(db.from(tableOf(level)).insert(r.before).select('label'));
-    else {
-        // A change may have renamed the label: put the old row back under its old key.
-        await must(match(db.from(tableOf(level)).delete()).select('label'));
+    else if (now.label === r.before.label) {
+        // Same key: one statement, so a failure leaves the row as it was.
+        await must(db.from(tableOf(level)).upsert(r.before, { onConflict: `${key},organization_id,label` }).select('label'));
+    } else {
+        // A change renamed the label: put the old row back first, then remove the renamed one,
+        // so a failure in between leaves an extra badge rather than none.
         await must(db.from(tableOf(level)).insert(r.before).select('label'));
+        await must(match(db.from(tableOf(level)).delete()).select('label'));
     }
     await refresh(db, level, targetId);
     console.log(`undone with run ${runId}`);

@@ -318,3 +318,16 @@ delete from public.listing_affiliations where provider_id = '00000000-0000-4000-
 select public.refresh_listing_badges(array['00000000-0000-4000-8000-0000000000b1'::uuid]) >= 0 as refreshed;
 select 'manual: deleting it takes it off the card' as check, (select not (badges @> '[{"org":"coepris-bc"}]') from public.providers where id = '00000000-0000-4000-8000-0000000000b1') as ok;
 do $$ begin update public.doctor_affiliations set status = 'gone' where doctor_id = '00000000-0000-4000-8000-000000000f93'; raise exception 'odd status saved'; exception when check_violation then raise notice 'ok: a badge is confirmed, lapsed or hidden'; end $$;
+
+-- ── A reviewer re-confirming a lapsed badge refreshes it from the new record ──
+insert into public.source_entries (source_slug, external_id, name, label, url, first_seen_run_id, last_seen_run_id)
+  values ('starmedica', 'sm4', 'Mario Prueba Uno', 'Star Médica Ciudad Juárez', 'https://www.starmedica.com/new-page', :R3, :R3);
+insert into public.doctor_source_ids (source_slug, external_id, doctor_id, status, tier, confidence)
+  values ('starmedica', 'sm4', '00000000-0000-4000-8000-000000000001', 'probable', 3, 0.9);
+set role authenticated;
+select public.admin_match_decide('starmedica', 'sm4', 'confirm');
+reset role;
+select 'review re-confirm: the badge is back, with the new link and evidence' as check,
+  (select status = 'confirmed' and url = 'https://www.starmedica.com/new-page'
+          and evidence_entry_id = (select id from public.source_entries where external_id = 'sm4')
+   from public.doctor_affiliations where doctor_id = '00000000-0000-4000-8000-000000000001' and label = 'Star Médica Ciudad Juárez') as ok;

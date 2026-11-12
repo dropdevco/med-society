@@ -390,9 +390,10 @@ interface OrganizationBadge {
 // Same rule as src/utils/orgBadges.ts: these addresses come from scraped pages.
 const isWebLink = (url: unknown): url is string => typeof url === 'string' && /^https?:\/\/[^\s]+$/i.test(url.trim());
 
-function organizationsOf(raw: unknown): OrganizationBadge[] {
+/** Copy of src/utils/orgBadges.ts currentBadges: an expired certification is not shown, even if the cache still holds it. */
+function organizationsOf(raw: unknown, day = new Date().toISOString().slice(0, 10)): OrganizationBadge[] {
     if (!Array.isArray(raw)) return [];
-    return raw.map((b: Record<string, unknown>) => ({
+    return raw.filter((b) => !!b && typeof b === 'object' && (typeof b.valid_to !== 'string' || b.valid_to >= day)).map((b: Record<string, unknown>) => ({
         organization: String(b.name ?? ''),
         kind: String(b.kind ?? ''),
         label: String(b.label ?? ''),

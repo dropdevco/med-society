@@ -47,6 +47,11 @@ export async function loadRun(db: SupabaseClient, run: RunRecord, entity: 'docto
     const source = run.source;
     const summary: LoadSummary = { run: run.id, status: run.status, entries: run.entries.length, newRecords: 0, confirmed: 0, probable: 0, unmatched: 0, badges: null };
 
+    // A run loaded before (an interrupted --load, run again) must not count its misses twice.
+    const { data: before, error: beforeError } = await db.from('source_runs').select('id').eq('id', run.id).limit(1);
+    if (beforeError) throw new Error(`source_runs: ${beforeError.message}`);
+    const loadedBefore = (before ?? []).length > 0;
+
     const { error: runError } = await db.from('source_runs').upsert({
         id: run.id, source_slug: source, started_at: run.startedAt, finished_at: run.finishedAt,
         status: run.status, reasons: run.reasons, counts: run.counts, targets: run.targets,
@@ -72,7 +77,7 @@ export async function loadRun(db: SupabaseClient, run: RunRecord, entity: 'docto
 
     // Directory sources only: a record missing from a green run counts a miss. A lookup source asks different questions each time.
     const lookup = run.targets.some((t) => t.noBaseline);
-    if (!lookup) {
+    if (!lookup && !loadedBefore) {
         const seen = new Set(run.entries.map((e) => e.externalId));
         const missed = existing.filter((e) => !seen.has(e.external_id));
         for (const n of new Set(missed.map((e) => e.missed_runs))) {
