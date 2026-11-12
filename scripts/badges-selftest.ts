@@ -15,6 +15,7 @@ import type { Provider, ProviderBadge } from '../src/types/provider';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
 import { badgeLink, cardRow, GROUPS, groupOf, idOf, isWebLink, monogram } from '../src/utils/orgBadges';
 import { providerJsonLd } from '../src/utils/structuredData';
+import { isDate, isWebLink as manualLink, levelFor, parseArgs, pick, removal, type Row } from './sources/badges-manual';
 
 let failures = 0;
 const check = (label: string, ok: boolean, detail?: unknown) => {
@@ -148,6 +149,40 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
         check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
     }
+}
+
+// ── Badges changed by hand (scripts/sources/badges-manual.ts) ─────────────
+{
+    const L = '3f2b6c1e-1a2b-4c3d-8e9f-0a1b2c3d4e5f';
+    const refuses = (argv: string[], why: RegExp) => { try { parseArgs(argv); return false; } catch (e) { return why.test(String(e)); } };
+    check('manual: add parses listing, org, label, dates, link and --commit',
+        JSON.stringify(parseArgs(['add', `--listing=${L}`, '--org=starmedica', '--label=Star Médica Ciudad Juárez', '--valid-to=2028-01-31', '--url=https://x.test/a', '--commit']))
+        === JSON.stringify({ command: 'add', commit: true, listing: L, org: 'starmedica', label: 'Star Médica Ciudad Juárez', validTo: '2028-01-31', url: 'https://x.test/a' }));
+    check('manual: without --commit nothing is written', parseArgs(['remove', `--listing=${L}`, '--org=conacem']).commit === false);
+    check('manual: find takes free text', parseArgs(['find', 'Grand', 'Care']).text === 'Grand Care');
+    check('manual: an unknown command is refused', refuses(['delete', `--listing=${L}`], /first word/));
+    check('manual: an unknown option is refused', refuses(['add', `--listing=${L}`, '--org=x', '--colour=red'], /unknown option/));
+    check('manual: the listing must be a page ID', refuses(['list', '--listing=12345'], /page ID/));
+    check('manual: a listing is required', refuses(['add', '--org=conacem'], /--listing/));
+    check('manual: an organization is required to change a badge', refuses(['remove', `--listing=${L}`], /--org/));
+    check('manual: a date must be real', refuses(['add', `--listing=${L}`, '--org=x', '--valid-to=2028-02-30'], /real date/) && isDate('2028-02-29') && !isDate('2027-02-29'));
+    check('manual: start after end is refused', refuses(['add', `--listing=${L}`, '--org=x', '--valid-from=2029-01-01', '--valid-to=2028-01-01'], /after/));
+    check('manual: only web links', refuses(['add', `--listing=${L}`, '--org=x', '--url=javascript:alert(1)'], /http/) && manualLink('https://a.test') && !manualLink('ftp://a.test'));
+    check('manual: change needs something to change', refuses(['change', `--listing=${L}`, '--org=x'], /at least one/));
+    check('manual: undo needs a run ID', refuses(['undo', '--run=abc'], /run ID/));
+    check('manual: a hospital badge goes on the doctor', levelFor('hospital', 'd1') === 'doctor');
+    check('manual: a regulator badge stays on the listing, even for a doctor', levelFor('regulator', 'd1') === 'listing' && levelFor('accreditor', 'd1') === 'listing');
+    check('manual: a listing with no doctor takes the badge itself', levelFor('consejo', null) === 'listing');
+    check('manual: --on=listing keeps it on this listing', levelFor('hospital', 'd1', 'listing') === 'listing');
+    let noDoctor = false; try { levelFor('hospital', null, 'doctor'); } catch { noDoctor = true; }
+    check('manual: --on=doctor refuses a listing with no doctor', noDoctor);
+    const row = (source_slug: string, status: Row['status'], label = ''): Row => ({ source_slug, status, label });
+    check('manual: remove deletes a hand-added badge', removal(row('manual', 'confirmed')) === 'delete');
+    check('manual: remove hides a source badge so runs leave it out', removal(row('conacem', 'confirmed')) === 'hide' && removal(row('conacem', 'lapsed')) === 'hide');
+    check('manual: removing twice does nothing', removal(row('conacem', 'hidden')) === 'already-hidden');
+    const two = [row('conacem', 'confirmed', 'Pediatría'), row('conacem', 'confirmed', 'Neonatología')];
+    let asks = false; try { pick(two, undefined); } catch (e) { asks = /Pediatría/.test(String(e)); }
+    check('manual: two badges from one organization ask for --label', asks && pick(two, 'Neonatología').label === 'Neonatología');
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');

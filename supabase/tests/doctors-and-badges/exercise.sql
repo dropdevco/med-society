@@ -278,3 +278,43 @@ do $$ begin perform public.admin_match_decide('doctoralia', 'held2', 'confirm', 
 do $$ begin perform public.admin_match_decide('doctoralia', 'no-such', 'confirm', null); raise exception 'unknown accepted'; exception when raise_exception then if sqlerrm = 'unknown accepted' then raise; end if; raise notice 'ok: an unknown record is refused'; end $$;
 do $$ begin perform public.admin_match_decide('doctoralia', 'held1', 'maybe', null); raise exception 'bad decision accepted'; exception when raise_exception then if sqlerrm = 'bad decision accepted' then raise; end if; raise notice 'ok: only confirm or reject'; end $$;
 select 'a rejected match stayed rejected' as check, (select status = 'rejected' from public.doctor_source_ids where external_id = 'held2') as ok;
+
+-- ── Badges changed by hand (scripts/sources/badges-manual.ts) ────────────────
+\set RM '''01a00000-0000-7000-8000-0000000000f1'''
+insert into public.providers (id, name, region) values ('00000000-0000-4000-8000-0000000000f9', 'Dra. Prueba Manual Tres', 'elpaso-juarez');
+insert into public.doctors (id, display_name) values ('00000000-0000-4000-8000-000000000f93', 'Dra. Prueba Manual Tres');
+insert into public.doctor_listings (provider_id, doctor_id, method) values ('00000000-0000-4000-8000-0000000000f9', '00000000-0000-4000-8000-000000000f93', 'review');
+insert into public.source_runs (id, source_slug, started_at, status) values (:RM, 'manual', now(), 'green');
+insert into public.source_entries (source_slug, external_id, name, label, url, first_seen_run_id, last_seen_run_id)
+  values ('starmedica', 'sm3', 'Prueba Manual Tres', 'Star Médica Ciudad Juárez', 'https://www.starmedica.com/z', :R3, :R3);
+insert into public.doctor_source_ids (source_slug, external_id, doctor_id, status, tier, confidence, first_run_id, last_run_id)
+  values ('starmedica', 'sm3', '00000000-0000-4000-8000-000000000f93', 'confirmed', 1, 1, :R3, :R3);
+select 'manual: the manual source exists, with no organization' as check, (select organization_id is null from public.data_sources where slug = 'manual') as ok;
+select public.sync_source_badges('starmedica', :R3, false) is not null as synced;
+select 'manual: a source badge appears' as check, (select jsonb_array_length(badges) = 1 from public.providers where id = '00000000-0000-4000-8000-0000000000f9') as ok;
+update public.doctor_affiliations set status = 'hidden' where doctor_id = '00000000-0000-4000-8000-000000000f93';
+select public.refresh_provider_badges(array['00000000-0000-4000-8000-000000000f93'::uuid]) >= 0 as refreshed;
+select 'manual: a hidden badge leaves the card' as check, (select badges = '[]'::jsonb from public.providers where id = '00000000-0000-4000-8000-0000000000f9') as ok;
+select public.sync_source_badges('starmedica', :R3, false) is not null as synced;
+select 'manual: the next run does not bring a hidden badge back' as check, (select status = 'hidden' from public.doctor_affiliations where doctor_id = '00000000-0000-4000-8000-000000000f93')
+   and (select badges = '[]'::jsonb from public.providers where id = '00000000-0000-4000-8000-0000000000f9') as ok;
+update public.doctor_affiliations set status = 'confirmed' where doctor_id = '00000000-0000-4000-8000-000000000f93';
+select public.refresh_provider_badges(array['00000000-0000-4000-8000-000000000f93'::uuid]) >= 0 as refreshed;
+select 'manual: a restored badge shows again' as check, (select jsonb_array_length(badges) = 1 from public.providers where id = '00000000-0000-4000-8000-0000000000f9') as ok;
+update public.doctor_affiliations set source_slug = 'manual', valid_to = '2030-01-01', url = 'https://example.org/by-hand', last_confirmed_run_id = :RM
+ where doctor_id = '00000000-0000-4000-8000-000000000f93';
+update public.source_entries set url = 'https://www.starmedica.com/changed' where external_id = 'sm3';
+select public.sync_source_badges('starmedica', :R3, true) is not null as synced;
+select 'manual: a run never overwrites a badge set by hand' as check, (select source_slug = 'manual' and valid_to = '2030-01-01' and url = 'https://example.org/by-hand' from public.doctor_affiliations where doctor_id = '00000000-0000-4000-8000-000000000f93') as ok;
+update public.source_entries set missed_runs = 2 where external_id = 'sm3';
+select public.sync_source_badges('starmedica', :R3, true) is not null as synced;
+select 'manual: a badge set by hand never lapses with a source' as check, (select status = 'confirmed' from public.doctor_affiliations where doctor_id = '00000000-0000-4000-8000-000000000f93') as ok;
+insert into public.listing_affiliations (provider_id, organization_id, label, status, source_slug, created_run_id, last_confirmed_run_id, last_confirmed_at)
+  select '00000000-0000-4000-8000-0000000000b1', id, 'By hand', 'confirmed', 'manual', :RM, :RM, now() from public.organizations where slug = 'coepris-bc';
+select public.refresh_listing_badges(array['00000000-0000-4000-8000-0000000000b1'::uuid]) >= 0 as refreshed;
+select 'manual: a badge added by hand on a clinic listing shows' as check,
+  (select count(*) = 1 from public.providers p, jsonb_array_elements(p.badges) b where p.id = '00000000-0000-4000-8000-0000000000b1' and b->>'org' = 'coepris-bc') as ok;
+delete from public.listing_affiliations where provider_id = '00000000-0000-4000-8000-0000000000b1' and source_slug = 'manual';
+select public.refresh_listing_badges(array['00000000-0000-4000-8000-0000000000b1'::uuid]) >= 0 as refreshed;
+select 'manual: deleting it takes it off the card' as check, (select not (badges @> '[{"org":"coepris-bc"}]') from public.providers where id = '00000000-0000-4000-8000-0000000000b1') as ok;
+do $$ begin update public.doctor_affiliations set status = 'gone' where doctor_id = '00000000-0000-4000-8000-000000000f93'; raise exception 'odd status saved'; exception when check_violation then raise notice 'ok: a badge is confirmed, lapsed or hidden'; end $$;

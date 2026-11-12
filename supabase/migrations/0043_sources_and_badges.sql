@@ -47,7 +47,7 @@ create table public.doctor_affiliations (
     doctor_id             uuid not null references public.doctors (id),
     organization_id       uuid not null references public.organizations (id),
     label                 text not null default '',
-    status                text not null check (status in ('confirmed','lapsed')),
+    status                text not null check (status in ('confirmed','lapsed','hidden')),  -- hidden: removed by hand, a run never brings it back
     source_slug           text not null references public.data_sources (slug),
     evidence_entry_id     uuid references public.source_entries (id) on delete set null,
     created_run_id        uuid not null references public.source_runs (id),
@@ -169,6 +169,7 @@ begin
             set status = 'confirmed', evidence_entry_id = excluded.evidence_entry_id,
                 last_confirmed_run_id = excluded.last_confirmed_run_id, last_confirmed_at = excluded.last_confirmed_at,
                 valid_from = excluded.valid_from, valid_to = excluded.valid_to, facts = excluded.facts, url = excluded.url
+            where a.status <> 'hidden' and a.source_slug <> 'manual'  -- removed or set by hand: a run leaves it alone
         returning a.doctor_id
     )
     select array_agg(distinct doctor_id), count(*) into v_touched, v_renewed from up;
@@ -283,7 +284,8 @@ begin
     from public.source_runs r where r.id = v_entry.last_seen_run_id
     on conflict (doctor_id, organization_id, label) do update
         set status = 'confirmed', last_confirmed_run_id = excluded.last_confirmed_run_id,
-            last_confirmed_at = excluded.last_confirmed_at, valid_to = excluded.valid_to;
+            last_confirmed_at = excluded.last_confirmed_at, valid_to = excluded.valid_to
+        where a.status <> 'hidden' and a.source_slug <> 'manual';
 
     perform public.refresh_provider_badges(array[v_doctor]);
 end $$;
@@ -358,6 +360,8 @@ join (values
 update public.data_sources set doctor_links = false where slug = 'conacem';
 
 insert into public.data_sources (slug, name, access) values ('doctoralia', 'Doctoralia import (identity backfill only)', 'manual');
+-- Badges added or changed by a person with scripts/sources/badges-manual.ts. Each change is a run of this source.
+insert into public.data_sources (slug, name, access, cadence) values ('manual', 'Added or changed by hand', 'manual', 'never');
 
 commit;
 

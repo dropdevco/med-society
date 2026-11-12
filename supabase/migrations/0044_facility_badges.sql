@@ -27,7 +27,7 @@ create table public.listing_affiliations (
     provider_id           uuid not null references public.providers (id) on delete cascade,
     organization_id       uuid not null references public.organizations (id),
     label                 text not null default '',
-    status                text not null check (status in ('confirmed','lapsed')),
+    status                text not null check (status in ('confirmed','lapsed','hidden')),  -- hidden: removed by hand, a run never brings it back
     source_slug           text not null references public.data_sources (slug),
     evidence_entry_id     uuid references public.source_entries (id) on delete set null,
     created_run_id        uuid not null references public.source_runs (id),
@@ -135,6 +135,7 @@ begin
             set status = 'confirmed', evidence_entry_id = excluded.evidence_entry_id,
                 last_confirmed_run_id = excluded.last_confirmed_run_id, last_confirmed_at = excluded.last_confirmed_at,
                 valid_from = excluded.valid_from, valid_to = excluded.valid_to, facts = excluded.facts, url = excluded.url
+            where a.status <> 'hidden' and a.source_slug <> 'manual'  -- removed or set by hand: a run leaves it alone
         returning a.provider_id
     )
     select array_agg(distinct provider_id), count(*) into v_touched, v_renewed from up;
@@ -234,7 +235,8 @@ begin
     on conflict (provider_id, organization_id, label) do update
         set status = 'confirmed', evidence_entry_id = excluded.evidence_entry_id,
             last_confirmed_run_id = excluded.last_confirmed_run_id, last_confirmed_at = excluded.last_confirmed_at,
-            valid_from = excluded.valid_from, valid_to = excluded.valid_to, facts = excluded.facts, url = excluded.url;
+            valid_from = excluded.valid_from, valid_to = excluded.valid_to, facts = excluded.facts, url = excluded.url
+        where a.status <> 'hidden' and a.source_slug <> 'manual';
 
     perform public.refresh_listing_badges(array[v_provider]);
 end $$;

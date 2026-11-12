@@ -37,6 +37,31 @@ source run (run_id) → source_entries → doctor_source_ids (matched once) → 
 | A clinic's register number is one tied to a listing | Confirmed by the system |
 | A clinic matches by name only | `/admin` → Verification → Clinics to review, exact name or not |
 | A red run | Nothing changes |
+| Removed by hand (`badges:manual remove`) | Hidden; no run brings it back until `restore` |
+| Added or changed by hand | Stays as set; runs never overwrite or lapse it |
+
+## Changing a badge by hand
+
+`npm run badges:manual` ([ADR 0010](adr/0010-badges-changed-by-hand.md)). Production reads `SUPABASE_SERVICE_ROLE_KEY` from `.env.local`; set `SOURCES_DB_URL=http://127.0.0.1:54331` for the sandbox. Nothing is written without `--commit`.
+
+```bash
+npm run badges:manual -- find "Grand Care"                                  # page IDs by name
+npm run badges:manual -- list    --listing=<page ID>                         # what shows, and every badge row behind it
+npm run badges:manual -- add     --listing=<page ID> --org=starmedica --label="Star Médica Ciudad Juárez" [--url=https://…] [--valid-to=2028-01-31] [--note="why"] --commit
+npm run badges:manual -- change  --listing=<page ID> --org=starmedica [--label=<current>] [--new-label=…] [--url=…] [--valid-from=…] [--valid-to=…] --commit
+npm run badges:manual -- remove  --listing=<page ID> --org=conacem [--label=…] [--note="why"] --commit
+npm run badges:manual -- restore --listing=<page ID> --org=conacem [--label=…] --commit
+npm run badges:manual -- undo    --run=<run ID> --commit                     # printed after every change
+```
+
+| Rule | Why |
+|---|---|
+| The page ID is the UUID in `/providers/<id>`; the doctor's ID is never typed | `doctors.id` is internal |
+| A doctor's badge shows on all their listings; COEPRIS and the Padrón stay on the listing | Badges belong to people, facility badges to places |
+| `remove` hides a source's badge and deletes one added by hand | A deleted source badge would come back on the next run |
+| Only badges added by hand can be changed | A source's next run would overwrite the change |
+| A run never overwrites or lapses a badge added by hand | The person's decision stands until they change it |
+| `undo` refuses if the badge changed after that run | Undo the later run first |
 
 ## Display
 

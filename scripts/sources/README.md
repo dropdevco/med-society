@@ -65,6 +65,10 @@ npx tsx --env-file=.env.local scripts/sources/cedula-report.ts     # totals only
 npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --undo=<run ID>   # removes one backfill
 ```
 
+## Change one badge by hand
+
+`npm run badges:manual -- find|list|add|change|remove|restore|undo`. Every change is a run of the `manual` source with its own run ID, and `undo --run=<id>` reverses it. See [docs/badges.md](../../docs/badges.md#changing-a-badge-by-hand).
+
 ## Weekly timer and health dashboard
 
 ```bash
