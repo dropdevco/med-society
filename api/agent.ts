@@ -350,6 +350,8 @@ interface Row {
     id: string;
     name: string;
     specialty: string[];
+    /** 'stay' = recovery house / lodging-style practice (providers.kind); undefined for everyone else. */
+    kind?: 'stay';
     country: 'US' | 'MX';
     city: string;
     region: RegionId;
@@ -465,6 +467,7 @@ function toRow(raw: any): Row | null {
         id: String(raw.id),
         name: String(raw.name ?? '').trim(),
         specialty: strArray(raw.specialty),
+        kind: raw.kind === 'stay' ? 'stay' : undefined,
         country: raw.country === 'US' ? 'US' : 'MX',
         city: String(raw.city ?? '').trim(),
         region,
@@ -3166,7 +3169,8 @@ function renderSite(site: DoctorSite, d: Detail, reviews: ReviewOut[], lang: Lan
 <div class="faq"><span class="eyebrow">${esc(t.faqKicker)}</span><h2 style="margin-bottom:34px">${esc(t.faqTitle)}</h2>${faq.map((f) => `<details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('')}</div></div></section>`;
 
     // ── What goes where: the owner's brief, else the archetype's defaults ──
-    const archetype = c.brief?.archetype ?? SITE_ARCHETYPE_OF[p.specialty[0] ?? ''] ?? 'routine';
+    // An owner's own choice wins, then the listing's kind ('stay'), then its first specialty.
+    const archetype = c.brief?.archetype ?? (p.kind === 'stay' ? 'stay' : SITE_ARCHETYPE_OF[p.specialty[0] ?? ''] ?? 'routine');
     const extra = (c.blocks ?? []).filter((b) => SITE_EXTRA_KEYS.includes(b.key)).flatMap((b) => {
         const items = (b.items?.[lang] ?? b.items?.es ?? b.items?.en ?? []).slice(0, 6).map((h) => ({ title: clean(h.title, 70), body: clean(h.body, 220) }));
         return items.length ? [{ key: b.key, title: cap(b.title, 70) || SITE_EXTRA_TITLES[b.key][lang], items }] : [];

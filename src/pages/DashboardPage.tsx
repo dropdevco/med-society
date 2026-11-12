@@ -269,7 +269,7 @@ export function DashboardPage() {
                 />
             )}
             {tab === 'website' && site && (
-                <ClinicSitePanel key={`${clinic.id}:${siteNonce}`} clinic={clinic} site={site} onSaved={reloadSite} />
+                <ClinicSitePanel key={`${clinic.id}:${siteNonce}`} clinic={clinic} site={site} onSaved={reloadSite} onEditProfile={(field) => goTo({ tab: 'profile', field })} />
             )}
             {tab === 'plan' && (
                 <ClinicPlanPanel

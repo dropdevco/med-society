@@ -21,6 +21,7 @@ export function normalizeProvider(row: any): Provider {
         // (Postgres lowercases them on the way in, so we need to restore them)
         googlePlaceId: row.googlePlaceId ?? row.googleplaceid ?? undefined,
         doctoraliaId:  row.doctoraliaId  ?? row.doctoraliaid  ?? undefined,
+        kind:          row.kind === 'stay' ? 'stay' : undefined,
         reviewCount:   row.reviewCount   ?? row.reviewcount   ?? 0,
         imageUrl:      row.imageUrl      ?? row.imageurl      ?? undefined,
         postalCode:    row.postalCode    ?? row.postalcode    ?? undefined,
