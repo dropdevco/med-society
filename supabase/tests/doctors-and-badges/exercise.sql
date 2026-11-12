@@ -117,7 +117,7 @@ do $$ begin perform 1 from public.doctors; raise exception 'user read doctors'; 
 do $$ begin update public.providers set badges = '[]'; raise exception 'user wrote badges'; exception when insufficient_privilege then raise notice 'ok: signed-in users cannot write badges'; end $$;
 reset role;
 
--- ── Clinics (migration 0041, docs/adr/0008). Made-up centers. ────────────────
+-- ── Clinics (migration 0044, docs/adr/0008). Made-up centers. ────────────────
 \set R4 '''01a00000-0000-7000-8000-000000000004'''
 \set R5 '''01a00000-0000-7000-8000-000000000005'''
 \set R6 '''01a00000-0000-7000-8000-000000000006'''

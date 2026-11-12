@@ -4,7 +4,7 @@
 -- admin_* functions below; the browser never reads them. The site reads badges
 -- from providers.badges, a cache rebuilt after every run and every review.
 --
--- Needs 0039. Decisions: docs/adr/0003, 0004, 0007.
+-- Needs 0042. Decisions: docs/adr/0003, 0004, 0007.
 -- Run in: Supabase dashboard -> SQL editor (or apply_migration). Additive: new
 -- tables, one new column on providers, provider_list re-created.
 
@@ -67,14 +67,12 @@ create trigger source_entries_name_norm before insert or update of name on publi
 alter table public.providers add column badges jsonb not null default '[]';  -- metadata-only, no rewrite
 grant select (badges) on public.providers to anon, authenticated;  -- 0032 grants anon per column
 
--- provider_list as defined in production on 5 Nov 2026, plus badges.
+-- provider_list as defined in production on 12 Nov 2026 (after 0039_provider_service_names
+-- and 0040_providers_kind), plus badges. A view can only gain columns at the end.
 create or replace view public.provider_list with (security_invoker = true) as
 select id, name, specialty, country, city, region, address, lat, lng, "postalCode", rating, "reviewCount",
        promoted, tier, verified, licensed, "featuredRank", "priceFromMxn", insurances, languages,
-       languages_confirmed, source, "imageUrl", "googlePlaceId",
-       coalesce((select array_agg(distinct v.n) filter (where v.n is not null and v.n <> ''::text)
-                 from jsonb_array_elements(p.services) s(value),
-                      lateral (values (s.value ->> 'name'::text), (s.value ->> 'nameEn'::text)) v(n)), '{}'::text[]) as service_names,
+       languages_confirmed, source, "imageUrl", "googlePlaceId", service_names, kind,
        badges
 from public.providers p
 where status = 'live'::text;
@@ -363,7 +361,7 @@ insert into public.data_sources (slug, name, access) values ('doctoralia', 'Doct
 
 commit;
 
--- Rollback (undo 0041 onward first):
+-- Rollback (undo 0044 onward first):
 --     begin;
 --     drop function public.admin_match_confirm_exact(text), public.admin_match_decide(text, text, text, uuid),
 --                   public._decide_match(text, text, text, uuid), public.admin_match_queue(text, integer, integer),
@@ -371,6 +369,7 @@ commit;
 --                   public.doctor_name_candidates(text, text, integer), public.refresh_provider_badges(uuid[]);
 --     drop table public.doctor_affiliations, public.source_observations, public.source_entries;
 --     delete from public.data_sources; delete from public.organizations;
---     -- then re-create provider_list without badges (see 0021 and production's definition)
+--     -- a view cannot lose a column through replace: drop provider_list, re-create it as in
+--     -- 0040_providers_kind (ends with service_names, kind), and grant select to anon, authenticated, service_role
 --     alter table public.providers drop column badges;
 --     commit;

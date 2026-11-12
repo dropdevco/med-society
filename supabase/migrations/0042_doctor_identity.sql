@@ -154,7 +154,7 @@ end $$;
 
 commit;
 
--- Rollback, only while nothing depends on these tables (undo 0040 onward first):
+-- Rollback, only while nothing depends on these tables (undo 0043 onward first):
 --
 --   Undo one backfill, by its run ID:
 --     delete from public.doctor_listings   where run_id = :run;

@@ -1,5 +1,5 @@
 -- Organization logos: all six organizations authorized logo use, recorded 6 Nov 2026
--- (docs/sources/README.md). Needs 0039 to 0041, and the files in public/logos/orgs.
+-- (docs/sources/README.md). Needs 0042 to 0044, and the files in public/logos/orgs.
 -- Safe to run twice.
 
 update public.organizations

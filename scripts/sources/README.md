@@ -24,7 +24,7 @@ Exit codes: `0` green, `2` red (the run is still written), `1` could not run. `-
 
 ### Into the database
 
-Needs migrations `0039` to `0042` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
+Needs migrations `0042` to `0045` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
 
 ```bash
 npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --commit   # once: a doctor for every Doctoralia person
@@ -39,7 +39,7 @@ A run's rows all carry its run ID. A source record is matched once: a cédula we
 A throwaway copy of the database for testing anything above without touching production. Needs Docker.
 
 ```bash
-bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migrations 0039 to 0042
+bash scripts/sources/sandbox/up.sh                                # Postgres + API, with migrations 0042 to 0045
 npx tsx scripts/sources/sandbox/proxy.ts                          # leave running
 export SOURCES_DB_URL=http://127.0.0.1:54331
 npx tsx --env-file=.env.local scripts/sources/sandbox/seed.ts     # copies listings and Doctoralia names (read-only on production)

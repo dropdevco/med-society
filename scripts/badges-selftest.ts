@@ -101,8 +101,8 @@ check('the "about" link names the organization', en.badges.about.includes('{{nam
 
 // ── Nothing left out ─────────────────────────────────────────────────────────
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
-const seeds = read('supabase/migrations/0040_sources_and_badges.sql') + read('supabase/migrations/0041_facility_badges.sql');
-const logos = read('supabase/migrations/0042_organization_logos.sql');
+const seeds = read('supabase/migrations/0043_sources_and_badges.sql') + read('supabase/migrations/0044_facility_badges.sql');
+const logos = read('supabase/migrations/0045_organization_logos.sql');
 const register = read('docs/sources/README.md');
 for (const b of all) {
     check(`${b.org}: seeded`, seeds.includes(`('${b.org}', `));
@@ -129,18 +129,22 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
 // ── Migrations ────────────────────────────────────────────────────────────
 {
     const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql'));
-    const ours = ['0039_doctor_identity.sql', '0040_sources_and_badges.sql', '0041_facility_badges.sql', '0042_organization_logos.sql'];
+    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql'];
     for (const f of ours) {
         check(`${f}: exists and no other file has its number`, files.filter((x) => x.startsWith(f.slice(0, 4))).join() === f);
         check(`${f}: says how to undo it`, /rollback/i.test(read(`supabase/migrations/${f}`)));
     }
-    const identity = read('supabase/migrations/0039_doctor_identity.sql');
+    const identity = read('supabase/migrations/0042_doctor_identity.sql');
     const tables = [...identity.matchAll(/^create table public\.(\w+)/gm)].map((m) => m[1]);
     check('identity migration: the five doctor tables', ['doctors', 'doctor_cedulas', 'doctor_source_ids', 'doctor_listings', 'doctor_merges'].every((t) => tables.includes(t)));
     check('identity migration: every table locked down', tables.every((t) => identity.includes(`'${t}'`)));
     check('identity migration: no RPCs', [...identity.matchAll(/^create function public\.(\w+)/gm)].map((m) => m[1]).join() === 'sources_name_norm_trg');
     const all = ours.map((f) => read(`supabase/migrations/${f}`)).join('\n');
     check('no migration brings back the unthrottled cédula lookup', !all.includes('listings_for_cedula'));
+    // A view can only gain columns at the end: badges must follow production's last columns (0040_providers_kind).
+    const view = /create or replace view public\.provider_list[\s\S]*?from public\.providers p/.exec(read('supabase/migrations/0043_sources_and_badges.sql'))?.[0] ?? '';
+    check('provider_list keeps service_names and kind, then adds badges last', /"googlePlaceId",\s*service_names,\s*kind,\s*badges\s*from/.test(view));
+    check('our migrations come after the newest on main', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0042'));
     for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
         check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
     }

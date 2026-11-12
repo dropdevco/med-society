@@ -10,8 +10,8 @@ The main risk it named is showing one doctor's credentials on another doctor's p
 
 ## Decision
 
-1. **The identity tables are their own migration.** `0039` holds the five doctor tables and what they point at, with no RPCs. `0040` onward holds sources, badges and the review functions. Carlos can apply and review them separately.
-2. **Our migrations start at 0039.** `main` holds `0035` and `0036`, and open PR 16 holds `0037` and `0038`. Check production's `schema_migrations` and the open PRs again on the day they are applied.
+1. **The identity tables are their own migration.** `0042` holds the five doctor tables and what they point at, with no RPCs. `0043` onward holds sources, badges and the review functions. Carlos can apply and review them separately.
+2. **Our migrations are 0042 to 0045.** They were first numbered 0039 to 0042. On 12 Nov 2026 production already held `0039_provider_service_names`, `0039_google_places_tijuana`, `0040_providers_kind` and `0041_plan_change_requests`, so they moved up. Check production's `schema_migrations` and the open PRs again on the day they are applied.
 3. **Tier 1 stays strict and tier 3 stays loose,** as the council asked; both were already built this way. A cédula confirms only when the name also agrees, and `name_key` and specialty are hints, not gates.
 4. **Records that share a cédula but disagree on the name wait for a person.** The backfill groups records by connected components. If a record's name differs from the group's lead, after removing titles, accents, case and word order, it is held: no listing and no cédula attached until a reviewer confirms it in `/admin`.
 5. **`listings_for_cedula` and `doctor_credential_status` are removed** until something needs them. The lookup would let any signed-in user map cédulas to listings without a rate limit.

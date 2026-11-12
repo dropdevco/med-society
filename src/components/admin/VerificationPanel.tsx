@@ -73,7 +73,7 @@ export function VerificationPanel() {
     };
 
     if (error && !sources) {
-        return <p className="adm-empty">Verification isn’t available yet. If this is the first time, apply migrations 0039 to 0042 in supabase/migrations, then refresh. ({error})</p>;
+        return <p className="adm-empty">Verification isn’t available yet. If this is the first time, apply migrations 0042 to 0045 in supabase/migrations, then refresh. ({error})</p>;
     }
     if (!sources || !queue) return <p className="adm-empty">Loading data…</p>;
 

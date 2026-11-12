@@ -1,5 +1,5 @@
 /**
- * Loads a finished run into the database (migrations 0039 to 0041). Every row carries
+ * Loads a finished run into the database (migrations 0042 to 0044). Every row carries
  * the run's ID. A red run is recorded and nothing else changes, so an outage
  * can't touch a badge. A source record that already has a match decision only
  * has it renewed; matching runs for new records alone, so a weekly run costs

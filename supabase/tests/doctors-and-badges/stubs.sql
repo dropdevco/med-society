@@ -19,16 +19,17 @@ create table public.providers (
     address text, lat numeric, lng numeric, "postalCode" text, rating numeric, "reviewCount" integer, promoted boolean default false,
     tier text default 'basic', verified boolean default false, licensed boolean default false, "featuredRank" integer, "priceFromMxn" numeric,
     insurances text[], languages text[], languages_confirmed boolean default false, source text default 'doctoralia', "imageUrl" text,
-    "googlePlaceId" text, services jsonb default '[]', status text default 'live');
+    "googlePlaceId" text, services jsonb default '[]', status text default 'live', service_names text[] not null default '{}',
+    kind text check (kind is null or kind in ('stay')));
 grant select (id, name, specialty, country, city, region, address, lat, lng, "postalCode", rating, "reviewCount", promoted, tier, verified, licensed,
-    "featuredRank", "priceFromMxn", insurances, languages, languages_confirmed, source, "imageUrl", "googlePlaceId", services, status)
+    "featuredRank", "priceFromMxn", insurances, languages, languages_confirmed, source, "imageUrl", "googlePlaceId", services, status,
+    service_names, kind)
     on public.providers to anon, authenticated;
 grant all on public.providers to service_role;
+-- As in production on 12 Nov 2026, after 0039_provider_service_names and 0040_providers_kind.
 create view public.provider_list with (security_invoker = true) as
     select id, name, specialty, country, city, region, address, lat, lng, "postalCode", rating, "reviewCount", promoted, tier, verified, licensed,
-           "featuredRank", "priceFromMxn", insurances, languages, languages_confirmed, source, "imageUrl", "googlePlaceId",
-           coalesce((select array_agg(distinct v.n) filter (where v.n is not null and v.n <> ''::text)
-                     from jsonb_array_elements(p.services) s(value), lateral (values (s.value ->> 'name'::text), (s.value ->> 'nameEn'::text)) v(n)), '{}'::text[]) as service_names
+           "featuredRank", "priceFromMxn", insurances, languages, languages_confirmed, source, "imageUrl", "googlePlaceId", service_names, kind
     from public.providers p where status = 'live'::text;
 grant select on public.provider_list to anon, authenticated;
 -- Production's bh_norm, verbatim (5 Nov 2026).
