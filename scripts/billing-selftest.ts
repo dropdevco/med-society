@@ -8,7 +8,7 @@
  *
  *   npx tsx scripts/billing-selftest.ts
  */
-import handler, { eventsFromGhl, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, tagsFor, toE164 } from '../api/billing';
+import handler, { ensureSite, eventsFromGhl, siteSubdomain, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, tagsFor, toE164 } from '../api/billing';
 
 process.env.VITE_SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
@@ -35,12 +35,27 @@ let ghlTagStatus = 200;
 let ghlTransactions: unknown[] = [];
 let ghlSubscriptions: unknown[] = [];
 let ghlReadFails = false;
+let siteRows: { provider_id: string; subdomain: string }[] = [];
+let vercelAdd = 200;
+let vercelGet = 200;
 
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     calls.push({ url, method: init?.method ?? 'GET', body });
     const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status });
+    if (url.includes('/rest/v1/doctor_sites')) {
+        if (init?.method === 'POST') {
+            const b = body as { provider_id: string; subdomain: string };
+            if (siteRows.some((r) => r.subdomain === b.subdomain || r.provider_id === b.provider_id)) return json(409, { code: '23505' });
+            siteRows.push(b);
+            return json(201, [b]);
+        }
+        const pid = decodeURIComponent(/provider_id=eq\.([^&]+)/.exec(url)?.[1] ?? '');
+        return json(200, siteRows.filter((r) => r.provider_id === pid));
+    }
+    if (url.includes('api.vercel.com') && init?.method === 'POST') return json(vercelAdd, { error: { message: 'x' } });
+    if (url.includes('api.vercel.com')) return json(vercelGet, {});
     if (url.includes('/contacts/?locationId')) return json(200, { contacts: [{ id: 'c-found', email: 'Owner@Clinic.com' }] });
     if (ghlReadFails && url.includes('/payments/')) return json(500, {});
     if (url.includes('/payments/transactions')) return json(200, { data: ghlTransactions, totalCount: ghlTransactions.length });
@@ -65,6 +80,9 @@ function reset() {
     ghlTransactions = [];
     ghlSubscriptions = [];
     ghlReadFails = false;
+    siteRows = [];
+    vercelAdd = 200;
+    vercelGet = 200;
     delete process.env.BILLING_ACCEPT_TEST_MODE;
 }
 
@@ -321,6 +339,76 @@ async function main() {
     r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
     check('cron: a polled payment nobody can be matched to emails the team once',
         (r.body.poll as { unmatched: number }).unmatched === 1 && calls.filter((c) => c.url.includes('api.resend.com')).length === 1, r);
+
+    // ── Featured → website ──────────────────────────────────────────────────
+    check('subdomain: accents, ampersand, punctuation', siteSubdomain('Clínica Dental & Más, S.A.') === 'clinica-dental-and-mas-s-a', siteSubdomain('Clínica Dental & Más, S.A.'));
+    check('subdomain: long names are cut at a word, max 30', siteSubdomain('Better Than Ever the Recovery Center Tijuana').length <= 30 && !siteSubdomain('Better Than Ever the Recovery Center Tijuana').endsWith('-'), siteSubdomain('Better Than Ever the Recovery Center Tijuana'));
+    check('subdomain: tiny and retry names', siteSubdomain('Dr', 0).length >= 3 && siteSubdomain('Clinica Uno', 1) === 'clinica-uno-2', [siteSubdomain('Dr'), siteSubdomain('Clinica Uno', 1)]);
+
+    const featured = { id: 'sub-f', provider_id: 'p-f', provider_name: 'Clínica Feliz', plan: 'featured', market: 'us', status: 'active',
+        paid_through: '2026-12-01T00:00:00Z', payer_email: 'o@c.com', payer_phone: null, ghl_contact_id: 'cf', active_plans: ['featured'] };
+
+    reset();
+    delete process.env.VERCEL_TOKEN;
+    pendingRows = [featured];
+    r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    check('site: without VERCEL_TOKEN nothing is created', r.body.ghl_synced === 1 && siteRows.length === 0 && !calls.some((c) => c.url.includes('api.vercel.com')), r);
+
+    process.env.VERCEL_TOKEN = 'vt';
+    reset();
+    pendingRows = [featured];
+    r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    const vAdd = calls.find((c) => c.url.includes('api.vercel.com') && c.method === 'POST');
+    check('site: Featured payment → private row, Vercel domain, invite tag, synced',
+        r.body.ghl_synced === 1 && siteRows[0]?.subdomain === 'clinica-feliz'
+        && (vAdd?.body as Record<string, unknown>)?.name === 'clinica-feliz.medsociety.one' && vAdd?.url.includes('teamId=')
+        && calls.some((c) => c.url.includes('/contacts/cf/tags') && c.method === 'POST' && JSON.stringify(c.body).includes('site-brief-invite'))
+        && (calls.find((c) => c.url.includes('/rpc/billing_mark_synced'))?.body as Record<string, unknown>)?.ok === true,
+        { r, siteRows, calls: calls.map((c) => c.method + ' ' + c.url) });
+
+    reset();
+    pendingRows = [{ ...featured, plan: 'promoted', active_plans: ['promoted'] }];
+    await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    check('site: a Promoted plan gets no site', siteRows.length === 0 && !calls.some((c) => c.url.includes('api.vercel.com')));
+
+    reset();
+    pendingRows = [{ ...featured, status: 'lapsed' }];
+    await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    check('site: a lapsed Featured plan creates nothing', siteRows.length === 0 && !calls.some((c) => c.url.includes('api.vercel.com')));
+
+    const cfg = { supaUrl: 'https://example.supabase.co', supaKey: 'service-key', pit: 'pit', readPit: 'pit-read' } as unknown as Parameters<typeof ensureSite>[0];
+    reset();
+    siteRows = [{ provider_id: 'p-f', subdomain: 'clinica-feliz' }];
+    vercelAdd = 409;
+    let o = await ensureSite(cfg, featured, 'cf');
+    check('site: rerun with row and domain already there changes nothing, sends no second invite',
+        o?.rowCreated === false && o.domain === 'exists' && o.tagged === false && !calls.some((c) => c.url.includes('/tags')), { o });
+
+    reset();
+    siteRows = [{ provider_id: 'p-other', subdomain: 'clinica-feliz' }];
+    o = await ensureSite(cfg, featured, 'cf');
+    check('site: a taken name falls to the next free one', o?.subdomain === 'clinica-feliz-2' && siteRows.length === 2, { o, siteRows });
+
+    reset();
+    vercelAdd = 409; vercelGet = 404;
+    let threw = '';
+    try { await ensureSite(cfg, featured, 'cf'); } catch (e) { threw = String(e); }
+    check('site: domain owned by another Vercel project → error so the sync retries', /in use elsewhere/.test(threw) && !calls.some((c) => c.url.includes('/tags')), threw);
+
+    reset();
+    vercelAdd = 500;
+    pendingRows = [featured];
+    r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    const failMark = calls.find((c) => c.url.includes('/rpc/billing_mark_synced'));
+    check('site: a Vercel failure leaves the row unsynced for tomorrow, no invite sent',
+        (failMark?.body as Record<string, unknown>)?.ok === false && !calls.some((c) => c.url.includes('/contacts/cf/tags') && JSON.stringify(c.body).includes('site-brief-invite')), { r, body: failMark?.body });
+
+    reset();
+    process.env.SITE_AUTOCREATE = '0';
+    o = await ensureSite(cfg, featured, 'cf');
+    check('site: SITE_AUTOCREATE=0 switches it off', o === null && calls.length === 0);
+    delete process.env.SITE_AUTOCREATE;
+    delete process.env.VERCEL_TOKEN;
 
     console.log(failures ? `\n${failures} failing` : '\nall checks passed');
     process.exit(failures ? 1 : 0);
