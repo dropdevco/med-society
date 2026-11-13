@@ -108,6 +108,31 @@
     "showingCapped": "Mostrando los {{shown}} primeros de {{total}} aquí. Acerca el mapa para verlos todos.",
     "showingInView": "Mostrando {{shown}} de {{total}} en el mapa. Aleja el mapa para ver el resto."
   },
+  "badges": {
+    "title": "Credenciales y afiliaciones",
+    "type": "Tipo",
+    "consejo": "Consejo",
+    "certificate": "Certificado",
+    "verifiedOn": "Verificado el",
+    "validFrom": "Vigente desde",
+    "validTo": "Vigente hasta",
+    "rechecked": "Se revisa cada semana",
+    "register": "Número de registro",
+    "source": "Ver la fuente",
+    "about": "¿Qué es {{name}}?",
+    "more_one": "+{{count}} más",
+    "more_other": "+{{count}} más",
+    "group": {
+      "credential": "Credencial",
+      "affiliation": "Afiliación",
+      "facility": "Establecimiento"
+    },
+    "groups": {
+      "credential": "Credenciales",
+      "affiliation": "Afiliaciones",
+      "facility": "Establecimiento"
+    }
+  },
   "drawer": {
     "rating": "Calificación",
     "reviews": "Reseñas",

@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "badges:selftest": "tsx scripts/badges-selftest.ts",
+    "badges:manual": "tsx --env-file=.env.local scripts/sources/badges-manual.ts",
+    "sources": "tsx scripts/sources/run.ts",
+    "sources:selftest": "tsx scripts/sources/selftest.ts",
+    "sources:schedule": "tsx scripts/sources/schedule.ts",
+    "sources:dashboard": "tsx scripts/sources/dashboard/server.ts",
+    "sources:check": "tsc -p scripts/sources"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
@@ -35,6 +42,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "playwright": "1.64.1",
     "tsx": "^4.23.12",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",

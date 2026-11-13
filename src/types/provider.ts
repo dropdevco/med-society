@@ -2,6 +2,24 @@ import type { RegionId } from '../utils/region';
 
 export type Country = 'MX' | 'US';
 export type ProviderSource = 'google' | 'manual' | 'doctoralia';
+/** One organization badge. `logo` stays null until that organization's OK is recorded. */
+export interface ProviderBadge {
+  org: string;
+  name: string;
+  kind: 'hospital' | 'consejo' | 'colegio' | 'association' | 'regulator' | 'accreditor';
+  /** What it says: the hospital site, or the certified specialty. */
+  label: string;
+  logo: string | null;
+  /** This doctor's page at the source. Null when the source has none. */
+  url: string | null;
+  /** What the organization is: the link shown when there is no `url`. */
+  info_url?: string | null;
+  confirmed_at: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  facts?: { consejo?: string; certificate?: string; register?: string };
+}
+
 export type ProviderTier = 'basic' | 'promoted' | 'featured';
 
 export type Specialty =
@@ -141,6 +159,8 @@ export interface Provider {
   galleryUrls?: string[];
   /** Published services and prices, denormalised by backfill-services.ts. */
   services?: ProviderService[];
+  /** Confirmed organization badges, a cache rebuilt after every source run (migration 0035). */
+  badges?: ProviderBadge[];
   /** Cheapest priced service, denormalised so sorting never walks `services`. */
   priceFromMxn?: number;
   /**

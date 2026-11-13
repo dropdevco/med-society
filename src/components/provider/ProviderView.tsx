@@ -1,3 +1,4 @@
+import { ProfileBadges } from './OrgBadges';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -175,6 +176,8 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                                 : t('drawer.languageUnknown')}
                             muted={!provider.languagesConfirmed || provider.languages.length === 0}
                         />
+
+                        <ProfileBadges badges={provider.badges} />
 
                         <div data-section="photos">
                             <ClinicPhotos placeId={provider.googlePlaceId} portrait={portrait} galleryUrls={[...ownerPhotos, ...(provider.galleryUrls ?? [])]} />

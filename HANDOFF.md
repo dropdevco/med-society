@@ -198,6 +198,7 @@ Run these after touching the area they cover:
 
 ```bash
 npx tsx scripts/agent-selftest.ts       # api/agent.ts vs src/utils drift
+npm run badges:selftest                 # all six organization badges, end to end
 npx tsx scripts/billing-selftest.ts     # tier maths, matching, replay safety
 npx tsx scripts/feedback-selftest.ts    # escalation rules
 npx tsx scripts/stats-selftest.ts       # roll-up and report e-mails (not the PostHog queries)
@@ -292,3 +293,12 @@ graphify update .        # after changing code
 The knowledge graph in `graphify-out/` (about 2,300 nodes) is rebuilt from the AST at no API cost. Good first
 questions: what depends on the `Provider` type (`src/types/provider.ts`, the highest-degree node), and what calls
 `applyFilters` / `buildFacets` (`src/utils/filters.ts`, `facets.ts`).
+
+## 13. Organization badges and the source pipeline
+
+Plan streams E (verification) and J (organization badges), owned by Emilio. Recurring reads of outside directories (hospitals, consejos, colegios, regulators) live in `scripts/sources/`, separate from the Doctoralia importer, and run as one Docker image (`docker compose run --rm sources --source=<slug>`).
+
+- Roadmap and phase status: [`docs/roadmap/verification-and-badges.md`](docs/roadmap/verification-and-badges.md)
+- Decisions: [`docs/adr/`](docs/adr/README.md), including the open "Verified" conflict (0005)
+- Which sources we may read, and on what basis: [`docs/sources/README.md`](docs/sources/README.md)
+- How to run or add a source: [`scripts/sources/README.md`](scripts/sources/README.md)
