@@ -47,3 +47,9 @@ create function public.is_app_admin() returns boolean language sql stable securi
 create function public._admin_guard() returns void language plpgsql stable security definer set search_path = public, auth as $$
 begin if not public.is_app_admin() then raise exception 'not authorized' using errcode = '42501'; end if; end $$;
 grant all on public.doctoralia_doctors to service_role;
+-- providers.name_norm as production keeps it (0005): bh_norm(name), by trigger, trigram-indexed.
+alter table public.providers add column name_norm text;
+create function public.stub_providers_norm() returns trigger language plpgsql set search_path = public as $$
+begin new.name_norm := public.bh_norm(new.name); return new; end $$;
+create trigger providers_norm before insert or update of name on public.providers for each row execute function public.stub_providers_norm();
+create index providers_name_norm_trgm on public.providers using gin (name_norm extensions.gin_trgm_ops);

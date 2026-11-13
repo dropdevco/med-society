@@ -12,7 +12,7 @@ for _ in $(seq 1 40); do docker exec ms-badges-test pg_isready -U postgres -q &&
 sleep 2
 psql() { docker exec ms-badges-test psql -U postgres -v ON_ERROR_STOP=1 -q -X "$@"; }
 psql -f /sql/stubs.sql
-psql -f /migrations/0042_doctor_identity.sql && psql -f /migrations/0043_sources_and_badges.sql && psql -f /migrations/0044_facility_badges.sql && echo "migrations applied"
+psql -f /migrations/0042_doctor_identity.sql && psql -f /migrations/0043_sources_and_badges.sql && psql -f /migrations/0044_facility_badges.sql && psql -f /migrations/0046_facility_candidates_index.sql && echo "migrations applied"
 # 0045 comes after the exercise, which needs a logo-free start to test the permission rule.
 out="$(psql -f /sql/exercise.sql 2>&1 && psql -f /migrations/0045_organization_logos.sql 2>&1 && psql -f /sql/logos.sql 2>&1)"
 echo "$out"

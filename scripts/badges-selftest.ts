@@ -130,7 +130,7 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
 // ── Migrations ────────────────────────────────────────────────────────────
 {
     const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql'));
-    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql'];
+    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql'];
     for (const f of ours) {
         check(`${f}: exists and no other file has its number`, files.filter((x) => x.startsWith(f.slice(0, 4))).join() === f);
         check(`${f}: says how to undo it`, /rollback/i.test(read(`supabase/migrations/${f}`)));

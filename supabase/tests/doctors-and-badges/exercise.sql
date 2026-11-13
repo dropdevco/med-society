@@ -331,3 +331,11 @@ select 'review re-confirm: the badge is back, with the new link and evidence' as
   (select status = 'confirmed' and url = 'https://www.starmedica.com/new-page'
           and evidence_entry_id = (select id from public.source_entries where external_id = 'sm4')
    from public.doctor_affiliations where doctor_id = '00000000-0000-4000-8000-000000000001' and label = 'Star Médica Ciudad Juárez') as ok;
+
+-- ── 0046: the clinic search uses the trigram index on providers.name_norm ─────
+select 'candidates: clinic search reads the indexed name_norm' as check,
+  position('p.name_norm % n.norm' in pg_get_functiondef('public.facility_name_candidates(text,text,integer)'::regprocedure)) > 0 as ok;
+set enable_seqscan = off;
+select 'candidates: the planner can answer it from the index' as check,
+  (select count(*) from public.providers p where p.name_norm % public.bh_norm('Casa Prueba Recovery')) >= 1 as ok;
+reset enable_seqscan;
