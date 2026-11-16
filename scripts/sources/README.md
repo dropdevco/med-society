@@ -32,7 +32,7 @@ npx tsx --env-file=.env.local scripts/sources/run.ts --all --load            # l
 npx tsx --env-file=.env.local scripts/sources/run.ts --all --commit          # scrape, then load
 ```
 
-A run's rows all carry its run ID. A source record is matched once: a cédula we hold confirms it, anything else waits in `/admin` → Verification, and later runs reuse the decision (`lib/load.ts`, `lib/match.ts`). The timer loads each run when `SOURCES_LOAD=1` is set. See [docs/badges.md](../../docs/badges.md).
+A run's rows all carry its run ID. A source record is matched once: a cédula we hold confirms it, anything else waits in `/admin` → Verification, and later runs reuse the decision (`lib/load.ts`, `lib/match.ts`). The timer loads each run when `SOURCES_LOAD=1` is set; `docker compose up -d scheduler` sets it, so the weekly cycle updates badges in the database the key in `.env.local` points at. See [docs/badges.md](../../docs/badges.md).
 
 ### Local sandbox
 
