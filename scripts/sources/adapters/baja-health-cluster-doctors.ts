@@ -5,7 +5,7 @@
  *
  * Two server-rendered list pages give every member's name, profile link and
  * specialty tags; each profile page adds the specialties in Spanish, the office
- * address, and, for a few members, a cédula. On 16 Nov 2026 only 4 of 106
+ * address, and, for a few members, a cédula. On 16 Nov 2026 only 5 of 106
  * profiles showed one, so almost every match goes to review or the AI scorer
  * (docs/adr/0012): a name alone never confirms (docs/adr/0004).
  *
@@ -22,8 +22,12 @@ const clean = (s: string | undefined | null) => (s ?? '').replace(/\s+/g, ' ').t
 const PROFILE = /\/directorio\/([a-z0-9-]+)\/?$/i;
 /** Honorifics printed before a name; kept apart from it for matching. */
 const TITLE = /^((?:Dra?|Psic|Lic|Mtr[oa]|Odont|C\.D|CD|Q\.F\.B)\.?)\s+/i;
-/** A cédula is printed as "Cédula profesional: 1234567", "Céd. Prof. 1234567" and the like. */
-const CEDULA = /c[ée]d(?:ula|\.)?\s*(?:prof(?:esional|\.)?)?(?:\s*de\s+especialidad)?[^0-9\n]{0,30}?(\d{6,8})(?!\d)/gi;
+/**
+ * A cédula as profiles print it: "Cédula profesional: 1234567", "Céd. Prof. 1234567",
+ * and, on this English-first site, "Professional license 1234567" or
+ * "National Registry (DGP): No. 1234567". Shorter numbers (a state licence) are not cédulas.
+ */
+const CEDULA = /(?:c[ée]d(?:ula|\.)?\s*(?:prof(?:esional|\.)?)?(?:\s*de\s+especialidad)?|professional\s+licen[cs]e(?:\s+number)?|(?:registro\s+nacional|national\s+registry)(?:\s*\(DGP\))?)[^0-9\n]{0,30}?(\d{6,8})(?!\d)/gi;
 /** Headings on a profile that are labels, not specialties. */
 const NOT_SPECIALTY = /^(especialista certificado|certified specialist|directory|directorio)$/i;
 /** "Hospital Angeles", "Hospital del Prado": capitalised words up to the first full stop. */

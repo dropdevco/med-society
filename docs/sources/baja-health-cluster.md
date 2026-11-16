@@ -18,7 +18,7 @@ Open. robots.txt blocks only `/wp-admin/`. Logo use authorized, recorded 6 Nov 2
 
 - Two server-rendered list pages, `general-directory/doctors/` (96 on 16 Nov 2026) and `general-directory/dentists/` (10). Each card gives the name, the profile link `directorio/<slug>/` (the external ID and the badge's link) and English specialty tags.
 - The run then reads every profile at the usual polite pace (about six minutes). A profile adds the specialties in Spanish, the office address (the title of its map), and sometimes a cédula. Phones, e-mails and social links are not read.
-- Only **4 of 106** profiles showed a cédula on 16 Nov 2026. A cédula we already hold confirms; everything else goes to review or, once enabled, the AI scorer ([ADR 0012](../adr/0012-ai-match-scorer.md)). A name alone never confirms ([ADR 0004](../adr/0004-matching-and-freshness.md)).
+- Only **5 of 106** profiles showed a cédula on 16 Nov 2026, mostly in English ("Professional license …", "National Registry (DGP) …"); 2 of those are cédulas we already hold. A cédula we already hold confirms; everything else goes to review or, once enabled, the AI scorer ([ADR 0012](../adr/0012-ai-match-scorer.md)). A name alone never confirms ([ADR 0004](../adr/0004-matching-and-freshness.md)).
 - The badge reads "Member doctor" or "Member dentist".
 - Before loading, preview what the loader would decide, read-only:
 

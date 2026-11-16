@@ -286,6 +286,8 @@ check('Cluster doctors: cédulas and site reach the entry', bhcEntry.cedulas.len
 const bhcBare = bhcToEntry(bhcCards[1], null, { ...bhcTarget, key: 'dentists' });
 check('Cluster doctors: an unread profile keeps the list tags and no cédula', bhcBare.title === null && bhcBare.cedulas.length === 0 && bhcBare.sites.length === 0 && bhcBare.extra?.profileRead === 0 && bhcBare.extra?.label === 'Member dentist', bhcBare);
 check('Cluster doctors: no cédula from a bare number', parseBhcProfile('<p>Tel 6641234567, 28 años, CP 22010</p>').cedulas.length === 0);
+check('Cluster doctors: English forms the site uses', parseBhcProfile('<p>UABC, class of 2009. Professional license 9999003. Treatments</p>').cedulas.join() === '9999003' && parseBhcProfile('<p>Professional License: No. 13333.National Registry (DGP): No. 9999004.Postgraduate</p>').cedulas.join() === '9999004');
+check('Cluster doctors: "license number: in process" is no cédula', parseBhcProfile('<p>Professional License Number: In process (due to subspecialty)GPA: 8.87</p>').cedulas.length === 0);
 
 const place = { provider_id: 'p1', name: 'Casa Prueba', similarity: 1, region: 'sandiego-tijuana' };
 check('facility match: a register number we hold confirms', decideFacility({ registerListing: 'p9', candidates: [place] }).status === 'confirmed' && decideFacility({ registerListing: 'p9', candidates: [place] }).providerId === 'p9');
