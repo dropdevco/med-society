@@ -123,16 +123,25 @@ export interface MatchCandidate {
     doctor_id: string; display_name: string; similarity: number;
     regions: string[]; listings: string[]; specialties: string[];
 }
+/** The AI scorer's latest view of a queued item (docs/adr/0012). Evidence for the reviewer, never a decision. */
+export interface AiScore {
+    score: number; verdict: 'approve' | 'reject' | 'needs_human'; reason: string;
+    /** The doctor or listing it judged most likely, or the proposed one when it found none. */
+    candidate: string; model: string; scored_at: string; run: string;
+}
 export interface MatchItem {
     source_slug: string; external_id: string; tier: number; confidence: number | null; candidates: MatchCandidate[];
     name: string; label: string; specialties: string[]; cedulas: string[]; region: string | null; url: string | null;
     valid_to: string | null; facts: { consejo?: string; certificate?: string } | null;
+    /** Absent before migration 0048, null when the item has not been scored. */
+    ai_score?: AiScore | null;
 }
 export interface MatchQueue { total: number; exact: number; items: MatchItem[] }
 export interface FacilityCandidate { provider_id: string; name: string; similarity: number; region: string | null }
 export interface FacilityItem {
     source_slug: string; external_id: string; provider_id: string | null; confidence: number | null; candidates: FacilityCandidate[];
     name: string; label: string; region: string | null; url: string | null; valid_to: string | null; facts: { register?: string } | null;
+    ai_score?: AiScore | null;
 }
 export interface FacilityQueue { total: number; items: FacilityItem[] }
 export interface SourceOverview {

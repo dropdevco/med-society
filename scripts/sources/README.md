@@ -65,6 +65,21 @@ npx tsx --env-file=.env.local scripts/sources/cedula-report.ts     # totals only
 npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --undo=<run ID>   # removes one backfill
 ```
 
+## Preview a new source, and score the review queue
+
+```bash
+npm run sources:preview -- --source=<slug>            # what loading the last good run would decide; reads only
+npm run sources:score -- --dry                        # what the AI scorer would send for one item; no call, no writes
+npm run sources:score -- --try=3                      # three live answers, printed; no writes
+npm run sources:score -- --source=<slug> --limit=all  # score every queued item of one source (shadow mode)
+npm run sources:score -- --sample=<run ID>            # the sheet for checking ~50 scores by hand
+npm run sources:score -- --outreach                   # what is still unresolved, by organization
+npm run sources:score -- --undo=<run ID>              # put back every link a run made
+npm run sources:score -- --split=<run ID> --doctor=<uuid> --group=src/ext,src/ext --group=...
+```
+
+The scorer ([ADR 0012](../../docs/adr/0012-ai-match-scorer.md)) asks Claude through OpenRouter (`OPENROUTER_API_KEY`) to rate each name-only match from 0 to 100, and stores the score, verdict and reason beside the item in `/admin` → Verification. It sends public directory fields only. It links nothing unless `SCORER_AUTO_LINK_AT` is set, and never links across a cédula conflict. CSV files go to `.data/scorer/`.
+
 ## Change one badge by hand
 
 `npm run badges:manual -- find|list|add|change|remove|restore|undo`. Every change is a run of the `manual` source with its own run ID, and `undo --run=<id>` reverses it. See [docs/badges.md](../../docs/badges.md#changing-a-badge-by-hand).
@@ -105,6 +120,9 @@ Loading into the database and matching to listings (`--commit`) arrive with road
 ```
 run.ts                      CLI and the run loop
 schedule.ts                 the weekly timer
+match-preview.ts            what loading a run would decide, read-only
+score-matches.ts            the AI match scorer: score, sample, outreach, undo, split
+lib/scorer.ts               what the scorer sends and how its answer is checked (pure)
 dashboard/server.ts         local health dashboard (read-only)
 dashboard/index.html        its page
 lib/types.ts                SourceAdapter, SourceEntry, Target

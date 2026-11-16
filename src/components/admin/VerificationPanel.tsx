@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { confirmExactMatches, decideFacility, decideMatch, fetchFacilityQueue, fetchMatchQueue, fetchSources, type FacilityItem, type FacilityQueue, type MatchItem, type MatchQueue, type SourceOverview } from '../../lib/adminApi';
+import { confirmExactMatches, decideFacility, decideMatch, fetchFacilityQueue, fetchMatchQueue, fetchSources, type AiScore, type FacilityItem, type FacilityQueue, type MatchItem, type MatchQueue, type SourceOverview } from '../../lib/adminApi';
 import { Card, Kpi } from './charts';
 import { fmt } from './format';
 
@@ -120,6 +120,23 @@ export function VerificationPanel() {
     );
 }
 
+const VERDICT: Record<AiScore['verdict'], string> = { approve: 'same', reject: 'different', needs_human: 'unsure' };
+
+/** The AI scorer's view, shown as evidence beside the item (docs/adr/0012). The reviewer still decides. */
+function AiLine({ s }: { s: AiScore | null | undefined }) {
+    if (!s) return null;
+    return (
+        <p className="adm-fb-top" title={`${s.model} · run ${s.run} · ${new Date(s.scored_at).toLocaleString()}`}>
+            <span className={`adm-badge${s.verdict === 'approve' ? '' : ' warn'}`}>{`AI ${s.score} · ${VERDICT[s.verdict]}`}</span>
+            <span>{s.reason}</span>
+        </p>
+    );
+}
+
+/** Marks the candidate the AI scorer judged most likely, when it judged one. */
+const aiPick = (s: AiScore | null | undefined, id: string) =>
+    s && s.verdict !== 'reject' && s.candidate === id ? <span className="adm-badge">AI pick</span> : null;
+
 /** A clinic record that only matched by name. A register number would have confirmed it (docs/adr/0008). */
 function Clinic({ f, busy, decide }: { f: FacilityItem; busy: boolean; decide: (f: FacilityItem, d: 'confirm' | 'reject', provider?: string) => Promise<void> }) {
     return (
@@ -134,10 +151,12 @@ function Clinic({ f, busy, decide }: { f: FacilityItem; busy: boolean; decide: (
                 {f.facts?.register && <span>register {f.facts.register}</span>}
                 {f.valid_to && <span>valid to {f.valid_to}</span>}
             </div>
+            <AiLine s={f.ai_score} />
             {f.candidates.map((c) => (
                 <div key={c.provider_id} className="adm-fb-acts">
                     <button type="button" className="adm-btn" disabled={busy} onClick={() => void decide(f, 'confirm', c.provider_id)}>Same clinic</button>
                     <span>{c.name} · {percent(c.similarity)}</span>
+                    {aiPick(f.ai_score, c.provider_id)}
                     <a href={`/providers/${c.provider_id}`} target="_blank" rel="noreferrer">listing ↗</a>
                 </div>
             ))}
@@ -165,10 +184,12 @@ function Match({ m, busy, decide }: { m: MatchItem; busy: boolean; decide: (m: M
                 {m.facts?.consejo && <span>{m.facts.consejo}</span>}
                 {m.valid_to && <span>valid to {m.valid_to}</span>}
             </div>
+            <AiLine s={m.ai_score} />
             {m.candidates.map((c) => (
                 <div key={c.doctor_id} className="adm-fb-acts">
                     <button type="button" className="adm-btn" disabled={busy} onClick={() => void decide(m, 'confirm', c.doctor_id)}>Same doctor</button>
                     <span>{c.display_name} · {percent(c.similarity)}</span>
+                    {aiPick(m.ai_score, c.doctor_id)}
                     {c.specialties.length > 0 && <span className="adm-missing">{c.specialties.join(', ')}</span>}
                     {c.regions.length > 0 && <span className="adm-missing">{c.regions.join(', ')}</span>}
                     {c.listings.slice(0, 2).map((id) => <a key={id} href={`/providers/${id}`} target="_blank" rel="noreferrer">listing ↗</a>)}
