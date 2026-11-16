@@ -78,6 +78,8 @@ npm run sources:schedule                     # the timer in the foreground; add 
 npm run sources:dashboard                    # the dashboard without Docker
 ```
 
+**On GitHub Actions** ([ADR 0011](../../docs/adr/0011-scheduler-on-private-actions.md)): the weekly run lives in the private `dropdevco/med-society-ops`, from the workflow reviewed in [`docs/ops/`](../../docs/ops/README.md). A runner starts with no run files, so any run that loads (`--commit`, `--load`, or the timer with `SOURCES_LOAD=1`) first rebuilds each source's last green run from `source_runs` and `source_observations` (`lib/restore.ts`) and writes it to disk. The drop check, COEPRIS's links to the Padrón, and CONACEM's lookups then work as on a laptop.
+
 **Timer** (`schedule.ts`): sleeps until the next slot, **Mondays 06:00 America/Mexico_City** by default, then runs every source one after another. One failing source never stops the others. If the machine was off at the slot, a source with no run since the last slot is caught up at start-up; a manual run counts. Change the slot with `SOURCES_RUN_DAY` (`0`–`6` or `MON`…`SUN`), `SOURCES_RUN_TIME` (`HH:MM`) and `SOURCES_TZ` (IANA zone). It writes `schedule.json` in the data folder (next run, heartbeat every 10 minutes, last cycle with each source's run ID).
 
 **Dashboard** (`dashboard/`): read-only, bound to this machine only (`127.0.0.1:5180`). Shows the timer with a live countdown and the last cycle; per source its status, the reasons for a red run, the last good run still in use, each website it reads with its last fetch, entries per run, added/removed, run history with run IDs, and the **full contents of the last scrape** with search. It reads what runs have written and never contacts a source. It calls the scheduler stopped after 30 minutes without a heartbeat. Today it reads the run files; when runs are loaded into Supabase (phase 2), `lib/history.ts` reads the database instead and the page stays the same.
@@ -112,6 +114,7 @@ lib/http.ts                 polite, honest GET; BlockedError
 lib/robots.ts               robots.txt reader (RFC 9309)
 lib/judge.ts                green/red rules; duplicate merging
 lib/snapshot.ts             run files; last good run; diff
+lib/restore.ts              last green run rebuilt from the database on a machine without run files
 lib/names.ts                splits a Mexican name; name_key
 lib/match.ts                the match decision (pure)
 lib/load.ts                 a run into the database

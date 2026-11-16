@@ -1,0 +1,59 @@
+# The weekly source run (docs/adr/0011). This file lives in the PRIVATE repository
+# dropdevco/med-society-ops as .github/workflows/sources-weekly.yml; the copy here is
+# the reviewed original. It checks out the public app repository at main and runs
+# every source with loading on. Logs and secrets stay in the private repository.
+#
+# Secrets (added by a person in med-society-ops → Settings → Secrets → Actions):
+#   VITE_SUPABASE_URL           the project URL
+#   SUPABASE_SERVICE_ROLE_KEY   the service-role key: never echo it
+name: Weekly source run
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'   # Mondays 06:00 Mexico City (UTC-6, no daylight saving)
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'One source slug, or blank for all'
+        required: false
+        default: ''
+
+concurrency:
+  group: sources-weekly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dropdevco/med-society
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Star Médica and CONACEM need a real browser.
+      - run: npx playwright install --with-deps chromium
+
+      # No history on a fresh runner: each source judges against its last green run in the database.
+      - name: Run and load
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SOURCE: ${{ inputs.source }}
+        run: |
+          if [ -n "$SOURCE" ]; then
+            npx tsx scripts/sources/run.ts --source="$SOURCE" --commit
+          else
+            npx tsx scripts/sources/run.ts --all --commit
+          fi

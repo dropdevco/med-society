@@ -16,7 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { ADAPTERS } from './adapters';
-import { mayRun, runSource } from './run';
+import { mayRun, restoreAndReport, runSource } from './run';
 import { database } from './lib/db';
 import { recentRuns } from './lib/history';
 import { loadRun } from './lib/load';
@@ -70,6 +70,14 @@ async function cycle(state: SchedulerState, reason: string) {
     console.log(`[${startedAt}] cycle (${reason}) starting`);
 
     const results: CycleResult[] = [];
+    if (process.env.SOURCES_LOAD === '1') {
+        // A new container or volume has no run files: take each source's history from the database.
+        try {
+            await restoreAndReport(Object.keys(ADAPTERS));
+        } catch (err) {
+            console.error(`  restoring history failed, runs compare against what is on disk: ${(err as Error).message}`);
+        }
+    }
     for (const adapter of Object.values(ADAPTERS)) {
         if (!mayRun(adapter)) {
             results.push({ source: adapter.slug, status: 'skipped', error: 'permission not recorded' });

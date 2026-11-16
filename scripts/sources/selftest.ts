@@ -12,6 +12,7 @@ import { changedIds, extendRegistry } from './doctor-registry';
 import { bhNorm, similarity } from './lib/trigram';
 import { buildSheet, csvCell, topListings } from './review-sheet';
 import { parseDirectory as parseDirectory2 } from './adapters/baja-health-cluster';
+import { recordFromRows } from './lib/restore';
 import { parseList as parseBhcList, parseProfile as parseBhcProfile, toEntry as bhcToEntry } from './adapters/baja-health-cluster-doctors';
 import { isRecoveryCenter, parseFeed, validationUrl, type RepssabiRecord } from './adapters/coepris-bc';
 import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
@@ -313,6 +314,15 @@ check('label: COEPRIS shows the register and number', badgeRows.coepris.label ==
 check('label: the Padrón keeps the number that ties it to COEPRIS', badgeRows.padron.label === 'Padrón Estatal de Salud' && badgeRows.padron.facts.register === '20260000001', badgeRows.padron);
 check('label: the cluster says what list it is', badgeRows.cluster.label === 'Recovery centers' && badgeRows.cluster.valid_to === null, badgeRows.cluster);
 check('label: a cluster doctor reads as a member', badgeRows.clusterDoctor.label === 'Member doctor', badgeRows.clusterDoctor);
+
+// ── History rebuilt from the database (fresh runners, docs/adr/0011) ──────────
+{
+    const payload = (id: string) => ({ externalId: id, name: `Ana ${id}`, title: null, specialties: [], cedulas: [], sites: [], region: 'sandiego-tijuana' as const, url: `https://x.test/${id}`, photoUrl: null, runId: 'r0', observedAt: '2026-11-16T00:00:00.000Z' });
+    const rebuilt = recordFromRows({ id: '01a1e69c-9c41-7e54-8819-5d499d4d7dc4', source_slug: 'starmedica', started_at: '2026-11-16 23:06:25.729+00', finished_at: null, status: 'green', reasons: null, counts: { entries: 2, added: 1, removed: 0 }, targets: [{ key: 'k', url: 'u', ok: true, count: 2 }] }, [payload('b'), payload('a')]);
+    check('restore: a database run reads as a run file', rebuilt.source === 'starmedica' && rebuilt.status === 'green' && rebuilt.entries.length === 2 && rebuilt.targets[0].count === 2 && rebuilt.restoredFrom === 'database', rebuilt);
+    check('restore: times are ISO, a missing finish is the start', rebuilt.startedAt === '2026-11-16T23:06:25.729Z' && rebuilt.finishedAt === rebuilt.startedAt);
+    check('restore: records in a stable order, each keeping the run that saw it', rebuilt.entries.map((e) => e.externalId).join() === 'a,b' && rebuilt.entries[0].runId === 'r0');
+}
 
 const slugs = Object.keys(ADAPTERS);
 check('all seven sources run', slugs.length === 7 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster', 'baja-health-cluster-doctors'].every((s) => slugs.includes(s)), slugs);
