@@ -378,6 +378,8 @@ interface Row {
 
 /** A confirmed organization badge: a hospital affiliation, a board certification or a health registration. */
 interface OrganizationBadge {
+    /** The organization's slug: the value the `organization` filter takes. */
+    slug: string;
     organization: string;
     kind: string;
     label: string;
@@ -394,6 +396,7 @@ const isWebLink = (url: unknown): url is string => typeof url === 'string' && /^
 function organizationsOf(raw: unknown, day = new Date().toISOString().slice(0, 10)): OrganizationBadge[] {
     if (!Array.isArray(raw)) return [];
     return raw.filter((b) => !!b && typeof b === 'object' && (typeof b.valid_to !== 'string' || b.valid_to >= day)).map((b: Record<string, unknown>) => ({
+        slug: String(b.org ?? ''),
         organization: String(b.name ?? ''),
         kind: String(b.kind ?? ''),
         label: String(b.label ?? ''),
@@ -788,6 +791,11 @@ const SEARCH_PARAMS: readonly ParamDef[] = [
         example: 'GNP',
     },
     {
+        name: 'organization', type: 'string', list: true,
+        description: 'Organization slugs: hospital-angeles, starmedica, conacem, coepris-bc, padron-salud-bc, baja-health-cluster. Only providers with a confirmed, unexpired badge from any of them ("doctors at Hospital Ángeles"). Each result lists its organizations under credentials.organizations, with their slugs.',
+        example: 'starmedica',
+    },
+    {
         name: 'language', type: 'string', list: true,
         description: 'Languages the clinic has stated it speaks, as ISO 639-1 codes ("en", "es"). Providers that have not stated a language never match.',
         example: 'en',
@@ -858,6 +866,7 @@ interface Query {
     country: 'US' | 'MX' | '';
     minRating: number;
     insurance: string[];
+    organization: string[];
     language: string[];
     licensedOnly: boolean;
     pricedOnly: boolean;
@@ -972,6 +981,7 @@ function parseSearch(input: Input): Query {
         country: get<'US' | 'MX' | ''>('country', ''),
         minRating: get<number>('min_rating', 0),
         insurance: get<string[]>('insurance', []),
+        organization: [...new Set(get<string[]>('organization', []))],
         language: [...new Set(get<string[]>('language', []))],
         licensedOnly: get<boolean>('licensed_only', false),
         pricedOnly: get<boolean>('priced_only', false) || maxPrice !== undefined,
@@ -1044,6 +1054,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
                 const held = p.insurances.map(fold);
                 if (!insurance.some((i) => held.some((h) => h.includes(i)))) continue;
             }
+            if (q.organization.length && !p.organizations.some((o) => q.organization.includes(o.slug))) continue;
             if (q.language.length) {
                 if (!p.languagesConfirmed || !q.language.some((l) => p.languages.includes(l))) continue;
             }
@@ -1205,6 +1216,7 @@ function querySummary(q: Query) {
         country: q.country || null,
         min_rating: q.minRating || null,
         insurance: q.insurance,
+        organization: q.organization,
         language: q.language,
         licensed_only: q.licensedOnly,
         priced_only: q.pricedOnly,
@@ -1714,7 +1726,7 @@ function openApiSpec(): Record<string, unknown> {
                         price_from: { type: ['object', 'null'], properties: { amount_mxn: { type: 'number' }, approx_usd: { type: 'integer' }, note: { type: 'string' } } },
                         languages: { type: 'object', description: LANGUAGE_FIELD_NOTE, properties: { codes: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['stated_by_clinic', 'unknown'] } } },
                         insurances: { type: 'array', items: { type: 'string' } },
-                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations, board certifications and health registrations.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
+                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations, board certifications and health registrations.', items: { type: 'object', properties: { slug: { type: 'string' }, organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
                         listing: { type: 'object', properties: { tier: { type: 'string', enum: ['basic', 'promoted', 'featured'] }, sponsored: { type: 'boolean' }, verified_badge: { type: 'boolean', description: 'A paid-plan badge, not a credential check.' } } },
                         photo_url: { type: ['string', 'null'] },
                         distance_km: { type: 'number', description: 'Present when a location was given.' },

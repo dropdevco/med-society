@@ -131,7 +131,7 @@ insert into public.source_runs (id, source_slug, started_at, status) values
   (:R4, 'coepris-bc', now(), 'green'), (:R5, 'padron-salud-bc', now(), 'green'), (:R6, 'baja-health-cluster', now(), 'green'), (:R7, 'hospital-angeles', now(), 'green');
 
 select 'six organizations, CONACEM the only one with no doctor links' as check,
-  (select count(*) = 6 from public.data_sources where organization_id is not null)
+  (select count(distinct organization_id) = 6 from public.data_sources where organization_id is not null)
   and (select array_agg(slug) = '{conacem}' from public.data_sources where organization_id is not null and not doctor_links) as ok;
 select 'three sources describe facilities' as check, (select count(*) = 3 from public.data_sources where entity = 'facility') as ok;
 select 'name candidates stay in the region' as check,
@@ -339,3 +339,11 @@ set enable_seqscan = off;
 select 'candidates: the planner can answer it from the index' as check,
   (select count(*) from public.providers p where p.name_norm % public.bh_norm('Casa Prueba Recovery')) >= 1 as ok;
 reset enable_seqscan;
+
+-- ── 0047: organizations are the groups ───────────────────────────────────────
+select 'groups: Baja Health Cluster is a cluster' as check, (select kind = 'cluster' from public.organizations where slug = 'baja-health-cluster') as ok;
+select 'groups: its doctor directory is its own doctor source' as check,
+  (select entity = 'doctor' and access = 'open' and organization_id = (select id from public.organizations where slug = 'baja-health-cluster')
+   from public.data_sources where slug = 'baja-health-cluster-doctors') as ok;
+do $$ begin insert into public.organizations (slug, name, kind) values ('spa-prueba', 'Spa Prueba', 'wellness_center'); delete from public.organizations where slug = 'spa-prueba'; raise notice 'ok: a wellness center is a valid group'; end $$;
+do $$ begin insert into public.organizations (slug, name, kind) values ('x-prueba', 'X', 'club'); raise exception 'odd kind saved'; exception when check_violation then raise notice 'ok: an organization kind outside the list is refused'; end $$;

@@ -158,6 +158,7 @@ function parseFilters(params: URLSearchParams): ProviderFilters {
         minRating: num('rating', 0),
         insurances: params.getAll('ins'),
         languages: params.getAll('lang'),
+        orgs: params.getAll('org').filter((o) => /^[a-z0-9-]+$/.test(o)),
         verifiedOnly: params.get('verified') === '1',
         withPricing: params.get('priced') === '1',
         maxPriceMxn: params.has('max') ? num('max', 0) : null,
@@ -217,6 +218,7 @@ function serializeFilters(f: ProviderFilters): URLSearchParams {
     for (const s of f.specialty) p.append('spec', s);
     for (const i of f.insurances) p.append('ins', i);
     for (const l of f.languages) p.append('lang', l);
+    for (const o of f.orgs) p.append('org', o);
     if (f.country) p.set('country', f.country);
     if (f.minRating > 0) p.set('rating', String(f.minRating));
     if (f.verifiedOnly) p.set('verified', '1');
