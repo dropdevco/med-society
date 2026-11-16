@@ -1,6 +1,7 @@
 /**
  * Baja Health Cluster's directory of recovery centers. Membership in an industry
- * association, not a safety check: the badge reads as an affiliation.
+ * cluster, not a safety check: the badge reads as an affiliation. Its doctors and
+ * dentists are a separate source, ./baja-health-cluster-doctors.ts.
  * One server-rendered page; each center links to its own page.
  * Source notes: docs/sources/baja-health-cluster.md
  */
@@ -45,7 +46,7 @@ export function parseDirectory(html: string, target: Target): SourceEntry[] {
 export const bajaHealthCluster: SourceAdapter = {
     slug: 'baja-health-cluster',
     name: 'Baja Health Cluster',
-    kind: 'association',
+    kind: 'cluster',
     entity: 'facility',
     access: 'open',
     targets: [{ key: 'recovery-centers', label: 'Recovery centers', url: 'https://bajahealthcluster.mx/general-directory/recovery-centers/', region: 'sandiego-tijuana' }],

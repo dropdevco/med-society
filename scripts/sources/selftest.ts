@@ -12,6 +12,7 @@ import { changedIds, extendRegistry } from './doctor-registry';
 import { bhNorm, similarity } from './lib/trigram';
 import { buildSheet, csvCell, topListings } from './review-sheet';
 import { parseDirectory as parseDirectory2 } from './adapters/baja-health-cluster';
+import { parseList as parseBhcList, parseProfile as parseBhcProfile, toEntry as bhcToEntry } from './adapters/baja-health-cluster-doctors';
 import { isRecoveryCenter, parseFeed, validationUrl, type RepssabiRecord } from './adapters/coepris-bc';
 import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
@@ -269,6 +270,23 @@ const ch = parseDirectory2(`<section>${clusterCard('casa-prueba-2', 'Casa &amp; 
 check('Cluster: one entry per center, each with its own name', ch.map((e) => e.name).join() === 'Casa & Prueba Recovery,Otra Casa', ch.map((e) => e.name));
 check('Cluster: links to the center page', ch[0].url === 'https://bajahealthcluster.mx/institucion/casa-prueba-2/' && ch[0].externalId === 'casa-prueba-2');
 
+// Cluster doctors: synthetic list and profile pages in the site's Elementor shape.
+const bhcList = (slug: string, name: string, tags: string[]) => `<div class="e-loop-item"><a href="https://bajahealthcluster.mx/directorio/${slug}/"><img></a><h2>${name}</h2><ul>${tags.map((t) => `<li><span class="elementor-icon-list-text">${t}</span></li>`).join('')}</ul><a href="https://bajahealthcluster.mx/directorio/${slug}/">More Information</a></div>`;
+const bhcCards = parseBhcList(bhcList('dra-ana-prueba', 'Dra. Ana Prueba Ejemplo', ['Cardiology', 'Cardiology']) + bhcList('juan-prueba', 'Juan Prueba', []) + bhcList('dra-ana-prueba', 'Dra. Ana Prueba Ejemplo', []), 'https://bajahealthcluster.mx/general-directory/doctors/');
+check('Cluster doctors: one card per profile, tags kept once', bhcCards.length === 2 && bhcCards[0].tags.join() === 'Cardiology' && bhcCards[0].url === 'https://bajahealthcluster.mx/directorio/dra-ana-prueba/', bhcCards);
+const bhcProfile = parseBhcProfile('<h1 class="elementor-heading-title">Dra. Ana Prueba Ejemplo</h1><h2 class="elementor-heading-title">ESPECIALISTA CERTIFICADO</h2><h2 class="elementor-heading-title">Cardiología</h2><h2 class="elementor-heading-title">Medicina Interna</h2><p>Cédula Profesional: 9999001 · Céd. de especialidad 9999002</p><a href="tel:6640000000">Make a call</a><iframe src="https://maps.google.com/maps?q=x" title="Av. Ejemplo 100, Zona Rio, 22010 Tijuana, B.C. Hospital Ejemplo del Mar. Dra. Ana."></iframe>');
+check('Cluster doctors: Spanish specialties, labels dropped', bhcProfile.specialties.join() === 'Cardiología,Medicina Interna', bhcProfile.specialties);
+check('Cluster doctors: every cédula printed is kept', bhcProfile.cedulas.join() === '9999001,9999002', bhcProfile.cedulas);
+check('Cluster doctors: address from the map, hospital from the address', bhcProfile.address?.startsWith('Av. Ejemplo 100') === true && bhcProfile.hospital === 'Hospital Ejemplo del Mar', bhcProfile);
+check('Cluster doctors: no phone is read', !JSON.stringify(bhcProfile).includes('664'));
+const bhcTarget: Target = { key: 'doctors', label: 'Doctors', url: 'https://bajahealthcluster.mx/general-directory/doctors/', region: 'sandiego-tijuana' };
+const bhcEntry = bhcToEntry(bhcCards[0], bhcProfile, bhcTarget);
+check('Cluster doctors: title split from the name', bhcEntry.title === 'Dra.' && bhcEntry.name === 'Ana Prueba Ejemplo', bhcEntry);
+check('Cluster doctors: cédulas and site reach the entry', bhcEntry.cedulas.length === 2 && bhcEntry.sites[0]?.name === 'Hospital Ejemplo del Mar' && bhcEntry.externalId === 'dra-ana-prueba');
+const bhcBare = bhcToEntry(bhcCards[1], null, { ...bhcTarget, key: 'dentists' });
+check('Cluster doctors: an unread profile keeps the list tags and no cédula', bhcBare.title === null && bhcBare.cedulas.length === 0 && bhcBare.sites.length === 0 && bhcBare.extra?.profileRead === 0 && bhcBare.extra?.label === 'Member dentist', bhcBare);
+check('Cluster doctors: no cédula from a bare number', parseBhcProfile('<p>Tel 6641234567, 28 años, CP 22010</p>').cedulas.length === 0);
+
 const place = { provider_id: 'p1', name: 'Casa Prueba', similarity: 1, region: 'sandiego-tijuana' };
 check('facility match: a register number we hold confirms', decideFacility({ registerListing: 'p9', candidates: [place] }).status === 'confirmed' && decideFacility({ registerListing: 'p9', candidates: [place] }).providerId === 'p9');
 check('facility match: an exact name alone waits for a person', decideFacility({ registerListing: null, candidates: [place] }).status === 'probable');
@@ -284,6 +302,7 @@ const badgeRows = {
     coepris: entryRow({ ...cof[0], ...run }, 'coepris-bc'),
     padron: entryRow({ ...pe!, ...run }, 'padron-salud-bc'),
     cluster: entryRow({ ...ch[0], ...run }, 'baja-health-cluster'),
+    clusterDoctor: entryRow({ ...bhcEntry, ...run }, 'baja-health-cluster-doctors'),
 };
 check('label: Hospital Ángeles shows the hospital', badgeRows.angeles.label === 'Hospital Angeles Tijuana', badgeRows.angeles.label);
 check('label: Star Médica shows the hospital', badgeRows.star.label === 'Star Médica Ciudad Juárez', badgeRows.star.label);
@@ -291,9 +310,10 @@ check('label: CONACEM shows the specialty, with the certificate', badgeRows.cona
 check('label: COEPRIS shows the register and number', badgeRows.coepris.label === 'REPSSABI' && badgeRows.coepris.facts.register === '20260000001' && badgeRows.coepris.valid_to === '2028-09-03', badgeRows.coepris);
 check('label: the Padrón keeps the number that ties it to COEPRIS', badgeRows.padron.label === 'Padrón Estatal de Salud' && badgeRows.padron.facts.register === '20260000001', badgeRows.padron);
 check('label: the cluster says what list it is', badgeRows.cluster.label === 'Recovery centers' && badgeRows.cluster.valid_to === null, badgeRows.cluster);
+check('label: a cluster doctor reads as a member', badgeRows.clusterDoctor.label === 'Member doctor', badgeRows.clusterDoctor);
 
 const slugs = Object.keys(ADAPTERS);
-check('all six sources run', slugs.length === 6 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster'].every((s) => slugs.includes(s)), slugs);
+check('all seven sources run', slugs.length === 7 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster', 'baja-health-cluster-doctors'].every((s) => slugs.includes(s)), slugs);
 check('facilities are marked, doctors are not', slugs.filter((s) => ADAPTERS[s].entity === 'facility').length === 3);
 check('COEPRIS loads before the sources that match on its numbers', slugs.indexOf('coepris-bc') < slugs.indexOf('padron-salud-bc'));
 check('no source runs without open access or a recorded letter', Object.values(ADAPTERS).every((a) => a.access === 'open' || !!a.permission));

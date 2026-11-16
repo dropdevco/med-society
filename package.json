@@ -12,6 +12,7 @@
     "badges:manual": "tsx --env-file-if-exists=.env.local scripts/sources/badges-manual.ts",
     "sources": "tsx --env-file-if-exists=.env.local scripts/sources/run.ts",
     "sources:selftest": "tsx scripts/sources/selftest.ts",
+    "sources:preview": "tsx --env-file-if-exists=.env.local scripts/sources/match-preview.ts",
     "sources:schedule": "tsx scripts/sources/schedule.ts",
     "sources:dashboard": "tsx scripts/sources/dashboard/server.ts",
     "sources:check": "tsc -p scripts/sources"
