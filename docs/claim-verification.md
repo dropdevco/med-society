@@ -43,8 +43,21 @@ The database computes these when a claim is submitted, and again when you open i
 
 If a listing already has an owner, approving a second claim adds a co-owner. Contact the existing owner first.
 
+## E-mails
+
+Every step is e-mailed through GHL (`api/claim-notify.ts`, migration `0048_claim_emails.sql`). Claimant e-mails are bilingual, with Spanish first for a Mexican listing:
+
+| When | To | Says |
+|---|---|---|
+| Claim submitted (or answered after "ask for more") | Claimant | We received it; we check your ID, your credential at the registry, and call the clinic at the listing's phone; 1–3 business days; link to the claim's status |
+| same | Team (`CLAIM_NOTIFY_TO`) | A claim is waiting, with a link to /admin?tab=claims. Never the documents |
+| Ask for more | Claimant | Your message, and a link to answer and upload |
+| Approved | Claimant | The listing is theirs, with a link to the dashboard |
+| Rejected | Claimant | Your reason, and that they may try again after 30 days |
+
+The database queues each e-mail in the same transaction as the decision, so none is lost. The page sends it right away, and a daily cron sends anything left over. Each claim's **E-mails** section in the queue shows what was sent and any GHL error.
+
 ## Not built yet
 
-- The claimant gets no email when you decide. They see the result on /dashboard. Claim alerts reach the team through the leads table and its webhook, so check that path is delivering.
 - Documents are not deleted automatically. Decide on a retention period (for example 90 days after the decision), and confirm the privacy notice covers ID documents (LFPDPPP) before this goes live.
 - Nothing calls SEP or NPPES automatically. The reviewer checks by hand.

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    claimDocumentUrl, decideClaim, fetchClaimDetail, fetchClaimQueue,
-    type ClaimChecks, type ClaimDetail, type ClaimQueue, type ClaimQueueItem, type ClaimStatus,
+    claimDocumentUrl, decideClaim, fetchClaimDetail, fetchClaimEmails, fetchClaimQueue,
+    type ClaimChecks, type ClaimEmail, type ClaimDetail, type ClaimQueue, type ClaimQueueItem, type ClaimStatus,
 } from '../../lib/adminApi';
 import { Card, Kpi } from './charts';
 import { fmt } from './format';
@@ -125,8 +125,10 @@ function ClaimReview({ id, onDecided }: { id: string; onDecided: () => void }) {
     const [message, setMessage] = useState('');
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
+    const [emails, setEmails] = useState<ClaimEmail[] | null>(null);
 
     useEffect(() => {
+        fetchClaimEmails(id).then(setEmails).catch(() => setEmails(null));
         fetchClaimDetail(id).then((x) => { setD(x); setNote(x.claim.reviewer_note ?? ''); }).catch((e: Error) => setError(e.message));
     }, [id]);
 
@@ -228,6 +230,17 @@ function ClaimReview({ id, onDecided }: { id: string; onDecided: () => void }) {
                 <h3>History</h3>
                 {c.history.map((h, i) => (
                     <p key={i} className="adm-fb-why">{h.at.slice(0, 16).replace('T', ' ')} · {h.by} · {pretty(h.event)} → {pretty(h.status)}{h.note ? ` · “${h.note}”` : ''}</p>
+                ))}
+            </section>
+
+            <section>
+                <h3>E-mails</h3>
+                {emails === null && <p className="adm-missing">Not available (migration 0048 not applied?).</p>}
+                {emails?.length === 0 && <p className="adm-missing">None queued yet.</p>}
+                {emails?.map((m, i) => (
+                    <p key={i} className="adm-fb-why">
+                        {pretty(m.kind)} · queued {m.created_at.slice(0, 16).replace('T', ' ')} · {m.sent_at ? `sent ${m.sent_at.slice(0, 16).replace('T', ' ')}` : <span style={{ color: 'var(--red)' }}>not sent{m.attempts ? ` after ${m.attempts} attempt(s)` : ''}{m.last_error ? `: ${m.last_error}` : ''}</span>}
+                    </p>
                 ))}
             </section>
 

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { pingClaimEmails } from './claims';
 
 /**
  * Admin dashboard data. Every call goes through a SECURITY DEFINER function
@@ -236,8 +237,13 @@ export interface ClaimDetail {
 export interface ClaimChecks { id_matches_name: boolean; credential_verified: boolean; contact_confirmed: boolean }
 export const fetchClaimQueue = () => rpc<ClaimQueue>('admin_claims_queue');
 export const fetchClaimDetail = (id: string) => rpc<ClaimDetail>('admin_claim_detail', { p_claim: id });
-export const decideClaim = (id: string, decision: 'approve' | 'reject' | 'needs_info', message: string, note: string, checks: ClaimChecks) =>
-    rpc<{ status: ClaimStatus }>('admin_claim_decide', { p_claim: id, p_decision: decision, p_message: message || null, p_note: note || null, p_checks: checks });
+export async function decideClaim(id: string, decision: 'approve' | 'reject' | 'needs_info', message: string, note: string, checks: ClaimChecks) {
+    const out = await rpc<{ status: ClaimStatus }>('admin_claim_decide', { p_claim: id, p_decision: decision, p_message: message || null, p_note: note || null, p_checks: checks });
+    void pingClaimEmails();
+    return out;
+}
+export interface ClaimEmail { kind: string; created_at: string; sent_at: string | null; attempts: number; last_error: string | null }
+export const fetchClaimEmails = (id: string) => rpc<ClaimEmail[]>('admin_claim_emails', { p_claim: id });
 /** A short-lived link to one uploaded document (the bucket is private; admins may read it). */
 export async function claimDocumentUrl(path: string): Promise<string> {
     if (!supabase) throw new Error('Supabase is not configured');

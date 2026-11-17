@@ -102,6 +102,20 @@ export function claimErrorCode(message: string): ClaimError {
     return CLAIM_ERRORS.find((c) => message.includes(c)) ?? 'unknown';
 }
 
+/**
+ * Asks api/claim-notify to send whatever the database just queued (0048). Fire
+ * and forget: if it fails, the daily cron sends the e-mail instead.
+ */
+export async function pingClaimEmails(): Promise<void> {
+    if (!supabase) return;
+    try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        await fetch('/api/claim-notify', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, keepalive: true });
+    } catch { /* the cron catches it */ }
+}
+
 export async function submitClaim(input: ClaimInput): Promise<{ status: 'pending' | 'owner' } | { error: ClaimError }> {
     if (!supabase) return { error: 'unknown' };
     const { data, error } = await supabase.rpc('claim_submit', {
@@ -121,6 +135,7 @@ export async function submitClaim(input: ClaimInput): Promise<{ status: 'pending
     const status = (data as { status?: string } | null)?.status;
     track('claim_submitted', { provider_id: input.providerId, role: input.role, ok: !error, status });
     if (error) return { error: claimErrorCode(error.message) };
+    if (status === 'pending') void pingClaimEmails();
     if (status === 'pending' || status === 'owner') return { status };
     return { error: 'unknown' };
 }
