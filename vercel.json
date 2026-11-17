@@ -17,6 +17,10 @@
       "destination": "/api/agent?route=v1&path=:path*"
     },
     {
+      "source": "/api/directory/:region/:part",
+      "destination": "/api/agent?route=directory&region=:region&part=:part"
+    },
+    {
       "source": "/mcp",
       "destination": "/api/agent?route=mcp"
     },
