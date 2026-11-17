@@ -30,7 +30,7 @@ export function ForumThreadPage({ forum }: { forum: ForumKind }) {
     const { threadId } = useParams<{ threadId: string }>();
     const { user, loading: sessionLoading } = useSession();
     const { isClinician, loading: clinicianLoading } = useIsClinician(user?.id ?? null);
-    const { owned } = useMyClinic(user?.id ?? null);
+    const { speaksAs } = useMyClinic(user?.id ?? null);
 
     const [thread, setThread] = useState<ForumThread | null>(null);
     const [replies, setReplies] = useState<ForumReply[]>([]);
@@ -176,8 +176,8 @@ export function ForumThreadPage({ forum }: { forum: ForumKind }) {
             </div>
             </>)}
 
-            {isClinician && owned.length > 0 ? (
-                <ReplyComposer threadId={thread.id} clinics={owned} onPosted={() => void loadReplies(thread)} />
+            {isClinician && speaksAs.length > 0 ? (
+                <ReplyComposer threadId={thread.id} clinics={speaksAs} onPosted={() => void loadReplies(thread)} />
             ) : isAsker ? (
                 <ReplyComposer threadId={thread.id} clinics={[]} followUpName={thread.author_name} onPosted={() => void loadReplies(thread)} />
             ) : (

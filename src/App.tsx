@@ -8,6 +8,7 @@ import { ContactPage } from './pages/ContactPage';
 import { LoginPage } from './pages/LoginPage';
 import { ClaimPage } from './pages/ClaimPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { InvitePage } from './pages/InvitePage';
 import { ProviderPage } from './pages/ProviderPage';
 import { BorderhealthPage } from './pages/BorderhealthPage';
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
@@ -56,6 +57,7 @@ function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/claim/:providerId" element={<ClaimPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/providers/:providerId" element={<ProviderPage />} />
         {/* The two forums, deployed but unlisted: random paths, no links
             anywhere (see lib/forumRoutes.ts). Patients ask and clinicians

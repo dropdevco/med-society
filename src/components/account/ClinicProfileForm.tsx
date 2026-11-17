@@ -6,6 +6,7 @@ import { normalizeSocial, normalizeWebsite, SOCIAL_NETWORKS, type SocialNetwork 
 import { IconCheck } from '../icons/Icons';
 import { ClinicAvatarUploader } from './ClinicAvatarUploader';
 import { LanguagePicker } from './LanguagePicker';
+import { ListingKindCard } from './ListingKindCard';
 import { SocialLinksEditor, type SocialDraft } from './SocialLinksEditor';
 import { useToast } from './toastContext';
 
@@ -205,6 +206,7 @@ export function ClinicProfileForm({ clinic, onSaved, onDirtyChange }: {
     return (
         <form onSubmit={submit} className="acct-form" noValidate>
             <ClinicAvatarUploader clinic={clinic} onChanged={onSaved} />
+            <ListingKindCard clinic={clinic} onSaved={onSaved} />
 
             <section className="acct-card" aria-labelledby="acct-basics-title">
                 <h2 id="acct-basics-title" className="acct-card-title">{t('account.sectionBasics')}</h2>

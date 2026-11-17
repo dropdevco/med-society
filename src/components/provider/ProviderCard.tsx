@@ -228,6 +228,7 @@ export function ProviderCard({
                     fontSize: '0.85rem', color: 'var(--gray-400)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
+                    {provider.kind === 'clinic' && <span style={{ fontWeight: 700, color: 'var(--gray-300)' }}>{t('clinicPage.badge')} · </span>}
                     {provider.specialty.map((s) => t(`specialties.${s}`, { defaultValue: s })).join(' · ')}
                 </p>
 
