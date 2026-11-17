@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { track } from './posthog';
 
 /**
- * Sign-in, sign-up and claiming, as four functions that never throw.
+ * Sign-in, sign-up and sign-out, as functions that never throw.
  *
  * Every one returns `{ error }` with a message already fit to render, because
  * the alternative is each caller inventing its own try/catch and its own
@@ -47,28 +47,4 @@ export async function signOut(): Promise<void> {
     await supabase?.auth.signOut();
 }
 
-/**
- * Ask to own a listing.
- *
- * Upsert rather than insert: the table holds one claim per person per listing,
- * and someone who submits again after adding better evidence should amend
- * their request rather than collide with it. Approval is manual — nothing
- * here grants anything, and `status` is not a column the client may write.
- */
-export async function submitClaim(
-    providerId: string,
-    userId: string,
-    evidence: string,
-): Promise<AuthResult> {
-    if (!supabase) return { error: NOT_CONFIGURED };
-
-    const { error } = await supabase
-        .from('provider_claims')
-        .upsert(
-            { provider_id: providerId, user_id: userId, evidence },
-            { onConflict: 'provider_id,user_id' },
-        );
-
-    track('claim_submitted', { provider_id: providerId, ok: !error });
-    return { error: error?.message ?? null };
-}
+// Claiming a listing lives in ./claims.ts (claim_submit, migration 0047).
