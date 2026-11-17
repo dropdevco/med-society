@@ -981,8 +981,10 @@ select option {
 /* ─── Category rail ──────────────────────────────────── */
 .ms-cats {
   display: flex;
-  align-items: flex-end;
-  gap: 1.6rem;
+  /* Stretch, so every item is as tall as the tallest label: the icons share a
+     line at the top and the active underline sits on one line at the bottom. */
+  align-items: stretch;
+  gap: 0.4rem;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 0.15rem 0 0;
@@ -991,17 +993,25 @@ select option {
 .ms-cats::-webkit-scrollbar { display: none; }
 
 .ms-cat {
-  flex-shrink: 0;
+  /* Equal slots, like the home tiles: sized to its label each item was as
+     wide as its longest word, which spaced the icons 100–170px apart. Long
+     labels wrap inside the slot instead (balanced, at most two lines). */
+  flex: 0 0 7.6rem;
+  width: 7.6rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.3rem;
-  padding: 0.55rem 0.15rem 0.6rem;
+  padding: 0.55rem 0.3rem 0.6rem;
   background: none;
   color: var(--gray-500);
   font-size: 0.72rem;
   font-weight: 700;
-  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
+  white-space: normal;
+  text-wrap: balance;
   border-bottom: 2px solid transparent;
   transition: color 0.18s var(--ease-out), border-color 0.18s var(--ease-out), opacity 0.18s var(--ease-out);
   opacity: 0.8;
@@ -1026,8 +1036,12 @@ select option {
 
 /* Home page tiles: the same rail, with each specialty's hue given a round
    backdrop so the row is recognised by colour and shape before it is read. */
-.ms-cats.is-tiles { gap: 0.9rem; align-items: flex-start; padding: 0.4rem 0 0; }
-.ms-cats.is-tiles .ms-cat { gap: 0.5rem; padding: 0.6rem 0.4rem 0.8rem; font-size: 0.78rem; min-width: 5.6rem; }
+.ms-cats.is-tiles { gap: 0.5rem; align-items: flex-start; padding: 0.4rem 0; }
+/* Every tile gets the same slot. Sized to its label, a tile was as wide as
+   its longest word ("Dentista" narrow, "Medicina General y Familiar" wide),
+   so the icons sat at uneven distances; a fixed width puts every icon on the
+   same grid and lets long labels wrap inside their own slot. */
+.ms-cats.is-tiles .ms-cat { gap: 0.5rem; padding: 0.6rem 0.3rem 0.8rem; font-size: 0.78rem; flex: 0 0 6.9rem; width: 6.9rem; }
 .ms-cats.is-tiles .ms-cat-ico {
   width: 3.4rem; height: 3.4rem;
   align-items: center; justify-content: center;
@@ -1039,7 +1053,7 @@ select option {
 .ms-cats.is-tiles .ms-cat.is-active .ms-cat-ico {
   background: color-mix(in srgb, var(--cat-c, var(--gray-500)) 24%, transparent);
 }
-.ms-cats.is-tiles .ms-cat > span:last-child { white-space: normal; text-align: center; max-width: 6.6rem; line-height: 1.2; text-wrap: balance; }
+.ms-cats.is-tiles .ms-cat > span:last-child { white-space: normal; text-align: center; max-width: 100%; line-height: 1.2; text-wrap: balance; overflow-wrap: anywhere; }
 .ms-cats-band .ms-band-inner { padding-top: 0; padding-bottom: 0; }
 
 /* ─── Results toolbar ────────────────────────────────── */
@@ -1512,11 +1526,11 @@ select option {
   .ms-discover { padding-left: 1rem; padding-right: 1rem; }
   .ms-row-track { grid-auto-columns: calc((100% - 1.15rem) / 2); }
   .ms-pill-cover { display: none; }
-  .ms-cats { gap: 1.15rem; }
+  .ms-cats { gap: 0.3rem; }
+  .ms-cat { flex-basis: 6.4rem; width: 6.4rem; }
   .ms-cats.is-tiles { gap: 0.2rem; }
-  .ms-cats.is-tiles .ms-cat { min-width: 4.7rem; font-size: 0.74rem; }
+  .ms-cats.is-tiles .ms-cat { flex-basis: 5.6rem; width: 5.6rem; font-size: 0.74rem; }
   .ms-cats.is-tiles .ms-cat-ico { width: 3rem; height: 3rem; }
-  .ms-cats.is-tiles .ms-cat > span:last-child { max-width: 5rem; }
   .ms-modal-scrim { padding: 0; }
   .ms-modal { max-width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
 }
@@ -1693,16 +1707,41 @@ select option {
   font-weight: 700;
   color: var(--gray-400);
   white-space: nowrap;
-  padding: 0.4rem 0.2rem;
-  transition: color 0.18s var(--ease-out);
-}
-.ms-nav-account:hover { color: var(--white); }
-/* Highlighted like the other nav links when you are on the dashboard. */
-.ms-nav-account[aria-current="page"] {
+  /* Same box as .ms-nav-link and .ms-nav-cta, so the gap between every label
+     in the bar is the same; it used to be 0.2rem, which left this link
+     crowding the language switch. */
   padding: 0.45rem 0.95rem;
   border-radius: var(--radius-pill);
+  transition: color 0.18s var(--ease-out), background 0.18s var(--ease-out);
+}
+.ms-nav-account:hover { color: var(--white); background: var(--surface); }
+/* Highlighted like the other nav links when you are on the dashboard. */
+.ms-nav-account[aria-current="page"] {
   background: var(--brand);
   color: var(--on-brand);
+}
+
+/* The language and theme switches are boxed controls, not text links: a
+   little extra room before them makes the bar read as two groups (pages,
+   then settings) instead of the boxes crowding the last link. */
+.ms-nav-lang { margin-left: 0.8rem; }
+
+/* Tablet widths: the Spanish labels ("Registra tu clínica", "Iniciar
+   sesión") ran the bar ~70px past a 720px screen. Tighten every label by
+   the same amount so the spacing stays even, and drop the decorative
+   language glyph — EN/ES already say what the switch is. */
+@media (max-width: 1000px) {
+  .ms-nav-controls { gap: 0.3rem !important; }
+  .ms-nav-links { gap: 0.3rem !important; }
+  .ms-nav-link, .ms-nav-cta, .ms-nav-account {
+    padding-left: 0.6rem !important;
+    padding-right: 0.6rem !important;
+  }
+  .ms-nav-lang { margin-left: 0.4rem; }
+  .ms-nav-lang > svg { display: none; }
+}
+@media (max-width: 620px) {
+  .ms-nav-lang { margin-left: 0; }
 }
 
 @media (max-width: 700px) {

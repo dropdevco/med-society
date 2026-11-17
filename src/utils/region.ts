@@ -19,7 +19,13 @@ export interface RegionSide {
 
 export interface Region {
     id: RegionId;
-    /** "El Paso – Ciudad Juárez"; the same in both locales. */
+    /**
+     * What the UI calls this region: its Mexican city, the same in both
+     * locales. The product sends US patients south, so the WHERE picker, the
+     * collapsed search pill and the results count name the destination, not
+     * the crossing ("Tijuana", not "San Diego – Tijuana"). The data still
+     * holds both sides; see `us` and `mx`.
+     */
     name: string;
     us: RegionSide;
     mx: RegionSide;
@@ -43,7 +49,7 @@ export interface Region {
 export const REGIONS: Record<RegionId, Region> = {
     'elpaso-juarez': {
         id: 'elpaso-juarez',
-        name: 'El Paso – Ciudad Juárez',
+        name: 'Ciudad Juárez',
         us: { country: 'US', city: 'El Paso', hint: { en: 'Texas, United States', es: 'Texas, Estados Unidos' } },
         mx: { country: 'MX', city: 'Ciudad Juárez', hint: { en: 'Chihuahua, Mexico', es: 'Chihuahua, México' } },
         center: { lat: 31.738, lng: -106.455 },
@@ -56,7 +62,7 @@ export const REGIONS: Record<RegionId, Region> = {
     },
     'sandiego-tijuana': {
         id: 'sandiego-tijuana',
-        name: 'San Diego – Tijuana',
+        name: 'Tijuana',
         us: { country: 'US', city: 'San Diego', hint: { en: 'California, United States', es: 'California, Estados Unidos' } },
         mx: { country: 'MX', city: 'Tijuana', hint: { en: 'Baja California, Mexico', es: 'Baja California, México' } },
         center: { lat: 32.58, lng: -117.04 },
