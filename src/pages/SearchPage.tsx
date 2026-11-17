@@ -4,6 +4,8 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import { useProviders } from '../hooks/useProviders';
 import { useAiSearch, specialtiesOf } from '../hooks/useAiSearch';
+import { useOtherRegionMatches, type OtherRegionMatches } from '../hooks/useOtherRegionMatches';
+import { REGIONS } from '../utils/region';
 import { SearchHero, type HeroWhere } from '../components/search/SearchHero';
 import { SearchPill } from '../components/search/SearchPill';
 import { CategoryRail } from '../components/search/CategoryRail';
@@ -91,6 +93,11 @@ export function SearchPage() {
      * nothing, so a false trigger costs one request.
      */
     const termCount = tokenize(filters.search).length;
+    // A name typed while browsing the other city finds nothing here; ask that city.
+    const otherRegion = useOtherRegionMatches(filters.search, region, !loading && !filters.smart && matched.length === 0);
+    const switchToOtherRegion = useCallback((to: OtherRegionMatches['region']) => patchFilters({
+        region: to, country: defaultFilters.country, postalCode: defaultFilters.postalCode, mapArea: null,
+    }), [patchFilters]);
     const aiQuery = filters.smart
         ? (filters.search.trim().length >= 3 ? filters.search.trim() : null)
         : !loading && (termCount >= 3 || (termCount >= 1 && matched.length === 0))
@@ -674,7 +681,7 @@ export function SearchPage() {
                                 </div>
                             ) : providers.length === 0 ? (
                                 // The AI panel above is the answer; a "no clinics" box under it reads as a contradiction.
-                                aiHasAnswer ? null : <EmptyState onClear={resetFilters} />
+                                aiHasAnswer ? null : <EmptyState onClear={resetFilters} other={otherRegion} onSwitch={switchToOtherRegion} />
                             ) : (
                                 <div ref={attachList} style={{ marginTop: '0.9rem' }}>
                                     <div role="list" style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
@@ -863,10 +870,24 @@ function MapPlaceholder({ label }: { label: string }) {
     );
 }
 
-function EmptyState({ onClear }: { onClear: () => void }) {
+function EmptyState({ onClear, other, onSwitch }: {
+    onClear: () => void;
+    /** Matches for the same words in the other region, if any. */
+    other: OtherRegionMatches | null;
+    onSwitch: (region: OtherRegionMatches['region']) => void;
+}) {
     const { t } = useTranslation();
     return (
         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--gray-400)' }}>
+            {other && (
+                <div className="ms-other-region" role="status">
+                    <p>{t('map.otherRegion', { count: other.total, city: REGIONS[other.region].name })}</p>
+                    <p className="ms-other-region-names">{other.names.map((n) => n.name).join(' · ')}{other.total > other.names.length ? ' …' : ''}</p>
+                    <button type="button" className="press" onClick={() => onSwitch(other.region)}>
+                        {t('map.searchIn', { city: REGIONS[other.region].name })}
+                    </button>
+                </div>
+            )}
             <div style={{
                 width: 64, height: 64, margin: '0 auto 1.25rem', borderRadius: '50%',
                 background: 'var(--surface)', border: '1px solid var(--border)',

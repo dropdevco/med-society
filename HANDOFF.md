@@ -29,9 +29,14 @@ What exists today:
 - **Doctor accounts.** Supabase Auth. A doctor claims a listing or publishes a new one (`/borderhealth`
   survey onboarding, `/claim/:id`), then manages it in `/dashboard`: profile, photos, social links, plan,
   team, Insights.
-- **Clinic teams.** A clinic links its specialists as their own listings (`clinic_practitioners`) and invites
-  staff. Staff (`provider_owners.role = 'staff'`) can do everything an owner can in the dashboard except act
-  as a clinician (no forum posting as the listing, no forum e-mail).
+- **Clinics and their doctors.** A listing is marked a clinic (`providers.kind = 'clinic'`, migration 0049)
+  and gets its own page layout: focus areas, its doctors (each their own listing, via `clinic_practitioners`),
+  and a "which doctor" choice on the message form. A doctor's page shows "Practises at". The dashboard's Team
+  tab invites staff, adds or creates doctors, and works through Doctoralia suggestions. Staff
+  (`provider_owners.role = 'staff'`) do everything except change roles or add owners, and never act as a
+  clinician. Linking never lets a clinic edit a doctor's listing, and a doctor invited to own theirs still goes
+  through claim review. See [docs/clinics.md](docs/clinics.md) and ADR 0013. **Database side of 0020b is in
+  production; 0049 and the UI are on `feat/clinic-pages`, not applied or deployed.**
 - **Paid plans.** Promoted (US$49) and Featured (US$99) sold through GHL payment links, turned into a listing
   tier by `api/billing.ts` and migration `0029`. Still in GHL **test mode**.
 - **Patient messages.** A signed-in patient sends one-way questions to a clinic (`api/inquiry.ts`). There is

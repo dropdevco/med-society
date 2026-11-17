@@ -14,5 +14,6 @@ One file per decision that had a real alternative. Each has: Context, Decision, 
 | [0008](0008-facility-badges.md) | Facility badges sit on the listing; a register number is the match key | Proposed |
 | [0009](0009-identity-review-outcome.md) | After the identity review: migrations split, disagreeing names reviewed, decisions final | Proposed |
 | [0010](0010-badges-changed-by-hand.md) | Badges can be added, changed and removed by hand; a run leaves those alone | Proposed |
+| [0013](0013-clinic-listings.md) | A clinic is a listing marked as one and shows its doctors' own listings; linking never grants editing, owning goes through claim review | Proposed |
 
 Status values: Proposed, Accepted, Superseded by NNNN. A decision that contradicts an accepted one supersedes it explicitly; never edit an accepted record to mean something else.

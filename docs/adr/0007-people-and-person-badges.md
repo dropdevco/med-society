@@ -6,7 +6,7 @@ Status: Accepted (Carlos, Nov 2026) · Owner: Emilio · Revises the table list i
 
 A MedSociety listing (`providers` row) is not always a person. Google Places rows are mostly clinics, Doctoralia rows mostly doctors, self-listings either; no column says which, and the directory has duplicate rows. Credentials (cédula, board certification) and hospital affiliations belong to a human being. If badges hang off listings, a doctor with two listings shows badges on one and not the other, and a clinic can inherit a doctor's hospital badge.
 
-`clinic_practitioners` (production, applied as `clinic_teams`) already links a clinic listing to its practitioners' own listings. It is empty today.
+`clinic_practitioners` (production, applied as `clinic_teams`) already links a clinic listing to its practitioners' own listings. It is empty today. (How clinics use it, and the clinic page: [ADR 0013](0013-clinic-listings.md).)
 
 ## Decision
 
