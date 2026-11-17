@@ -59,7 +59,7 @@ trip planning.
 | Paid plans + PostHog analytics | In production (PRs #4, #5); payments in test mode |
 | Contact lockdown (migrations 0032, 0033) | In production, migrations applied (PRs #6, #7) |
 | Survey state dropdown | In production (`9cb3e81`) |
-| Doctor analytics (Insights, report e-mails) and the agent surface | Open **PR #8**, not deployed. Migration 0031 is already applied to production |
+| Doctor analytics (Insights, report e-mails) and the agent surface | In production (PR #8 merged 27 Oct). Migrations 0031 and 0048 (`0048_stats_collecting_since`) applied. **Collecting real events only since 17 Nov 2026**: until PR #27 the `/ingest` proxy dropped PostHog's slash-ending calls, so nothing from the live site reached PostHog. Nightly sync verified end to end on 17 Nov. See `docs/doctor-analytics.md` |
 | `/research` defaults to the Spanish provider survey | Open **PR #9** |
 | Feedback widget + admin tab | Committed on `feat/feedback-widget`; the files also sit uncommitted in this working tree. Migration 0030 is applied. Not deployed |
 | Feedback auto-fix (draft PRs) | Built on `claude/relaxed-raman-6cb1a4`, migration numbered `0033_feedback_autofix.sql`, **not applied**. It clashes with the existing `0033_providers_grant_hardening.sql`, so renumber it before merging. Off until `FEEDBACK_AUTOFIX=on`. See `docs/feedback-autofix.md` on that branch |

@@ -70,3 +70,39 @@ doesn't say you speak it"…) are rules in `src/utils/statsInsights.ts`.
 - What gets sent to PostHog, and what must never be: see the top of `src/lib/posthog.ts` and
   `docs/privacy-policy-analytics-brief.md`.
 - Tests for the pure parts: `npx tsx scripts/stats-selftest.ts`.
+
+## Operating it, and what went wrong at launch (17 Nov 2026)
+
+- **"Collecting since" is a setting.** `stats_settings.collecting_since` (migration `0048_stats_collecting_since`,
+  set to 2026-11-17) is the date the readiness check and the previous-period comparison count from. A listing
+  forced on in `provider_stats_overrides` is judged by its own first day instead. Do not backfill rows
+  older than that for real listings. (Two migration files are numbered 0048: this one and
+  `0048_claim_emails`. Both are applied under different names; harmless, but pick a free number next time.)
+- **Run the sync by hand** with the `www` host. The apex `medsociety.one` redirects and drops the
+  `Authorization` header, which shows as `401 Unauthorized`. A browser address bar cannot send the header
+  either. In PowerShell `curl` is an alias, so use `curl.exe` and `$env:CRON_SECRET`, or
+  `node --env-file=.env.local -e "fetch(url,{headers:{Authorization:'Bearer '+process.env.CRON_SECRET}})..."`.
+- **Which PostHog key.** Querying needs a **personal API key** (`phx_…`, scope Query: read). A `phs_…`
+  project secret key (feature flags) and the `phc_…` project token are rejected with
+  `Personal API key found in request Authorization header is invalid`. The key in Vercel is
+  sensitive: it cannot be read back, only replaced.
+- **Failures seen on the first live runs, both fixed:**
+  1. `OFFSET is not supported on queries made with a personal API key`: `hogqlAll` in `api/stats.ts` now pages
+     by timestamp (PR #26).
+  2. The sync found 0 events because the browser calls `/ingest/e/` and `/ingest/flags/` (trailing slash)
+     were not proxied and fell through to the SPA. The rewrites in `vercel.json` now capture
+     `:path(.*)` (PR #27). Check after any change to rewrites:
+     `curl -s -D - -o /dev/null https://www.medsociety.one/ingest/e/` must answer `400 request missing data payload`,
+     not `text/html`.
+- **See what PostHog holds** (events, per day, channels, countries, top listings; read only, dev traffic
+  excluded): `node --experimental-strip-types --env-file=.env.local scripts/posthog-summary.ts 30`
+  with `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` in `.env.local` (`npx tsx` works too).
+- **Not exercised yet:** contact taps and inquiries from the live site, `?job=reports&dry=1`, the report
+  e-mails themselves, the Insights tab with real data (needs 50 views / 30 days), the demand and
+  benchmark sections (they need real searches, and a benchmark needs 5 live listings of the same
+  specialty in the region).
+- **Test account.** carlosglzg02@gmail.com's listing "Carlitos Health" (`aa87a26b-aa77-4261-8e1d-d228e334d20c`)
+  has a comped Featured plan, an override row and 65 days of synthetic rows in `provider_stats_daily`.
+  Remove before any demo that must show only real numbers:
+  `delete from provider_stats_daily where provider_id = 'aa87a26b-aa77-4261-8e1d-d228e334d20c'; delete from provider_stats_overrides where provider_id = 'aa87a26b-aa77-4261-8e1d-d228e334d20c';`
+  and set its comp subscription to `lapsed` then `select recompute_provider_plan(id)`.
