@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/posthog';
+import { readSavedMarket, saveChosenMarket, marketForLanguage, type Market } from '../lib/billing';
 import { InquiryModal } from '../components/sales/InquiryModal';
+import { CurrencyPicker } from '../components/account/CurrencyPicker';
 import { LogoMark } from '../components/brand/Logo';
 import {
     IconArrowRight, IconMapPin, IconClinic, IconViews, IconStar, IconBorder,
@@ -59,11 +61,18 @@ export function PricingPage() {
     const { t, i18n } = useTranslation();
     const [modalPlan, setModalPlan] = useState<string | null>(null);
 
-    // The site language picks the product: English sells the USD plans, Spanish
-    // the MXN ones (see PAYMENT_LINKS in lib/billing.ts). The price shown has to
-    // be the price charged, so the Spanish page quotes pesos and shows the USD
-    // figure only as a note.
+    // Clinics choose USD or MXN (see PAYMENT_LINKS in lib/billing.ts),
+    // defaulting to the site language. The price shown has to be the price
+    // charged, so the page quotes the selected currency and shows the USD
+    // figure as a note when MXN is selected.
     const isEnglish = i18n.language.startsWith('en');
+    const [chosenMarket, setChosenMarket] = useState<Market | null>(() => readSavedMarket());
+    const market = chosenMarket ?? marketForLanguage(i18n.language);
+
+    const handleMarketChange = (newMarket: Market) => {
+        setChosenMarket(newMarket);
+        saveChosenMarket(newMarket);
+    };
 
     // Quote the real directory size with a count query (no rows transferred).
     const [providerCount, setProviderCount] = useState<number | null>(null);
@@ -217,6 +226,10 @@ export function PricingPage() {
                     <div style={{ maxWidth: 880, margin: '0 auto' }}>
                         <SectionHead eyebrow={t('sales.pricingEyebrow')} title={t('sales.pricingTitle')} body={t('sales.pricingSubtitle')} />
 
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+                            <CurrencyPicker value={market} onChange={handleMarketChange} />
+                        </div>
+
                         <div
                             style={{
                                 display: 'flex',
@@ -237,9 +250,9 @@ export function PricingPage() {
                             <PricingCard
                                 featured
                                 tier={t('pricing.promotedTier')}
-                                price={isEnglish ? '$49' : '$899'}
-                                period={isEnglish ? t('pricing.perMonth') : t('pricing.perMonthMxn')}
-                                note={isEnglish ? undefined : t('pricing.promotedAlt')}
+                                price={market === 'us' ? '$49' : '$899'}
+                                period={market === 'us' ? t('pricing.perMonthUsd') : t('pricing.perMonthMxn')}
+                                note={market === 'us' ? undefined : t('pricing.promotedAlt')}
                                 badge={t('pricing.promotedBadge')}
                                 features={[t('pricing.promotedF1'), t('pricing.promotedF2'), t('pricing.promotedF3'), t('pricing.promotedF4')]}
                                 ctaLabel={t('pricing.promotedCta')}
@@ -247,9 +260,9 @@ export function PricingPage() {
                             />
                             <PricingCard
                                 tier={t('pricing.featuredTier')}
-                                price={isEnglish ? '$99' : '$1,799'}
-                                period={isEnglish ? t('pricing.perMonth') : t('pricing.perMonthMxn')}
-                                note={isEnglish ? undefined : t('pricing.featuredAlt')}
+                                price={market === 'us' ? '$99' : '$1,799'}
+                                period={market === 'us' ? t('pricing.perMonthUsd') : t('pricing.perMonthMxn')}
+                                note={market === 'us' ? undefined : t('pricing.featuredAlt')}
                                 features={[t('pricing.featuredF1'), t('pricing.featuredF2'), t('pricing.featuredF3'), t('pricing.featuredF4')]}
                                 ctaLabel={t('pricing.featuredCta')}
                                 onCta={() => openForm('featured')}

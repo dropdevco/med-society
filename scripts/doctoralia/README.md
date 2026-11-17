@@ -275,6 +275,20 @@ is list price (~US$40 for 264 searches + 1,584 details); the free monthly
 allowance per SKU usually makes the real bill far lower. Try
 `--commit --limit=5` first to see a real cost per query.
 
+## Post-surgery recovery centers (Tijuana, Juárez)
+
+`--target=tijuana-recovery` and `--target=juarez-recovery`: 14 Spanish + English
+queries each ("casa de recuperación posoperatoria", "post-op recovery house",
+bariatric / plastic / cosmetic variants…). Collect only — `promote-google.ts`
+does not support these targets yet, and recovery centers have no specialty of
+their own (they file under `general`). Tijuana needs migration `0039` for its
+staging table (`google_places_tijuana`); Juárez reuses `google_places_juarez`.
+
+```bash
+npx tsx scripts/doctoralia/sweep.ts collect --target=tijuana-recovery --estimate --list   # no network
+npx tsx scripts/doctoralia/sweep.ts collect --target=juarez-recovery  --estimate --list
+```
+
 ## Files
 
 | File | What it does |

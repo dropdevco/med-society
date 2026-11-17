@@ -40,6 +40,16 @@ export function providerJsonLd(p: Provider): Record<string, unknown> {
     const sameAs = [httpUrl(p.website), ...Object.values(p.socials ?? {}).map(httpUrl)].filter((u): u is string => Boolean(u));
     const image = httpUrl(p.imageUrl) ?? (p.imageUrl?.startsWith('//') ? `https:${p.imageUrl}` : null);
     const description = (p as Provider & { description?: string }).description;
+    const badges = p.badges ?? [];
+    const isCredential = (b: { kind: string }) => ['consejo', 'regulator', 'accreditor'].includes(b.kind);
+    const memberOf = badges.filter((b) => !isCredential(b)).map((b) => ({ '@type': 'Organization', name: b.label || b.name, ...(httpUrl(b.url) ? { url: httpUrl(b.url) } : {}) }));
+    const hasCredential = badges.filter(isCredential).map((b) => ({
+        '@type': 'EducationalOccupationalCredential',
+        name: b.label,
+        credentialCategory: b.kind === 'consejo' ? 'Board certification' : 'Health registration',
+        recognizedBy: { '@type': 'Organization', name: b.facts?.consejo ?? b.name },
+        ...(b.valid_to ? { expires: b.valid_to } : {}),
+    }));
 
     return {
         '@context': 'https://schema.org',
@@ -62,6 +72,8 @@ export function providerJsonLd(p: Provider): Record<string, unknown> {
         ...(rating !== null ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: rating, reviewCount: p.reviewCount, bestRating: 5, worstRating: 1 } } : {}),
         ...(p.languagesConfirmed && p.languages.length ? { availableLanguage: p.languages } : {}),
         ...(sameAs.length ? { sameAs } : {}),
+        ...(memberOf.length ? { memberOf } : {}),
+        ...(hasCredential.length ? { hasCredential } : {}),
         ...(offers.length ? { makesOffer: offers } : {}),
     };
 }

@@ -1,0 +1,6 @@
+# The image holds the source pipeline only: no app code, no env files, no run data.
+*
+!package.json
+!package-lock.json
+!scripts/sources
+scripts/sources/.data

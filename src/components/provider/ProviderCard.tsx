@@ -1,3 +1,4 @@
+import { CardBadges } from './OrgBadges';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
@@ -273,6 +274,8 @@ export function ProviderCard({
                         </span>
                     )}
                 </div>
+
+                <CardBadges badges={provider.badges} />
 
                 {(provider.priceFromMxn != null || insurances.length > 0) && (
                     <div style={{

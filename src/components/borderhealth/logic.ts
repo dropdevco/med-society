@@ -120,6 +120,11 @@ export function buildAnswers(seg: BhSegment, a: Answers): Record<string, unknown
             } else if (qd.type === 'single') {
                 answers[qd.id] = v === 'other' ? 'other: ' + str(a, qd.id + '_other') : labelFor(qd, String(v));
                 answers[qd.id + '_key'] = v;
+            } else if (qd.type === 'select') {
+                answers[qd.id] = labelFor(qd, String(v));
+                answers[qd.id + '_key'] = v;
+                const k = String(v);
+                answers[qd.id + '_country'] = k.indexOf('MX-') === 0 ? 'Mexico' : k.indexOf('US-') === 0 ? 'United States' : 'Other';
             } else if (qd.type === 'multi') {
                 const arr = Array.isArray(v) ? v : [String(v)];
                 answers[qd.id] = arr.map((x) => (x === 'other' ? 'other: ' + str(a, qd.id + '_other') : labelFor(qd, x)));

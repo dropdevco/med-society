@@ -10,6 +10,7 @@ import { DirectoryPanel, AccountsPanel } from '../components/admin/SitePanel';
 import { ClinicLookup } from '../components/admin/ClinicLookup';
 import { BillingPanel } from '../components/admin/BillingPanel';
 import { FeedbackPanel } from '../components/admin/FeedbackPanel';
+import { VerificationPanel } from '../components/admin/VerificationPanel';
 import { SEGMENTS, SEGMENT_LABEL, regionName } from '../components/admin/labels';
 import '../components/admin/admin.css';
 
@@ -20,6 +21,7 @@ const TABS = [
     ['directory', 'Directory'],
     ['accounts', 'Accounts & leads'],
     ['feedback', 'Feedback'],
+    ['verification', 'Verification'],
     ['billing', 'Billing'],
     ['clinic', 'Clinic lookup'],
 ] as const;
@@ -100,7 +102,7 @@ export function AdminPage() {
             </nav>
 
             {error && <p className="adm-err" role="alert">Could not load data: {error}</p>}
-            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
+            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && tab !== 'verification' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
 
             {forms && site && tab === 'overview' && <Overview forms={forms} site={site} feedback={feedback} go={(t) => setParams({ tab: t }, { replace: true })} />}
             {forms && tab === 'traffic' && <TrafficPanel data={forms} />}
@@ -108,6 +110,7 @@ export function AdminPage() {
             {site && tab === 'directory' && <DirectoryPanel site={site} />}
             {site && tab === 'accounts' && <AccountsPanel site={site} />}
             {tab === 'feedback' && <FeedbackPanel data={feedback} onChanged={loadFeedback} />}
+            {tab === 'verification' && <VerificationPanel />}
             {tab === 'billing' && <BillingPanel />}
             {tab === 'clinic' && <ClinicLookup />}
         </main>

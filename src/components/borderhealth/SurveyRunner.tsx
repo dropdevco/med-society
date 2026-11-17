@@ -39,8 +39,10 @@ interface State {
 /**
  * Boot state: a live draft wins unless the link asks for a different (valid)
  * audience. An unknown `?seg=` is ignored, so it can never cost a draft.
+ * `defaultSeg` is the audience a bare link opens on (the /research study page
+ * opens on providers); without it a bare link shows the audience picker.
  */
-function initialState(search: string, useUrlSeg: boolean): { s: State; restored: boolean } {
+function initialState(search: string, useUrlSeg: boolean, defaultSeg: BhSegment | null = null): { s: State; restored: boolean } {
     const rawSeg = useUrlSeg ? (new URLSearchParams(search).get('seg') || '').toLowerCase() : '';
     const segParam = isSeg(rawSeg) ? rawSeg : '';
     const draft = loadDraft();
@@ -53,6 +55,7 @@ function initialState(search: string, useUrlSeg: boolean): { s: State; restored:
         };
     }
     if (isSeg(segParam)) return { s: { seg: segParam, step: 0, a: {}, startedAt: Date.now() }, restored: false };
+    if (defaultSeg) return { s: { seg: defaultSeg, step: 0, a: {}, startedAt: Date.now() }, restored: false };
     return { s: { seg: null, step: 0, a: {}, startedAt: null }, restored: false };
 }
 
@@ -89,7 +92,7 @@ export function SurveyRunner({ lang, useUrlSeg, onSubmitted, research = false }:
     onSubmitted: (r: SurveyResult) => void;
 }) {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [boot] = useState(() => initialState(window.location.search, useUrlSeg));
+    const [boot] = useState(() => initialState(window.location.search, useUrlSeg, research ? 'provider' : null));
     const [S, setS] = useState<State>(boot.s);
     const [showRestored, setShowRestored] = useState(boot.restored);
     const [errors, setErrors] = useState<Errors>({});
@@ -329,7 +332,9 @@ export function SurveyRunner({ lang, useUrlSeg, onSubmitted, research = false }:
                 name: str(a, 'c_name'), org: str(a, 'c_org'), email: str(a, 'c_email'),
                 phone: phoneOrWa, whatsapp: str(a, 'c_whatsapp'),
                 follow_up_key: str(a, 'follow_up') || undefined,
-                industry, city, follow_up: followed,
+                industry, city: [city, answers.state].filter(Boolean).join(', ') || null, follow_up: followed,
+                submission_key: submissionKey,
+                answers,
             });
         }
 
@@ -521,6 +526,31 @@ function QuestionView({ qd, seg, a, lang, tt, err, onSingle, onMulti, onOther, o
                     )}
                     <ErrLine tt={tt} err={err} />
                 </fieldset>
+            </div>
+        );
+    }
+
+    if (qd.type === 'select') {
+        const groups = Object.keys(qd.groups || {});
+        return (
+            <div className={cls} data-q={qd.id}>
+                <label className="bh-lab" htmlFor={'f_' + qd.id}>{label}</label>
+                <select
+                    id={'f_' + qd.id}
+                    className="bh-input bh-select"
+                    value={str(a, qd.id)}
+                    onChange={(e) => onText(e.target.value)}
+                >
+                    <option value="">{tt.choose}</option>
+                    {groups.map((g) => (
+                        <optgroup key={g} label={qd.groups?.[g]?.[lang]}>
+                            {(qd.opts || []).filter((op) => op.g === g).map((op) => (
+                                <option key={op.v} value={op.v}>{op[lang]}</option>
+                            ))}
+                        </optgroup>
+                    ))}
+                </select>
+                <ErrLine tt={tt} err={err} />
             </div>
         );
     }

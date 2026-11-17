@@ -1,0 +1,56 @@
+/* Organization badges: a tile per organization, grouped by what it proves. */
+.ms-orgbadges { display: grid; gap: 0.4rem; margin-top: 0.15rem; }
+.ms-orgbadges.is-profile { gap: 0.6rem; margin-top: 0; }
+.ms-orgbadges.is-profile h3 { font-size: 1rem; font-weight: 700; margin: 0; }
+
+.ms-orgrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.ms-orgsep { width: 1px; height: 30px; background: var(--border-strong); margin: 0 0.1rem; }
+
+/* White in both themes: logos are drawn for a white ground. */
+.ms-orgtile {
+    --ring: var(--affil);
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 44px; height: 44px; max-width: 120px; padding: 3px 6px;
+    border: 0; border-radius: 10px; background: #fff; color: #14161a;
+    box-shadow: 0 0 0 1.5px var(--ring);
+    font: 700 0.64rem/1 var(--font-ui); letter-spacing: 0.02em; cursor: pointer;
+}
+.ms-orgtile img { max-height: 38px; max-width: 108px; object-fit: contain; display: block; }
+.ms-orgtile.is-credential { --ring: var(--accent); }
+.ms-orgtile.is-affiliation { --ring: var(--affil); }
+.ms-orgtile.is-facility { --ring: var(--facility); }
+.ms-orgtile.is-on { box-shadow: 0 0 0 1.5px var(--ring), 0 0 0 4px var(--affil-dim); }
+.ms-orgtile:focus-visible, .ms-orgmore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ms-orgmore {
+    border: 1px solid var(--border); border-radius: var(--radius-pill); background: transparent;
+    color: var(--gray-500); font: 700 0.68rem/1 var(--font-ui); padding: 0.32rem 0.55rem; cursor: pointer;
+}
+
+.ms-orggroup { display: grid; gap: 0.25rem; }
+.ms-orggroup h4 {
+    margin: 0; display: flex; align-items: center; gap: 0.35rem;
+    font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-500);
+}
+.ms-orggroup h4::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--affil); }
+.ms-orggroup.is-credential h4::before { background: var(--accent); }
+.ms-orggroup.is-facility h4::before { background: var(--facility); }
+
+.ms-orgdetail {
+    display: grid; gap: 0.15rem; padding: 0.6rem 0.75rem; cursor: default;
+    border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+    font-size: 0.78rem; color: var(--gray-200);
+}
+.ms-orgdetail strong { font-size: 0.86rem; color: var(--white); }
+.ms-orgdetail-org { color: var(--gray-400); }
+.ms-orgdetail dl { margin: 0.3rem 0 0.2rem; display: grid; gap: 0.1rem; }
+.ms-orgdetail dl > div { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 0.5rem; }
+.ms-orgdetail dt { color: var(--gray-500); }
+.ms-orgdetail dd { margin: 0; overflow-wrap: anywhere; }
+.ms-orgdetail a { color: var(--accent); font-weight: 700; text-decoration: none; }
+
+/* A phone card is too narrow for two columns, and tiles wrap, so a separator would dangle. */
+@media (max-width: 560px) {
+    .ms-orgdetail dl > div { grid-template-columns: minmax(0, 1fr); gap: 0; margin-bottom: 0.2rem; }
+    .ms-orgsep { display: none; }
+}

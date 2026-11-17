@@ -28,6 +28,7 @@ export interface BhStrings {
     switchSeg: string;
     switchTitle: string;
     optional: string;
+    choose: string;
     all: string;
     otherLabel: string;
     otherPh: string;
@@ -67,7 +68,7 @@ export const T: Record<BhLang, BhStrings> = {
         step: (n, m) => 'Paso ' + n + ' de ' + m,
         next: 'Continuar', back: 'Atrás', send: 'Enviar respuestas', sending: 'Enviando…',
         switchSeg: 'Cambiar', switchTitle: 'Responder como otro tipo de persona',
-        optional: '(opcional)', all: 'Marque todas las que apliquen', otherLabel: 'Otro (escriba cuál)',
+        optional: '(opcional)', choose: 'Elija un estado', all: 'Marque todas las que apliquen', otherLabel: 'Otro (escriba cuál)',
         otherPh: 'Escriba aquí',
         errPick: 'Elija una opción para continuar.',
         errText: 'Escriba una respuesta para continuar.',
@@ -102,7 +103,7 @@ export const T: Record<BhLang, BhStrings> = {
         step: (n, m) => 'Step ' + n + ' of ' + m,
         next: 'Continue', back: 'Back', send: 'Send answers', sending: 'Sending…',
         switchSeg: 'Change', switchTitle: 'Answer as a different kind of person',
-        optional: '(optional)', all: 'Pick all that apply', otherLabel: 'Other (type which)',
+        optional: '(optional)', choose: 'Choose a state', all: 'Pick all that apply', otherLabel: 'Other (type which)',
         otherPh: 'Type here',
         errPick: 'Pick an option to continue.',
         errText: 'Type an answer to continue.',

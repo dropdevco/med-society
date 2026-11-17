@@ -12,8 +12,12 @@ import type { BhSegment } from './types';
 export const FORM_VERSION = 'v2';
 
 export interface Loc { es: string; en: string }
-export interface Opt extends Loc { v: string }
-export type QType = 'single' | 'multi' | 'text' | 'textarea' | 'top';
+export interface Opt extends Loc {
+    v: string;
+    /** select only: which <optgroup> the option sits under. */
+    g?: string;
+}
+export type QType = 'single' | 'multi' | 'text' | 'textarea' | 'top' | 'select';
 /** [questionId, value or list of values] */
 export type Cond = [string, string | string[]];
 
@@ -32,6 +36,8 @@ export interface Question extends Loc {
     hideIf?: Cond;
     /** top: the multi question whose picks become the options. */
     from?: string;
+    /** select only: optgroup labels. */
+    groups?: Record<string, Loc>;
     ph_es?: string;
     ph_en?: string;
     inputType?: 'text' | 'url';
@@ -59,6 +65,10 @@ function q(id: string, type: QType, es: string, en: string, opts: Opt[] | null, 
 /** "Which one matters most", built from whatever was picked in `from`. */
 function top(from: string): Question {
     return q(from + '_top', 'top', TOP_ES, TOP_EN, null, { from, required: true });
+}
+/** Optional "which state are you from" dropdown, the same list on every form. */
+function stateQ(es: string, en: string): Question {
+    return q('state', 'select', es, en, STATES, { groups: STATE_GROUPS });
 }
 function sc(id: string, es: string, en: string, qs: Question[], extra?: { contact?: 'full' | 'light' }): Screen {
     return { id, es, en, qs, ...(extra || {}) };
@@ -107,6 +117,59 @@ export const RECORDS_OPTS: Opt[] = [
   o('no_problem', 'No he tenido problemas', 'I have not had any problems')
 ];
 
+
+/* ------------------------------------------------------- state / region */
+/* Option keys are ISO 3166-2 codes with a country prefix. They land in
+   bh_responses.answers.state_key and must never change. */
+const MX_STATES: [string, string, string][] = [
+  ['AGU', 'Aguascalientes', 'Aguascalientes'], ['BCN', 'Baja California', 'Baja California'],
+  ['BCS', 'Baja California Sur', 'Baja California Sur'], ['CAM', 'Campeche', 'Campeche'],
+  ['CHP', 'Chiapas', 'Chiapas'], ['CHH', 'Chihuahua', 'Chihuahua'],
+  ['CMX', 'Ciudad de México', 'Mexico City'], ['COA', 'Coahuila', 'Coahuila'],
+  ['COL', 'Colima', 'Colima'], ['DUR', 'Durango', 'Durango'],
+  ['MEX', 'Estado de México', 'State of Mexico'], ['GUA', 'Guanajuato', 'Guanajuato'],
+  ['GRO', 'Guerrero', 'Guerrero'], ['HID', 'Hidalgo', 'Hidalgo'],
+  ['JAL', 'Jalisco', 'Jalisco'], ['MIC', 'Michoacán', 'Michoacán'],
+  ['MOR', 'Morelos', 'Morelos'], ['NAY', 'Nayarit', 'Nayarit'],
+  ['NLE', 'Nuevo León', 'Nuevo León'], ['OAX', 'Oaxaca', 'Oaxaca'],
+  ['PUE', 'Puebla', 'Puebla'], ['QUE', 'Querétaro', 'Querétaro'],
+  ['ROO', 'Quintana Roo', 'Quintana Roo'], ['SLP', 'San Luis Potosí', 'San Luis Potosí'],
+  ['SIN', 'Sinaloa', 'Sinaloa'], ['SON', 'Sonora', 'Sonora'],
+  ['TAB', 'Tabasco', 'Tabasco'], ['TAM', 'Tamaulipas', 'Tamaulipas'],
+  ['TLA', 'Tlaxcala', 'Tlaxcala'], ['VER', 'Veracruz', 'Veracruz'],
+  ['YUC', 'Yucatán', 'Yucatán'], ['ZAC', 'Zacatecas', 'Zacatecas']
+];
+const US_STATES: [string, string, string][] = [
+  ['AL', 'Alabama', 'Alabama'], ['AK', 'Alaska', 'Alaska'], ['AZ', 'Arizona', 'Arizona'],
+  ['AR', 'Arkansas', 'Arkansas'], ['CA', 'California', 'California'], ['NC', 'Carolina del Norte', 'North Carolina'],
+  ['SC', 'Carolina del Sur', 'South Carolina'], ['CO', 'Colorado', 'Colorado'], ['CT', 'Connecticut', 'Connecticut'],
+  ['ND', 'Dakota del Norte', 'North Dakota'], ['SD', 'Dakota del Sur', 'South Dakota'], ['DE', 'Delaware', 'Delaware'],
+  ['DC', 'Distrito de Columbia (Washington, D.C.)', 'District of Columbia (Washington, D.C.)'], ['FL', 'Florida', 'Florida'],
+  ['GA', 'Georgia', 'Georgia'], ['HI', 'Hawái', 'Hawaii'], ['ID', 'Idaho', 'Idaho'],
+  ['IL', 'Illinois', 'Illinois'], ['IN', 'Indiana', 'Indiana'], ['IA', 'Iowa', 'Iowa'],
+  ['KS', 'Kansas', 'Kansas'], ['KY', 'Kentucky', 'Kentucky'], ['LA', 'Luisiana', 'Louisiana'],
+  ['ME', 'Maine', 'Maine'], ['MD', 'Maryland', 'Maryland'], ['MA', 'Massachusetts', 'Massachusetts'],
+  ['MI', 'Míchigan', 'Michigan'], ['MN', 'Minnesota', 'Minnesota'], ['MS', 'Misisipi', 'Mississippi'],
+  ['MO', 'Misuri', 'Missouri'], ['MT', 'Montana', 'Montana'], ['NE', 'Nebraska', 'Nebraska'],
+  ['NV', 'Nevada', 'Nevada'], ['NH', 'Nuevo Hampshire', 'New Hampshire'], ['NJ', 'Nueva Jersey', 'New Jersey'],
+  ['NM', 'Nuevo México', 'New Mexico'], ['NY', 'Nueva York', 'New York'], ['OH', 'Ohio', 'Ohio'],
+  ['OK', 'Oklahoma', 'Oklahoma'], ['OR', 'Oregón', 'Oregon'], ['PA', 'Pensilvania', 'Pennsylvania'],
+  ['RI', 'Rhode Island', 'Rhode Island'], ['TN', 'Tennessee', 'Tennessee'], ['TX', 'Texas', 'Texas'],
+  ['UT', 'Utah', 'Utah'], ['VT', 'Vermont', 'Vermont'], ['VA', 'Virginia', 'Virginia'],
+  ['WV', 'Virginia Occidental', 'West Virginia'], ['WA', 'Washington', 'Washington'],
+  ['WI', 'Wisconsin', 'Wisconsin'], ['WY', 'Wyoming', 'Wyoming']
+];
+export const STATES: Opt[] = [
+  ...MX_STATES.map(([c, es, en]): Opt => ({ v: 'MX-' + c, es, en, g: 'MX' })),
+  ...US_STATES.map(([c, es, en]): Opt => ({ v: 'US-' + c, es, en, g: 'US' })),
+  { v: 'other_country', es: 'Otro país', en: 'Another country', g: 'XX' }
+];
+const STATE_GROUPS: Record<string, Loc> = {
+  MX: { es: 'México', en: 'Mexico' },
+  US: { es: 'Estados Unidos', en: 'United States' },
+  XX: { es: 'Otro', en: 'Other' }
+};
+
 /* ------------------------------------------------------------- forms */
 export const FORMS: Record<BhSegment, Screen[]> = {
   employer: [
@@ -117,6 +180,7 @@ export const FORMS: Record<BhSegment, Screen[]> = {
         o('251_1000', '251 a 1,000', '251 to 1,000'), o('1000_plus', 'Más de 1,000', 'More than 1,000')
       ], { required: true }),
       q('where', 'single', '¿Dónde está la mayoría de su personal?', 'Where are most of your employees based?', PLACE, { required: true, other: true }),
+      stateQ('¿En qué estado está su empresa?', 'Which state is your company based in?'),
       q('role', 'single', '¿Cuál es su rol?', 'What is your role?', [
         o('owner', 'Dueño o socio', 'Owner or partner'), o('hr', 'Recursos humanos', 'HR'),
         o('manager', 'Gerente o director', 'Manager or director'), o('finance', 'Finanzas o administración', 'Finance or admin')
@@ -172,7 +236,8 @@ export const FORMS: Record<BhSegment, Screen[]> = {
         [...PLACE, o('not_working', 'No trabajo actualmente', 'I do not currently work')], { required: true, other: true }),
       q('live_where', 'single', '¿Dónde vive?', 'Where do you live?', [
         o('juarez', 'Ciudad Juárez', 'Ciudad Juárez'), o('elpaso', 'El Paso', 'El Paso')
-      ], { required: true, other: true })
+      ], { required: true, other: true }),
+      stateQ('¿De qué estado es usted?', 'Which state are you from?')
     ]),
     sc('coverage', 'Su cobertura', 'Your coverage', [
       q('coverage', 'multi', '¿Qué cobertura de salud tiene hoy?', 'What health coverage do you have today?', [
@@ -262,6 +327,7 @@ export const FORMS: Record<BhSegment, Screen[]> = {
         o('tijuana', 'Tijuana', 'Tijuana'), o('sandiego', 'San Diego', 'San Diego'),
         o('chihuahua_city', 'Ciudad de Chihuahua', 'Chihuahua City')
       ], { required: true, other: true }),
+      stateQ('¿En qué estado está su consultorio?', 'Which state is your practice in?'),
       q('size', 'single', '¿Cuántos médicos o profesionales atienden ahí?', 'How many doctors or clinicians see patients there?', [
         o('solo', 'Solo yo', 'Just me'), o('2_5', '2 a 5', '2 to 5'), o('6_20', '6 a 20', '6 to 20'), o('20_plus', 'Más de 20', 'More than 20')
       ], { required: true }),

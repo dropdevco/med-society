@@ -1,3 +1,4 @@
+import { currentBadges } from './orgBadges';
 import type { Provider } from '../types/provider';
 import { isRegionId, regionOf } from './region';
 import { normalizeLanguages } from './languages';
@@ -21,12 +22,14 @@ export function normalizeProvider(row: any): Provider {
         // (Postgres lowercases them on the way in, so we need to restore them)
         googlePlaceId: row.googlePlaceId ?? row.googleplaceid ?? undefined,
         doctoraliaId:  row.doctoraliaId  ?? row.doctoraliaid  ?? undefined,
+        kind:          row.kind === 'stay' ? 'stay' : undefined,
         reviewCount:   row.reviewCount   ?? row.reviewcount   ?? 0,
         imageUrl:      row.imageUrl      ?? row.imageurl      ?? undefined,
         postalCode:    row.postalCode    ?? row.postalcode    ?? undefined,
         socials:       row.socials       ?? {},
         galleryUrls:   row.galleryUrls   ?? row.galleryurls   ?? [],
         services:      row.services      ?? [],
+        badges:        currentBadges(row.badges),
         serviceNames:  row.serviceNames  ?? row.service_names ?? undefined,
         region:        isRegionId(row.region) ? row.region : (regionOf(row.lng) ?? undefined),
         clicks:        row.clicks        ?? 0,

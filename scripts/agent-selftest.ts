@@ -360,5 +360,41 @@ let limited = 0;
 for (let i = 0; i < 320; i++) if ((await get('route=openapi', undefined, '198.51.100.9')).status === 429) limited++;
 check('per-IP rate limit kicks in with Retry-After', limited > 0);
 
+// ── Website copy: the draft parser and the guard on what the model may claim ──
+const goodDraft = JSON.stringify({
+    headline: { es: 'Tu recuperación, bien acompañada', en: 'Your recovery, well looked after' },
+    lead: { es: 'Enfermería todos los días.', en: 'Nursing every day.' },
+    about: { es: 'Somos un centro en Tijuana.', en: 'We are a center in Tijuana.' },
+    highlights: { es: [{ title: 'Enfermería', body: 'Todos los días.' }], en: [{ title: 'Nursing', body: 'Every day.' }] },
+    faq: { es: [{ q: '¿Dónde están?', a: 'En Tijuana.' }], en: [{ q: 'Where are you?', a: 'In Tijuana.' }] },
+});
+const parsedCopy = __test.parseCopy(`Here you go:\n${goodDraft}\nHope it helps`);
+check('copy: JSON is found inside surrounding chatter', parsedCopy !== null && parsedCopy.headline.es.startsWith('Tu recuperación'));
+check('copy: a draft missing a language is rejected', __test.parseCopy(JSON.stringify({ headline: { es: 'x' }, lead: { es: 'x', en: 'x' }, about: { es: 'x', en: 'x' } })) === null);
+check('copy: not JSON is rejected', __test.parseCopy('sorry, I cannot') === null);
+check('copy: a draft with no numbers or superlatives has no warnings', __test.copyWarnings(parsedCopy!, 'Nursing every day').length === 0);
+const risky = __test.parseCopy(goodDraft.replace('Enfermería todos los días.', 'Más de 20 años, los mejores').replace('Nursing every day.', 'Over 20 years, the best'))!;
+const flagged = __test.copyWarnings(risky, 'Nursing every day in Tijuana');
+check('copy: an unsupported number and a superlative are flagged', flagged.includes('20') && flagged.some((w) => /mejores|best/i.test(w)), flagged);
+check('copy: a number that is in the facts passes', !__test.copyWarnings(risky, 'Over 20 years of practice').includes('20'));
+
+// ── Website read: what is private, and what the HTML parser picks out ──
+for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:10.0.0.1']) {
+    check(`grab: ${ip} is not public`, !__test.isPublicIp(ip));
+}
+for (const ip of ['8.8.8.8', '172.32.0.1', '2606:4700:4700::1111', '::ffff:8.8.8.8']) check(`grab: ${ip} is public`, __test.isPublicIp(ip));
+check('grab: a private address is refused before any request', (await __test.fetchPublicHtml('http://127.0.0.1/')) === null);
+check('grab: a non-standard port is refused', (await __test.fetchPublicHtml('https://example.com:8443/')) === null);
+check('grab: credentials in the URL are refused', (await __test.fetchPublicHtml('https://user:pw@example.com/')) === null);
+const grabHtml = `<html><head><meta name="theme-color" content="#701236"><meta property="og:image" content="/img/hero.jpg">
+<style>.a{color:#701236}.b{background:#701236}.c{color:#1d1e20}.d{border:1px solid #dd7d30}.e{color:#fff}.f{color:#888}</style></head>
+<body><img class="site-logo" src="/logo.svg" alt="Clinic"><img src="/img/room.jpg" width="800"><img src="/img/tiny.jpg" width="40"><img src="/img/spinner.gif"><img data-src="http://insecure.example/x.jpg"><img src="/img/lounge.jpg"></body></html>`;
+const grabbed = __test.parseSiteHtml(grabHtml, 'https://clinic.example/');
+check('grab: accent is the dominant vivid colour', grabbed.accent === '#701236', grabbed);
+check('grab: ink is the dark text colour', grabbed.ink === '#1d1e20', grabbed);
+check('grab: a different hue becomes the warm colour', grabbed.warm === '#dd7d30', grabbed);
+check('grab: logo is the img that says logo, made absolute', grabbed.logo === 'https://clinic.example/logo.svg', grabbed);
+check('grab: photos skip tiny, gif and non-https images, and keep page order', JSON.stringify(grabbed.images) === JSON.stringify(['https://clinic.example/img/hero.jpg', 'https://clinic.example/img/room.jpg', 'https://clinic.example/img/lounge.jpg']), grabbed.images);
+
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
