@@ -2093,8 +2093,9 @@ async function homePage(sp: URLSearchParams): Promise<PageDoc> {
     const total = REGION_IDS.reduce((n, id) => n + (counts[id] ?? 0), 0);
     return {
         status: 200, kind: 'home',
-        title: 'MedSociety — Medical care across the US–Mexico border',
-        description: 'Find dentists, surgeons and specialists on both sides of the US–Mexico border, in El Paso – Ciudad Juárez and San Diego – Tijuana. Compare ratings, published prices and licenses, in English and Spanish.',
+        // Keep in step with index.html's <title> and meta description.
+        title: 'MedSociety — Medical care in Tijuana and Ciudad Juárez, Mexico',
+        description: 'Get treated in Mexico and make a trip of it. Compare dentists, surgeons and specialists in Tijuana and Ciudad Juárez by rating, price and credentials before you cross, in English or Spanish.',
         canonical, ogImage: SHARE_IMAGE, blocks,
         jsonld: [{
             '@context': 'https://schema.org', '@type': 'ItemList', name: 'MedSociety regions',

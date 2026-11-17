@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../lib/supabase';
 import { track } from '../lib/posthog';
 import { readSavedMarket, saveChosenMarket, marketForLanguage, type Market } from '../lib/billing';
 import { InquiryModal } from '../components/sales/InquiryModal';
 import { CurrencyPicker } from '../components/account/CurrencyPicker';
 import { LogoMark } from '../components/brand/Logo';
 import {
-    IconArrowRight, IconMapPin, IconClinic, IconViews, IconStar, IconBorder,
+    IconArrowRight, IconMapPin, IconViews, IconStar,
     IconClipboard, IconMapPlane, IconChart, IconCheck, IconPromoted,
     IconUS, IconMX, IconShield, IconLanguage,
 } from '../components/icons/Icons';
@@ -25,7 +24,6 @@ import {
 const ADDONS = [
     { key: 'whatsapp', icon: <IconClipboard size={19} weight={1.8} /> },
     { key: 'payments', icon: <IconChart size={19} weight={1.8} /> },
-    { key: 'website', icon: <IconMapPlane size={19} weight={1.8} /> },
     { key: 'reminders', icon: <IconViews size={19} weight={1.8} /> },
     { key: 'seo', icon: <IconStar size={19} weight={1.8} /> },
 ] as const;
@@ -35,27 +33,9 @@ const ADDONS = [
  * each with a US and a Mexican side. Copy lives under `sales.city<Key>*`.
  */
 const CITIES = [
-    { key: 'SanDiego', country: 'us' },
     { key: 'Tijuana', country: 'mx' },
-    { key: 'ElPaso', country: 'us' },
     { key: 'Juarez', country: 'mx' },
 ] as const;
-
-/**
- * Number of live providers, as a head-only count query: the server returns
- * the count in a header and no rows, so this page never downloads the
- * directory just to quote its size. `provider_list` is the view of live
- * providers; if it is not deployed yet, fall back to the base table filtered
- * to live rows. Resolves to null when Supabase is unreachable or unconfigured,
- * and the tile then shows a dash rather than a made-up number.
- */
-async function fetchLiveProviderCount(): Promise<number | null> {
-    if (!supabase) return null;
-    const view = await supabase.from('provider_list').select('id', { count: 'exact', head: true });
-    if (!view.error && view.count != null) return view.count;
-    const base = await supabase.from('providers').select('id', { count: 'exact', head: true }).eq('status', 'live');
-    return !base.error && base.count != null ? base.count : null;
-}
 
 export function PricingPage() {
     const { t, i18n } = useTranslation();
@@ -73,16 +53,6 @@ export function PricingPage() {
         setChosenMarket(newMarket);
         saveChosenMarket(newMarket);
     };
-
-    // Quote the real directory size with a count query (no rows transferred).
-    const [providerCount, setProviderCount] = useState<number | null>(null);
-    useEffect(() => {
-        let cancelled = false;
-        fetchLiveProviderCount()
-            .then((n) => { if (!cancelled) setProviderCount(n); })
-            .catch(() => { /* leave the dash */ });
-        return () => { cancelled = true; };
-    }, []);
 
     const navigate = useNavigate();
 
@@ -104,66 +74,45 @@ export function PricingPage() {
     return (
         <main id="main-content" style={{ paddingTop: 68 }}>
             {/* ══ Hero ══════════════════════════════════════════════
-                Asymmetric editorial split. The previous version tracked the
-                cursor with a radial gold glow; it is replaced by a static
-                color block and a fine rule grid that hold their shape in
-                both themes and cost nothing to paint.
+                Full-bleed photo carousel of Tijuana and Ciudad Juárez, the
+                two cities clinics on this page practise in, with the pitch
+                set over a dark gradient. Text colours are fixed rather than
+                themed because they always sit on a photo.
                 ═══════════════════════════════════════════════════════ */}
             <section
+                className="sales-hero"
                 style={{
                     position: 'relative',
                     overflow: 'hidden',
-                    borderBottom: '1px solid var(--border)',
-                    background: 'var(--navy)',
+                    background: '#0d1117',
+                    color: '#fff',
+                    minHeight: 'min(760px, calc(100svh - 68px))',
+                    display: 'flex',
+                    alignItems: 'center',
                 }}
             >
-                {/* Flat diagonal color block */}
-                <div
-                    aria-hidden
-                    style={{
-                        position: 'absolute', top: 0, right: 0,
-                        width: '46%', height: '100%',
-                        background: 'var(--surface)',
-                        borderLeft: '1px solid var(--border)',
-                        transform: 'skewX(-9deg)',
-                        transformOrigin: 'top right',
-                        pointerEvents: 'none',
-                    }}
-                />
-                {/* Fine rule grid */}
-                <svg
-                    aria-hidden
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.55, pointerEvents: 'none' }}
-                >
-                    <defs>
-                        <pattern id="salesGrid" width="56" height="56" patternUnits="userSpaceOnUse">
-                            <path d="M 56 0 L 0 0 0 56" fill="none" stroke="var(--border)" strokeWidth="1" />
-                        </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#salesGrid)" />
-                </svg>
+                <HeroCarousel />
 
                 <div
                     style={{
-                        position: 'relative', zIndex: 1,
-                        maxWidth: 1180, margin: '0 auto',
-                        padding: '6rem 1.5rem 5.5rem',
-                        display: 'grid',
-                        gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 0.95fr)',
-                        gap: '3.5rem',
-                        alignItems: 'center',
+                        position: 'relative', zIndex: 2,
+                        width: '100%', maxWidth: 1180, margin: '0 auto',
+                        padding: '5.5rem 1.5rem 6.5rem',
                     }}
-                    className="sales-hero-grid"
+                    className="sales-hero-inner"
                 >
-                    <div>
-                        <span className="eyebrow">{t('sales.heroEyebrow')}</span>
+                    <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
+                        <span className="eyebrow" style={{ color: HERO_ACCENT }}>{t('sales.heroEyebrow')}</span>
 
                         <h1
                             className="display"
-                            style={{ fontSize: 'clamp(2.9rem, 6.2vw, 4.6rem)', margin: '1rem 0 1.35rem' }}
+                            style={{
+                                fontSize: 'clamp(2.6rem, 5.4vw, 4.4rem)', margin: '1rem 0 1.35rem', lineHeight: 1.04,
+                                color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.35)',
+                            }}
                         >
                             {t('sales.heroTitle')}{' '}
-                            <em style={{ color: 'var(--gold)', fontStyle: 'italic' }}>
+                            <em style={{ color: HERO_ACCENT, fontStyle: 'italic', display: 'block' }}>
                                 {t('sales.heroTitleHighlight')}
                             </em>
                         </h1>
@@ -171,47 +120,50 @@ export function PricingPage() {
                         <p
                             style={{
                                 fontSize: '1.15rem',
-                                color: 'var(--gray-300)',
+                                color: 'rgba(255,255,255,0.86)',
                                 lineHeight: 1.65,
-                                maxWidth: 520,
-                                marginBottom: '2.25rem',
+                                maxWidth: 600,
+                                margin: '0 auto 2.25rem',
                             }}
                         >
                             {t('sales.heroSubtitle')}
                         </p>
 
-                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <PrimaryCta onClick={() => openForm('hero')}>
                                 {t('sales.heroCtaPrimary')}
                             </PrimaryCta>
-                            <Link
-                                to="/"
+                            {/* Secondary CTA jumps to the plans on this page: a clinic
+                                that is not ready to sign up wants the price next, not
+                                the patient directory. */}
+                            <a
+                                href="#pricing"
                                 className="press"
+                                onClick={() => track('pricing_cta_click', { plan: 'hero-see-plans' })}
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
                                     padding: '0.95rem 1.75rem', borderRadius: 'var(--radius-pill)',
-                                    background: 'var(--navy-800)', border: '1px solid var(--border-strong)',
-                                    color: 'var(--white)', fontWeight: 700, fontSize: '0.98rem',
+                                    background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)',
+                                    backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                                    color: '#fff', fontWeight: 700, fontSize: '0.98rem',
                                 }}
                             >
-                                <IconMapPin size={18} /> {t('sales.heroCtaSecondary')}
-                            </Link>
+                                {t('sales.heroCtaSecondary')}
+                            </a>
                         </div>
 
                         <div
                             style={{
-                                display: 'flex', flexWrap: 'wrap', gap: '1.35rem',
-                                marginTop: '2.5rem', paddingTop: '1.6rem',
-                                borderTop: '1px solid var(--border)',
+                                display: 'flex', flexWrap: 'wrap', gap: '0.75rem 1.5rem', justifyContent: 'center',
+                                maxWidth: 600, margin: '2.5rem auto 0', paddingTop: '1.6rem',
+                                borderTop: '1px solid rgba(255,255,255,0.22)',
                             }}
                         >
-                            <TrustPoint icon={<IconShield size={17} />} label={t('sales.trustVerified')} />
-                            <TrustPoint icon={<IconLanguage size={17} />} label={t('sales.trustBilingual')} />
-                            <TrustPoint icon={<IconBorder size={17} />} label={t('sales.trustBorder')} />
+                            <TrustPoint light icon={<IconShield size={17} />} label={t('sales.trustVerified')} />
+                            <TrustPoint light icon={<IconLanguage size={17} />} label={t('sales.trustBilingual')} />
+                            <TrustPoint light icon={<IconUS size={17} />} label={t('sales.trustBorder')} />
                         </div>
                     </div>
-
-                    <BorderMapArt label={t('sales.mapArtLabel')} />
                 </div>
             </section>
 
@@ -223,23 +175,25 @@ export function PricingPage() {
                 ═══════════════════════════════════════════════════════ */}
             <section id="pricing" style={{ padding: '6.5rem 1.5rem', scrollMarginTop: '90px' }}>
                 <Reveal>
-                    <div style={{ maxWidth: 880, margin: '0 auto' }}>
-                        <SectionHead eyebrow={t('sales.pricingEyebrow')} title={t('sales.pricingTitle')} body={t('sales.pricingSubtitle')} />
+                    <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+                        <SectionHead centered eyebrow={t('sales.pricingEyebrow')} title={t('sales.pricingTitle')} body={t('sales.pricingSubtitle')} />
 
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
                             <CurrencyPicker value={market} onChange={handleMarketChange} />
                         </div>
 
                         <div
+                            className="plan-grid"
                             style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                justifyContent: 'center',
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                                 alignItems: 'stretch',
-                                gap: '1.35rem',
+                                gap: '1.5rem',
+                                paddingTop: '0.9rem',
                             }}
                         >
                             <PricingCard
+                                tagline={t('pricing.basicTagline')}
                                 tier={t('pricing.basicTier')}
                                 price="$0"
                                 period={t('pricing.basicPeriod')}
@@ -249,6 +203,7 @@ export function PricingPage() {
                             />
                             <PricingCard
                                 featured
+                                tagline={t('pricing.promotedTagline')}
                                 tier={t('pricing.promotedTier')}
                                 price={market === 'us' ? '$49' : '$899'}
                                 period={market === 'us' ? t('pricing.perMonthUsd') : t('pricing.perMonthMxn')}
@@ -259,17 +214,25 @@ export function PricingPage() {
                                 onCta={() => openForm('promoted')}
                             />
                             <PricingCard
+                                premium
+                                tagline={t('pricing.featuredTagline')}
                                 tier={t('pricing.featuredTier')}
                                 price={market === 'us' ? '$99' : '$1,799'}
                                 period={market === 'us' ? t('pricing.perMonthUsd') : t('pricing.perMonthMxn')}
                                 note={market === 'us' ? undefined : t('pricing.featuredAlt')}
-                                features={[t('pricing.featuredF1'), t('pricing.featuredF2'), t('pricing.featuredF3'), t('pricing.featuredF4')]}
+                                features={[t('pricing.featuredF1'), t('pricing.featuredWebsite'), t('pricing.featuredF2'), t('pricing.featuredF3'), t('pricing.featuredF4')]}
                                 ctaLabel={t('pricing.featuredCta')}
                                 onCta={() => openForm('featured')}
                             />
                         </div>
 
-                        <p style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.9rem', color: 'var(--gray-400)' }}>
+                        <p
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                marginTop: '2.25rem', fontSize: '0.92rem', color: 'var(--gray-400)',
+                            }}
+                        >
+                            <span style={{ color: 'var(--gold)', display: 'flex' }}><IconShield size={16} /></span>
                             {t('pricing.terms')}
                         </p>
                     </div>
@@ -284,22 +247,23 @@ export function PricingPage() {
                 ======================================================= */}
             <section style={{ padding: '0 1.5rem 6.5rem' }}>
                 <Reveal>
-                    <div style={{ maxWidth: 880, margin: '0 auto' }}>
+                    <div style={{ maxWidth: 1120, margin: '0 auto' }}>
                         <SectionHead
+                            centered
                             eyebrow={t('pricing.addonsEyebrow')}
                             title={t('pricing.addonsTitle')}
                             body={t('pricing.addonsSubtitle')}
                         />
 
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                justifyContent: 'center',
-                                alignItems: 'stretch',
-                                gap: '1rem',
-                            }}
-                        >
+                        {/* Four add-ons (the website moved into the Featured plan):
+                            a 2×2 grid, one column on phones. */}
+                        <style>{`
+                                .addon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+                                @media (max-width: 640px) {
+                                    .addon-grid { grid-template-columns: minmax(0, 1fr); }
+                                }
+                            `}</style>
+                        <div className="addon-grid">
                             {ADDONS.map((addon) => (
                                 <AddonCard
                                     key={addon.key}
@@ -313,36 +277,6 @@ export function PricingPage() {
                                 />
                             ))}
                         </div>
-                    </div>
-                </Reveal>
-            </section>
-
-            {/* ══ Stats ══════════════════════════════════════════════
-                Providers (from a head-only count query) and cities. The
-                profile-views tile is gone: summing clicks meant downloading
-                every provider row, which this page should never do. A
-                centered flex row keeps the two tiles centered. Follows the
-                (unbordered) add-ons section, so it carries its own top border.
-                ═══════════════════════════════════════════════════════ */}
-            <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                <Reveal>
-                    <div
-                        style={{
-                            maxWidth: 1180, margin: '0 auto',
-                            padding: '3.5rem 1.5rem',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            justifyContent: 'center',
-                            gap: '1.25rem',
-                        }}
-                    >
-                        <StatTile
-                            icon={<IconClinic size={24} />}
-                            value={providerCount != null ? `${providerCount.toLocaleString(i18n.language)}+` : '—'}
-                            label={t('sales.statsProviders')}
-                            accent="var(--us)"
-                        />
-                        <StatTile icon={<IconBorder size={24} />} value={String(CITIES.length)} label={t('sales.statsCities')} accent="var(--mx)" />
                     </div>
                 </Reveal>
             </section>
@@ -384,8 +318,8 @@ export function PricingPage() {
                         {CITIES.map((c) => (
                             <CityCard
                                 key={c.key}
-                                icon={c.country === 'us' ? <IconUS size={22} /> : <IconMX size={22} />}
-                                accent={c.country === 'us' ? 'var(--us)' : 'var(--mx)'}
+                                icon={<IconMX size={22} />}
+                                accent="var(--mx)"
                                 city={t(`sales.city${c.key}`)}
                                 region={t(`sales.city${c.key}Region`)}
                                 body={t(`sales.city${c.key}Body`)}
@@ -437,13 +371,12 @@ export function PricingPage() {
                 <InquiryModal key={modalPlan} onClose={closeForm} plan={modalPlan} />
             )}
 
-            {/* Hero collapses to a single column on small screens. */}
             <style>{`
-                @media (max-width: 900px) {
-                    .sales-hero-grid {
-                        grid-template-columns: 1fr !important;
-                        padding: 4rem 1rem 3.5rem !important;
-                        gap: 2.5rem !important;
+                @media (max-width: 980px) {
+                    .plan-grid {
+                        grid-template-columns: minmax(0, 460px) !important;
+                        justify-content: center;
+                        gap: 2rem !important;
                     }
                 }
                 @media (max-width: 640px) {
@@ -457,100 +390,121 @@ export function PricingPage() {
     );
 }
 
-/* ── Hero artwork ─────────────────────────────────────────────────────
-   A stylised plan-view of the two border crossings the directory covers,
-   west to east: San Diego over Tijuana (a straight fence line) and El Paso
-   over Ciudad Juárez (the Rio Grande), each with clinic pins on both sides.
-   Vector rather than photography so it stays crisp, themes correctly, and
-   adds no image weight.
+/* ── Hero carousel ────────────────────────────────────────────────────
+   Photos of the two cities, crossfading every three seconds. Files live in
+   public/images/hero (WebP, 1600px, Pexels/Unsplash licences, no credit
+   required) because the CSP only allows same-origin images. Only the
+   current and next slide get a src, so a visitor who leaves after the
+   first slide downloads one photo, not six. With reduced motion the first
+   photo stays put, and the timer pauses while the tab is hidden.
    ─────────────────────────────────────────────────────────────────── */
-function BorderMapArt({ label }: { label: string }) {
-    const pins = [
-        // San Diego – Tijuana (left panel)
-        { x: 40, y: 92, side: 'us' }, { x: 112, y: 60, side: 'us' }, { x: 146, y: 120, side: 'us' },
-        { x: 38, y: 236, side: 'mx' }, { x: 104, y: 266, side: 'mx' }, { x: 152, y: 214, side: 'mx' },
-        // El Paso – Ciudad Juárez (right panel)
-        { x: 222, y: 70, side: 'us' }, { x: 290, y: 112, side: 'us' }, { x: 334, y: 62, side: 'us' },
-        { x: 214, y: 240, side: 'mx' }, { x: 272, y: 212, side: 'mx' }, { x: 330, y: 260, side: 'mx' },
-    ];
-    // Promoted clinics, one per crossing: the product's paid outcome, made visible.
-    const promoted = [{ x: 82, y: 214 }, { x: 262, y: 128 }];
-    const labelStyle = {
-        fill: 'var(--gray-400)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2,
-        fontFamily: 'Plus Jakarta Sans, sans-serif',
-    } as const;
+const HERO_ACCENT = '#8fe3bf';
+const HERO_INTERVAL_MS = 3000;
+const HERO_SLIDES = [
+    { src: '/images/hero/tijuana-arch-dusk.webp', city: 'Tijuana, BC', pos: 'center 55%' },
+    { src: '/images/hero/juarez-cathedral.webp', city: 'Ciudad Juárez, CHIH', pos: 'center 35%' },
+    { src: '/images/hero/tijuana-night.webp', city: 'Tijuana, BC', pos: 'center 50%' },
+    { src: '/images/hero/juarez-museum.webp', city: 'Ciudad Juárez, CHIH', pos: 'center 50%' },
+    { src: '/images/hero/tijuana-arch-day.webp', city: 'Tijuana, BC', pos: 'center 45%' },
+    { src: '/images/hero/tijuana-downtown.webp', city: 'Tijuana, BC', pos: 'center 50%' },
+] as const;
+
+function HeroCarousel() {
+    const [index, setIndex] = useState(0);
+    // Highest slide index allowed to load: the current one plus the next.
+    const [reach, setReach] = useState(1);
+
+    useEffect(() => {
+        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+        const id = window.setInterval(() => {
+            if (document.hidden) return;
+            setIndex((n) => {
+                const next = (n + 1) % HERO_SLIDES.length;
+                setReach((r) => Math.max(r, Math.min(next + 1, HERO_SLIDES.length - 1)));
+                return next;
+            });
+        }, HERO_INTERVAL_MS);
+        return () => window.clearInterval(id);
+    }, []);
 
     return (
-        <div className="bezel idle-float" style={{ boxShadow: 'var(--shadow)' }}>
-            <div className="bezel-core" style={{ overflow: 'hidden', padding: '1.1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>
-                        USA · México
-                    </span>
-                    <span style={{ display: 'flex', gap: 4 }}>
-                        {['var(--us)', 'var(--gold)', 'var(--mx)'].map((c) => (
-                            <span key={c} style={{ width: 7, height: 7, borderRadius: '50%', background: c }} />
-                        ))}
-                    </span>
-                </div>
-
-                <svg viewBox="0 0 360 320" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 10 }} role="img" aria-label={label}>
-                    <rect width="360" height="320" fill="var(--surface)" />
-
-                    {/* Street grid, north side of both crossings */}
-                    <g stroke="var(--border)" strokeWidth="1.5" opacity="0.9">
-                        {[44, 88, 132].map((y) => <line key={y} x1="0" y1={y} x2="360" y2={y} />)}
-                        {[44, 88, 132, 228, 272, 316].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="160" />)}
-                    </g>
-                    {/* Street grid, south side (rotated feel via offset) */}
-                    <g stroke="var(--border)" strokeWidth="1.5" opacity="0.9">
-                        {[208, 252, 290].map((y) => <line key={y} x1="0" y1={y} x2="360" y2={y} />)}
-                        {[30, 74, 118, 162, 210, 254, 298, 342].map((x) => <line key={x} x1={x} y1="190" x2={x} y2="320" />)}
-                    </g>
-
-                    {/* Gap between the two crossings, ~1,000 km apart in reality */}
-                    <rect x="174" y="0" width="12" height="320" fill="var(--surface)" />
-                    <line x1="180" y1="8" x2="180" y2="312" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="2 6" strokeLinecap="round" />
-
-                    {/* West: San Diego – Tijuana, a straight fence line */}
-                    <path d="M0 178 L 172 170" stroke="var(--us)" strokeWidth="7" fill="none" opacity="0.28" strokeLinecap="round" />
-                    <path d="M0 178 L 172 170" stroke="var(--gold)" strokeWidth="2" fill="none" strokeDasharray="7 6" strokeLinecap="round" />
-                    {/* East: El Paso – Ciudad Juárez, the Rio Grande */}
-                    <path d="M188 180 C 228 164, 262 196, 298 176 S 340 166, 360 178" stroke="var(--us)" strokeWidth="7" fill="none" opacity="0.28" strokeLinecap="round" />
-                    <path d="M188 180 C 228 164, 262 196, 298 176 S 340 166, 360 178" stroke="var(--gold)" strokeWidth="2" fill="none" strokeDasharray="7 6" strokeLinecap="round" />
-
-                    {/* Clinic pins */}
-                    {pins.map((p, i) => (
-                        <g key={i}>
-                            <circle
-                                cx={p.x} cy={p.y} r="9"
-                                fill={p.side === 'us' ? 'var(--us)' : 'var(--mx)'}
-                                opacity="0.16"
-                            />
-                            <circle
-                                cx={p.x} cy={p.y} r="5"
-                                fill={p.side === 'us' ? 'var(--us)' : 'var(--mx)'}
-                                stroke="var(--navy-800)" strokeWidth="2"
-                            />
-                        </g>
-                    ))}
-
-                    {/* Promoted clinics */}
-                    {promoted.map((p) => (
-                        <g key={`${p.x}-${p.y}`}>
-                            <circle cx={p.x} cy={p.y} r="16" fill="var(--gold)" opacity="0.16" />
-                            <circle cx={p.x} cy={p.y} r="9" fill="var(--gold)" stroke="var(--navy-800)" strokeWidth="2.5" />
-                        </g>
-                    ))}
-
-                    {/* City labels: US cities on top, Mexican cities below */}
-                    <text x="12" y="26" {...labelStyle}>SAN DIEGO, CA</text>
-                    <text x="12" y="310" {...labelStyle}>TIJUANA, BC</text>
-                    <text x="194" y="26" {...labelStyle}>EL PASO, TX</text>
-                    <text x="194" y="310" {...labelStyle}>CD. JUÁREZ, CHIH</text>
-                </svg>
+        <>
+            <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+                {HERO_SLIDES.map((s, i) => (
+                    <img
+                        key={s.src}
+                        src={i <= reach ? s.src : undefined}
+                        alt=""
+                        decoding="async"
+                        fetchPriority={i === 0 ? 'high' : 'low'}
+                        className={'hero-slide' + (i === index ? ' is-active' : '')}
+                        style={{ objectPosition: s.pos }}
+                    />
+                ))}
             </div>
-        </div>
+
+            {/* Legibility: darkest behind the centered text, easing toward the
+                edges so the photo still shows around it. */}
+            <div
+                aria-hidden
+                className="hero-scrim"
+                style={{
+                    position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
+                    background:
+                        'radial-gradient(ellipse 70% 75% at 50% 52%, rgba(8,12,18,0.78) 0%, rgba(8,12,18,0.6) 55%, rgba(8,12,18,0.35) 100%),' +
+                        'linear-gradient(0deg, rgba(8,12,18,0.5) 0%, rgba(8,12,18,0) 30%)',
+                }}
+            />
+
+            {/* Where this photo was taken, plus progress dots. */}
+            <div
+                style={{
+                    // Top-right: bottom-right is where the floating Feedback button sits.
+                    position: 'absolute', zIndex: 3, right: '1.5rem', top: '1.5rem',
+                    display: 'flex', alignItems: 'center', gap: '0.85rem',
+                    padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-pill)',
+                    background: 'rgba(8,12,18,0.45)', border: '1px solid rgba(255,255,255,0.18)',
+                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                    color: '#fff', fontSize: '0.8rem', fontWeight: 700,
+                }}
+                className="hero-caption"
+            >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <IconMapPin size={14} /> {HERO_SLIDES[index].city}
+                </span>
+                <span style={{ display: 'flex', gap: 5 }}>
+                    {HERO_SLIDES.map((s, i) => (
+                        <span
+                            key={s.src}
+                            style={{
+                                width: i === index ? 16 : 6, height: 6, borderRadius: 3,
+                                background: i === index ? HERO_ACCENT : 'rgba(255,255,255,0.45)',
+                                transition: 'width 0.4s var(--ease-out), background 0.4s',
+                            }}
+                        />
+                    ))}
+                </span>
+            </div>
+
+            <style>{`
+                .hero-slide {
+                    position: absolute; inset: 0; width: 100%; height: 100%;
+                    object-fit: cover; opacity: 0; transform: scale(1.08);
+                    transition: opacity 1.1s ease, transform 4.2s ease-out;
+                }
+                .hero-slide.is-active { opacity: 1; transform: scale(1); }
+                @media (prefers-reduced-motion: reduce) {
+                    .hero-slide { transition: none; transform: none; }
+                }
+                @media (max-width: 760px) {
+                    .hero-scrim {
+                        background: linear-gradient(0deg, rgba(8,12,18,0.88) 0%, rgba(8,12,18,0.7) 55%, rgba(8,12,18,0.45) 100%) !important;
+                    }
+                    .hero-caption { right: auto !important; left: 50%; transform: translateX(-50%); top: auto !important; bottom: 1.25rem; white-space: nowrap; }
+                    .sales-hero-inner { padding: 4rem 1rem 5.5rem !important; }
+                }
+            `}</style>
+        </>
     );
 }
 
@@ -585,46 +539,23 @@ function PrimaryCta({ children, onClick }: { children: React.ReactNode; onClick:
     );
 }
 
-function TrustPoint({ icon, label }: { icon: React.ReactNode; label: string }) {
+function TrustPoint({ icon, label, light = false }: { icon: React.ReactNode; label: string; light?: boolean }) {
     return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', color: 'var(--gray-400)', fontWeight: 600 }}>
-            <span style={{ color: 'var(--gold)', display: 'flex' }}>{icon}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', color: light ? 'rgba(255,255,255,0.82)' : 'var(--gray-400)', fontWeight: 600 }}>
+            <span style={{ color: light ? HERO_ACCENT : 'var(--gold)', display: 'flex' }}>{icon}</span>
             {label}
         </span>
     );
 }
 
-function SectionHead({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
+function SectionHead({ eyebrow, title, body, centered = false }: { eyebrow: string; title: string; body: string; centered?: boolean }) {
     return (
-        <div style={{ marginBottom: '3.25rem', maxWidth: 620 }}>
+        <div style={{ marginBottom: '3.25rem', maxWidth: 620, ...(centered ? { marginLeft: 'auto', marginRight: 'auto', textAlign: 'center' as const } : {}) }}>
             <span className="eyebrow">{eyebrow}</span>
             <h2 className="display" style={{ fontSize: 'clamp(2rem, 4.4vw, 3rem)', margin: '0.85rem 0 0.9rem' }}>
                 {title}
             </h2>
             <p style={{ color: 'var(--gray-400)', fontSize: '1.05rem', lineHeight: 1.65 }}>{body}</p>
-        </div>
-    );
-}
-
-function StatTile({ icon, value, label, accent }: {
-    icon: React.ReactNode; value: string; label: string; accent: string;
-}) {
-    return (
-        <div
-            className="hover-lift"
-            style={{
-                flex: '1 1 190px',
-                maxWidth: 240,
-                padding: '1.6rem',
-                borderRadius: 'var(--radius)',
-                background: 'var(--navy-800)',
-                border: '1px solid var(--border)',
-                borderTop: `3px solid ${accent}`,
-            }}
-        >
-            <span style={{ color: accent, display: 'flex', marginBottom: '0.9rem' }}>{icon}</span>
-            <div style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
-            <div style={{ fontSize: '0.88rem', color: 'var(--gray-400)', marginTop: '0.5rem' }}>{label}</div>
         </div>
     );
 }
@@ -683,14 +614,13 @@ function AddonCard({ icon, title, price, priceMxn, body, ctaLabel, onCta }: {
 }) {
     return (
         <div
+            className="hover-lift"
             style={{
-                flex: '1 1 280px',
-                maxWidth: 340,
-                padding: '1.5rem',
-                borderRadius: 'var(--radius)',
+                padding: '1.75rem',
+                borderRadius: 'calc(var(--radius) + 2px)',
                 background: 'var(--navy-800)',
                 border: '1px solid var(--border)',
-                display: 'flex', flexDirection: 'column', gap: '0.7rem',
+                display: 'flex', flexDirection: 'column', gap: '0.85rem',
             }}
         >
             <span
@@ -705,7 +635,14 @@ function AddonCard({ icon, title, price, priceMxn, body, ctaLabel, onCta }: {
 
             <h3 style={{ fontSize: '1.02rem', fontWeight: 800, lineHeight: 1.3 }}>{title}</h3>
             <div>
-                <p style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--gold)' }}>{price}</p>
+                <p
+                    style={{
+                        display: 'inline-block', padding: '0.25rem 0.7rem', borderRadius: 'var(--radius-pill)',
+                        background: 'var(--gold-dim)', fontSize: '0.8rem', fontWeight: 700, color: 'var(--gold)',
+                    }}
+                >
+                    {price}
+                </p>
                 {/* Same reasoning as the plan cards above: half the audience
                     budgets in pesos, so the MXN figure rides along in Spanish
                     rather than making them convert it themselves — but the
@@ -721,11 +658,12 @@ function AddonCard({ icon, title, price, priceMxn, body, ctaLabel, onCta }: {
                 onClick={onCta}
                 className="press"
                 style={{
-                    alignSelf: 'flex-start',
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    alignSelf: 'stretch',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem',
                     background: 'none', color: 'var(--white)',
-                    fontWeight: 700, fontSize: '0.86rem',
-                    padding: '0.3rem 0',
+                    fontWeight: 700, fontSize: '0.88rem',
+                    padding: '0.85rem 0 0',
+                    borderTop: '1px solid var(--border)',
                 }}
             >
                 {ctaLabel}
@@ -735,23 +673,27 @@ function AddonCard({ icon, title, price, priceMxn, body, ctaLabel, onCta }: {
     );
 }
 
-function PricingCard({ tier, price, period, note, badge, features, featured = false, ctaLabel, onCta }: {
-    tier: string; price: string; period: string; note?: string; badge?: string;
-    features: string[]; featured?: boolean; ctaLabel: string; onCta: () => void;
+function PricingCard({ tier, tagline, price, period, note, badge, features, featured = false, premium = false, ctaLabel, onCta }: {
+    tier: string; tagline?: string; price: string; period: string; note?: string; badge?: string;
+    features: string[]; featured?: boolean; premium?: boolean; ctaLabel: string; onCta: () => void;
 }) {
     return (
         <div
+            className={featured ? undefined : 'hover-lift'}
             style={{
                 position: 'relative',
-                flex: '1 1 280px',
-                maxWidth: 340,
-                padding: '2.1rem',
-                borderRadius: 'calc(var(--radius) + 4px)',
+                padding: '2.25rem 2rem 2rem',
+                borderRadius: 'calc(var(--radius) + 6px)',
                 background: featured ? 'var(--brand)' : 'var(--navy-800)',
                 color: featured ? 'var(--on-brand)' : 'var(--white)',
-                border: `1px solid ${featured ? 'var(--brand)' : 'var(--border)'}`,
+                border: `1px solid ${featured ? 'var(--brand)' : premium ? 'var(--gold)' : 'var(--border)'}`,
+                // Premium gets a gold hairline halo so the top tier reads as
+                // distinct from Promoted without a second solid-fill card.
+                boxShadow: featured ? 'var(--shadow)' : premium ? '0 0 0 3px var(--gold-dim)' : 'none',
                 display: 'flex', flexDirection: 'column', gap: '1.5rem',
-                boxShadow: featured ? 'var(--shadow)' : 'none',
+                // The recommended plan sits proud of its neighbours on desktop.
+                marginTop: featured ? '-0.9rem' : 0,
+                paddingTop: featured ? '3rem' : '2.25rem',
             }}
         >
             {badge && (
@@ -780,8 +722,13 @@ function PricingCard({ tier, price, period, note, badge, features, featured = fa
                 >
                     {tier}
                 </p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                    <span className="display" style={{ fontSize: '3.2rem' }}>{price}</span>
+                {tagline && (
+                    <p style={{ fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '1.1rem', minHeight: '3em', opacity: featured ? 0.88 : 1, color: featured ? 'inherit' : 'var(--gray-300)' }}>
+                        {tagline}
+                    </p>
+                )}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <span className="display" style={{ fontSize: '3.4rem', lineHeight: 1 }}>{price}</span>
                     <span style={{ fontSize: '0.92rem', opacity: 0.75 }}>{period}</span>
                 </div>
                 {/* Half the audience budgets in pesos, so a Spanish-language
@@ -793,7 +740,13 @@ function PricingCard({ tier, price, period, note, badge, features, featured = fa
                 )}
             </div>
 
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', listStyle: 'none', flex: 1 }}>
+            <ul
+                style={{
+                    display: 'flex', flexDirection: 'column', gap: '0.75rem', listStyle: 'none', flex: 1,
+                    paddingTop: '1.5rem',
+                    borderTop: `1px solid ${featured ? 'rgba(255,255,255,0.22)' : 'var(--border)'}`,
+                }}
+            >
                 {features.map((f) => (
                     <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.92rem', lineHeight: 1.5 }}>
                         <span style={{ color: featured ? 'var(--gold-fill)' : 'var(--gold)', flexShrink: 0, marginTop: 2, display: 'flex' }}>

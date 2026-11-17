@@ -91,6 +91,39 @@
   ],
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Permitted-Cross-Domain-Policies",
+          "value": "none"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(self), accelerometer=(), camera=(), display-capture=(), encrypted-media=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; form-action 'self' https://links.mylayerone.com; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'sha256-iZRFlaxR43W5C7qRmILBdW6uMb3CaZiHN1k4Q6Z+x0w=' 'sha256-daIaCUubuL4Y9KTQBV3rDuttWbKvicXZMLC0iR0GtBk=' https://maps.googleapis.com https://maps.gstatic.com https://t.contentsquare.net https://*.contentsquare.net https://www.clarity.ms https://*.clarity.ms https://links.mylayerone.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://lh3.googleusercontent.com https://s3.us-east-1.amazonaws.com https://pixel-p3.s3.us-east-1.amazonaws.com https://gbfbsecjgjmqoznebwwb.supabase.co https://*.clarity.ms https://*.contentsquare.net; connect-src 'self' https://gbfbsecjgjmqoznebwwb.supabase.co wss://gbfbsecjgjmqoznebwwb.supabase.co https://maps.googleapis.com https://*.clarity.ms https://*.contentsquare.net; frame-src 'self' https://links.mylayerone.com https://www.youtube.com https://www.google.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
+        }
+      ]
+    },
+    {
       "source": "/fonts/:path*",
       "headers": [
         {
