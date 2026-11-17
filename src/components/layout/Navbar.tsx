@@ -126,6 +126,7 @@ export function Navbar() {
                 */}
                 <div
                     role="group"
+                    className="ms-nav-lang"
                     aria-label={t('nav.languageGroup', { defaultValue: 'Language' })}
                     style={{
                         display: 'flex',
