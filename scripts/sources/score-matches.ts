@@ -43,6 +43,8 @@ function arg(name: string): string | true | undefined {
     return undefined;
 }
 const args = (name: string) => process.argv.slice(2).filter((a) => a.startsWith(`--${name}=`)).map((a) => a.slice(name.length + 3));
+/** --model=<OpenRouter id> overrides the default; each score records the model that gave it. */
+const MODEL = typeof arg('model') === 'string' ? (arg('model') as string) : (process.env.SCORER_MODEL || SCORER_MODEL);
 
 // ── Reading the queue (service role: tables, not the admin RPCs) ─────────────
 interface MatchRow { source_slug: string; external_id: string; doctor_id?: string | null; provider_id?: string | null; tier?: number | null; candidates: unknown[] }
@@ -108,14 +110,14 @@ async function candidateFacts(db: SupabaseClient, items: QueueItem[]): Promise<M
 // ── The model, through OpenRouter (as api/ai-search.ts) ──────────────────────
 interface Usage { prompt_tokens?: number; completion_tokens?: number; cost?: number }
 
-async function ask(evidence: ReturnType<typeof buildEvidence>): Promise<{ text: string; usage: Usage }> {
+export async function ask(evidence: ReturnType<typeof buildEvidence>, model: string = MODEL): Promise<{ text: string; usage: Usage }> {
     const key = process.env.OPENROUTER_API_KEY;
     if (!key) throw new Error('OPENROUTER_API_KEY is needed (see .env.example)');
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'MedSociety match scorer' },
         body: JSON.stringify({
-            model: SCORER_MODEL,
+            model: model,
             max_tokens: 4000,
             usage: { include: true },
             response_format: { type: 'json_schema', json_schema: { name: 'match_score', strict: true, schema: ANSWER_SCHEMA } },
@@ -141,6 +143,7 @@ async function score() {
     const limit = limitArg === 'all' ? Infinity : typeof limitArg === 'string' ? Number(limitArg) : DEFAULT_LIMIT;
     if (!(limit > 0)) throw new Error('--limit must be a positive number or "all"');
     const threshold = autoLinkThreshold(process.env.SCORER_AUTO_LINK_AT);
+    const model = MODEL;
 
     const tryN = typeof arg('try') === 'string' ? Number(arg('try')) : 0;
     const writes = !arg('dry') && !tryN;
@@ -155,7 +158,7 @@ async function score() {
     const facts = await candidateFacts(db, items);
 
     if (tryN) {
-        console.log(`trying ${items.length} item(s) with ${SCORER_MODEL}; nothing is written`);
+        console.log(`trying ${items.length} item(s) with ${model}; nothing is written`);
         for (const item of items) {
             const evidence = buildEvidence(item, facts);
             const { text, usage } = await ask(evidence);
@@ -168,7 +171,7 @@ async function score() {
     }
 
     if (arg('dry')) {
-        console.log(`${items.length} item(s) would be scored with ${SCORER_MODEL}${threshold === null ? '' : `; auto-link at ${threshold}`}. First one, exactly as sent:`);
+        console.log(`${items.length} item(s) would be scored with ${model}${threshold === null ? '' : `; auto-link at ${threshold}`}. First one, exactly as sent:`);
         if (items[0]) console.log(userMessage(buildEvidence(items[0], facts)));
         return;
     }
@@ -178,10 +181,10 @@ async function score() {
     const startedAt = new Date().toISOString();
     const { error: runError } = await db.from('source_runs').insert({
         id: runId, source_slug: 'ai-scorer', started_at: startedAt, status: 'red', reasons: ['in progress'],
-        counts: { planned: items.length, model: SCORER_MODEL, autoLinkAt: threshold },
+        counts: { planned: items.length, model: model, autoLinkAt: threshold },
     });
     if (runError) throw new Error(`source_runs: ${runError.message}`);
-    console.log(`scorer run ${runId}: ${items.length} item(s) with ${SCORER_MODEL}, ${threshold === null ? 'shadow mode (links nothing)' : `AUTO-LINK at ${threshold}`}`);
+    console.log(`scorer run ${runId}: ${items.length} item(s) with ${model}, ${threshold === null ? 'shadow mode (links nothing)' : `AUTO-LINK at ${threshold}`}`);
 
     const counts = { scored: 0, approve: 0, reject: 0, needs_human: 0, failed: 0, linked: 0, promptTokens: 0, completionTokens: 0, cost: 0 };
     const failures: string[] = [];
@@ -200,7 +203,7 @@ async function score() {
                 const { error } = await db.from('match_scores').insert({
                     run_id: runId, kind: item.kind, source_slug: item.source_slug, external_id: item.external_id,
                     candidate_id: a.candidateId ?? item.proposed ?? (item.candidates[0] as NameCandidate).doctor_id ?? (item.candidates[0] as FacilityCandidate).provider_id,
-                    score: a.score, verdict: a.verdict, reason: a.reason, model: SCORER_MODEL, evidence,
+                    score: a.score, verdict: a.verdict, reason: a.reason, model: model, evidence,
                 });
                 if (error) throw new Error(`match_scores: ${error.message}`);
                 counts.scored++;
@@ -224,7 +227,7 @@ async function score() {
     const reasons = counts.failed > Math.max(2, items.length * 0.1) ? [`${counts.failed} of ${items.length} items could not be scored`] : [];
     const { error: endError } = await db.from('source_runs').update({
         finished_at: new Date().toISOString(), status: reasons.length ? 'red' : 'green', reasons,
-        counts: { ...counts, planned: items.length, model: SCORER_MODEL, autoLinkAt: threshold },
+        counts: { ...counts, planned: items.length, model: model, autoLinkAt: threshold },
     }).eq('id', runId);
     if (endError) throw new Error(`source_runs: ${endError.message}`);
 
@@ -319,3 +322,6 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
         process.exit(1);
     });
 }
+
+/** For scripts/sources/compare-models.ts: the same queue and evidence the scorer uses. */
+export { readQueue as readQueueFor, candidateFacts as candidateFactsFor };

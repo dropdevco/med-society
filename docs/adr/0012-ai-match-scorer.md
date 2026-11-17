@@ -1,6 +1,6 @@
 # 0012. An AI scorer rates name-only matches, in shadow mode first
 
-Status: Accepted (Emilio, 16 Nov 2026) · Owner: Emilio · Leaves [0004](0004-matching-and-freshness.md) in force until shadow mode ends
+Status: Accepted (Emilio, 16 Nov 2026), shadow mode superseded by [0014](0014-ai-auto-link-live.md) on 17 Nov 2026 · Owner: Emilio · Leaves [0004](0004-matching-and-freshness.md) in force until shadow mode ends
 
 ## Context
 

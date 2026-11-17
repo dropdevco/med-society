@@ -1,6 +1,6 @@
 # 0004. Matching and freshness rules
 
-Status: Accepted (Carlos, Nov 2026) · Owner: Emilio · Built in `scripts/sources/lib/match.ts`; tier 2 (a cédula one digit off) not built yet
+Status: Accepted (Carlos, Nov 2026), superseded in part by [0014](0014-ai-auto-link-live.md) on 17 Nov 2026 (AI matches at 80+ link) · Owner: Emilio · Built in `scripts/sources/lib/match.ts`; tier 2 (a cédula one digit off) not built yet
 
 ## Context
 
