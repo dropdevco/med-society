@@ -214,7 +214,7 @@ export function matchesFilters(
 // `mapArea` is deliberately absent below: a bounding box carries no centre, so
 // it cannot imply a distance sort. A viewport narrows the list; it does not
 // reorder it.
-function effectiveSort(filters: ProviderFilters, ctx: FilterContext): SortMode {
+export function effectiveSort(filters: ProviderFilters, ctx: FilterContext): SortMode {
     if (filters.sort !== 'relevance') return filters.sort;
     if (ctx.terms.length) return 'relevance';
     return ctx.centre ? 'distance' : 'rating';

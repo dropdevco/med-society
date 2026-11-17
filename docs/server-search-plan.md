@@ -1,6 +1,6 @@
 # Server-side directory search: plan
 
-Status: **proposed, waiting for approval**. Nothing below is built yet.
+Status: **approved 17 Nov 2026; phase 0 done** (section 14). Phases 1–5 are not built yet.
 Depends on PR 28 (`perf/directory-snapshot`, the cached `/api/directory/:region/:part` slices).
 
 ## 1. Goal
@@ -183,6 +183,10 @@ show), in result order.
 
 A hovered card always has its pin, as today, because the card's own row is held.
 
+The map also *frames* itself on the results: the box around all of them, minus the outermost 1% once there are 50 or
+more (`framingBoxOf`, now in `src/utils/mapBounds.ts`). The browser no longer holds all the results, so `results`
+returns that box as `frame` (none when the search has a map area).
+
 ### 5.8 Home page rows
 
 `buildDiscoverRows` on the server, per region: seven rows, 90 providers, 36 KB gzipped, cached at the edge for 5
@@ -254,7 +258,7 @@ Each phase is a separate PR and leaves the site working.
 
 | Phase | What | Visible to visitors |
 |---|---|---|
-| 0 | PR 28 merged. Shared-module spike (section 3). Parity script with the browser side and the sample queries. | no |
+| 0 | PR 28 merged. Shared-module spike (section 3). Parity script with the browser side and the sample queries. **Done except merging PR 28** (section 14). | no |
 | 1 | Server engine in `api/agent.ts`: region copy from the slices, results, facets, meta, names, pins, home; rewrites; self-test and parity checks pass. Deployed but unused. | no |
 | 2 | Browser: a `useDirectorySearch` hook behind the switch; `SearchPage` uses pages of results, pins, `meta`, server home rows and merged suggestions. Default stays `client`. | only with `?engine=server` |
 | 3 | `compare` on a preview, then default `server` on production. Watch function errors and duration (Vercel), and search timings (PostHog). | yes |
@@ -299,10 +303,49 @@ Production rows, 17 Nov 2026. Times are from a laptop running `tsx`, today's `sr
 - **Scraping.** The endpoints are public, but so is the whole directory through the slices today; `limit` is capped
   at 50 and the existing per-instance rate limiter applies.
 
-## 13. Decisions for you
+## 13. Decisions
 
-1. **Approve the approach:** search in `api/agent.ts` over an in-memory copy, not a Postgres function.
-2. **The public REST/MCP API:** keep its current rules (insurance substring match, confirmed languages only), or
-   switch it to the website's rules so both always agree?
-3. **Shared module:** if the phase 0 spike works, move the search logic to `shared/` and drop the copy-and-compare
-   rule for these files?
+1. ~~Approve the approach~~: approved 17 Nov 2026.
+2. **Open — the public REST/MCP API:** keep its current rules (insurance substring match, confirmed languages only),
+   or switch it to the website's rules so both always agree?
+3. **Open — shared module:** the spike worked (section 14). Move the search logic to `shared/` and drop the
+   copy-and-compare rule for these files?
+
+## 14. Phase 0 results (17 Nov 2026)
+
+**Shared-module spike: works.** Branch `spike/shared-import` (throwaway, not for merging) added
+`shared/spike/index.ts`, which imports `./fold.js`, and imported it from `api/agent.ts` as
+`'../shared/spike/index.js'`. Its Vercel preview answered `GET /api/agent?route=spike-shared` from the shared code
+(`"Pediatría Juárez"` → `"pediatria juarez"`), and the rest of the function (`/openapi.json`) was unaffected. A Vite
+build of the same layout also resolves the `.js` specifiers to the `.ts` files.
+
+The likely reason for the old "cannot import" rule: `package.json` has `"type": "module"`, so the function runs as
+native ESM, and a relative import without an extension (`'../shared/search'`, the style `src/` uses) fails at
+runtime with `ERR_MODULE_NOT_FOUND`. The rule for shared code is therefore: **every relative import inside `shared/`,
+and every import of `shared/` from `api/`, ends in `.js`**. `tsconfig.api.json` must include `shared`.
+
+**Parity harness: built** (`scripts/search-parity.ts`, `scripts/search-parity/`). It computes the page's answer
+with the page's own modules for 62 sample searches per region and language, plus the region summary (vocabulary,
+postal centres, bounds, prior, suggestions for 29 typed prefixes, home rows), and compares a candidate engine's
+answers field by field. Engines today: the saved `baseline`; phase 1 adds the server engine in process and a live
+deployment. To do that without copying page code into the script, three private helpers moved, unchanged, to
+`src/utils`: `postalCentroidsOf` (`postalCentroids.ts`), `boundsOf` and `framingBoxOf` (`mapBounds.ts`), and
+`effectiveSort` is now exported from `filters.ts`.
+
+```bash
+npx tsx scripts/search-parity.ts --selftest
+npx tsx --env-file=.env.local scripts/search-parity.ts --fetch
+npx tsx scripts/search-parity.ts
+npx tsx scripts/search-parity.ts --candidate=baseline
+```
+
+**Baseline on production rows** (4,064 and 8,571 rows; 62 cases × 2 languages × 2 regions plus the region
+summaries): 252 of 252 checks agree run to run. Computing all answers takes 2–5.5 s per region and language on a
+laptop.
+
+Things the baseline shows about today's search, recorded here and **not** changed, since the server must match them:
+
+- `dra ana` matches 6,905 of San Diego–Tijuana's 8,571 listings: `ana` is a substring of "Tijuana" in the city and
+  address fields.
+- `22000` typed as text matches 1,375 listings through their addresses; as a postal search it is 5,158 within 5 km.
+- `sort=distance` with no location keeps "distance" as the applied sort and falls through to the rating order.
