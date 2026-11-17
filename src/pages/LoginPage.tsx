@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { signIn, signUp } from '../lib/auth';
 import { useSession } from '../hooks/useSession';
@@ -23,7 +23,10 @@ export function LoginPage() {
     const { user, loading: sessionLoading } = useSession();
 
     const [mode, setMode] = useState<'in' | 'up'>(params.get('mode') === 'signup' ? 'up' : 'in');
-    const [email, setEmail] = useState('');
+    // An invitation passes the invited address in router state (never the
+    // URL), so the invitee signs up with the email the invite is bound to.
+    const location = useLocation();
+    const [email, setEmail] = useState((location.state as { email?: string } | null)?.email ?? '');
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);

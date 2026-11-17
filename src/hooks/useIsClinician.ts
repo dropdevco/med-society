@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 /**
- * Whether this user owns at least one listing, which is what makes them a
- * clinician to the forums (the same question `public.is_clinician()` answers
- * for RLS). One head-only count, so the navbar can ask on every page without
+ * Whether this user owns at least one listing as an owner (front-desk staff
+ * do not count), which is what makes them a clinician to the forums (the same
+ * question `public.is_clinician()` answers for RLS). One head-only count, so the navbar can ask on every page without
  * pulling the listings themselves; pages that need those use useMyClinic.
  */
 export function useIsClinician(userId: string | null) {
@@ -16,6 +16,7 @@ export function useIsClinician(userId: string | null) {
         void supabase
             .from('provider_owners')
             .select('provider_id', { count: 'exact', head: true })
+            .eq('role', 'owner')
             .then(({ count }) => { if (!cancelled) setState({ userId, value: (count ?? 0) > 0 }); });
         return () => { cancelled = true; };
     }, [userId]);

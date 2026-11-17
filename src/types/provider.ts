@@ -100,8 +100,12 @@ export interface Provider {
   id: string;
   name: string;
   specialty: Specialty[];
-  /** 'stay' = recovery house / lodging-style practice; starts the Website brief as "Recovery or stay". */
-  kind?: 'stay';
+  /**
+   * 'stay' = recovery house / lodging-style practice; starts the Website brief as "Recovery or stay".
+   * 'clinic' = a practice with several doctors; gets the clinic page (ClinicView) with its roster.
+   * Unset = one doctor, or not known.
+   */
+  kind?: 'stay' | 'clinic';
   country: Country;
   city: string;
   address: string;

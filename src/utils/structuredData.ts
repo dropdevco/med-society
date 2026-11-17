@@ -21,6 +21,8 @@ const MEDICAL_SPECIALTY: Partial<Record<Specialty, string>> = {
 
 function schemaType(p: Provider): string {
     if (p.specialty.includes('pharmacy') && p.specialty.length === 1) return 'Pharmacy';
+    // A clinic with several doctors is a clinic, whatever its first specialty or name.
+    if (p.kind === 'clinic') return 'MedicalClinic';
     if (p.specialty[0] === 'dentist' || p.specialty[0] === 'orthodontist') return 'Dentist';
     if (p.specialty[0] === 'optometry') return 'Optician';
     return /^\s*(dr|dra|doctor|doctora)\b\.?/i.test(p.name) ? 'Physician' : 'MedicalClinic';
@@ -28,7 +30,13 @@ function schemaType(p: Provider): string {
 
 const httpUrl = (v: unknown) => (typeof v === 'string' && /^https?:\/\//i.test(v.trim()) ? v.trim() : null);
 
-export function providerJsonLd(p: Provider): Record<string, unknown> {
+/** The clinic's doctors, or the doctor's clinics (provider_team, migration 0049). */
+export interface JsonLdTeam {
+    practitioners: { id: string; name: string }[];
+    clinics: { id: string; name: string }[];
+}
+
+export function providerJsonLd(p: Provider, team?: JsonLdTeam): Record<string, unknown> {
     const url = `${SITE_ORIGIN}/providers/${p.id}`;
     const rating = ratingOf(p);
     const specialties = p.specialty.map((s) => MEDICAL_SPECIALTY[s]).filter((s): s is string => Boolean(s));
@@ -42,7 +50,14 @@ export function providerJsonLd(p: Provider): Record<string, unknown> {
     const description = (p as Provider & { description?: string }).description;
     const badges = p.badges ?? [];
     const isCredential = (b: { kind: string }) => ['consejo', 'regulator', 'accreditor'].includes(b.kind);
-    const memberOf = badges.filter((b) => !isCredential(b)).map((b) => ({ '@type': 'Organization', name: b.label || b.name, ...(httpUrl(b.url) ? { url: httpUrl(b.url) } : {}) }));
+    const ref = (type: string) => (x: { id: string; name: string }) => ({
+        '@type': type, '@id': `${SITE_ORIGIN}/providers/${x.id}#provider`, name: x.name, url: `${SITE_ORIGIN}/providers/${x.id}`,
+    });
+    const member = (team?.practitioners ?? []).map(ref('Physician'));
+    const memberOf = [
+        ...badges.filter((b) => !isCredential(b)).map((b) => ({ '@type': 'Organization', name: b.label || b.name, ...(httpUrl(b.url) ? { url: httpUrl(b.url) } : {}) })),
+        ...(team?.clinics ?? []).map(ref('MedicalClinic')),
+    ];
     const hasCredential = badges.filter(isCredential).map((b) => ({
         '@type': 'EducationalOccupationalCredential',
         name: b.label,
@@ -75,5 +90,6 @@ export function providerJsonLd(p: Provider): Record<string, unknown> {
         ...(memberOf.length ? { memberOf } : {}),
         ...(hasCredential.length ? { hasCredential } : {}),
         ...(offers.length ? { makesOffer: offers } : {}),
+        ...(member.length ? { member } : {}),
     };
 }

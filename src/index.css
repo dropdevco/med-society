@@ -1774,6 +1774,57 @@ select option {
   }
 }
 
+/* ── Clinic page (ClinicView) and "Practises at" on a doctor's page ── */
+.ms-clinic-section { display: flex; flex-direction: column; gap: 0.8rem; }
+.ms-clinic-h2 { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+.ms-clinic-h3 { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-500); margin: 0.4rem 0 0.5rem; }
+.ms-clinic-count { color: var(--gray-500); font-weight: 600; }
+.ms-clinic-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.ms-clinic-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--surface);
+  color: var(--gray-300); font-size: 0.84rem; font-weight: 600; cursor: pointer;
+}
+.ms-clinic-chip span { color: var(--gray-500); font-weight: 700; font-size: 0.78rem; }
+.ms-clinic-chip.is-on { border-color: var(--accent); color: var(--white); box-shadow: 0 0 0 1px var(--accent) inset; }
+.ms-clinic-chip.is-static { cursor: default; opacity: 0.8; }
+.ms-clinic-group + .ms-clinic-group { margin-top: 0.4rem; }
+.ms-clinic-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.6rem; }
+.ms-clinic-doc {
+  display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.8rem; height: 100%;
+  border-radius: var(--radius); border: 1px solid var(--border); background: var(--navy-800);
+  color: var(--text); text-decoration: none; min-width: 0;
+}
+.ms-clinic-doc:hover { border-color: var(--border-strong); }
+.ms-clinic-doc.is-skeleton { height: 76px; background: var(--surface); opacity: 0.6; }
+.ms-clinic-doc-photo {
+  flex: none; width: 46px; height: 46px; border-radius: 12px; overflow: hidden;
+  display: grid; place-items: center; font-weight: 800; font-size: 0.85rem;
+}
+.ms-clinic-doc-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ms-clinic-doc-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.ms-clinic-doc-text strong { font-size: 0.92rem; line-height: 1.3; overflow-wrap: anywhere; }
+.ms-clinic-doc-text > span { font-size: 0.8rem; color: var(--gray-400); line-height: 1.4; }
+.ms-clinic-doc-rating { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--gray-300) !important; font-weight: 700; }
+.ms-clinic-doc-rating span { color: var(--gray-500); font-weight: 500; }
+.ms-clinic-empty { padding: 1rem; border-radius: var(--radius); border: 1px dashed var(--border-strong); color: var(--gray-400); font-size: 0.9rem; }
+.ms-clinic-empty p { margin: 0 0 0.4rem; }
+.ms-clinic-empty a { color: var(--gold); font-weight: 650; }
+.ms-clinic-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ms-clinic-tags li { padding: 0.3rem 0.65rem; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); font-size: 0.82rem; color: var(--gray-300); }
+.ms-clinic-more { align-self: flex-start; background: none; color: var(--gold); font-weight: 650; font-size: 0.85rem; padding: 0; }
+.ms-practises {
+  margin-bottom: 1rem; padding: 1rem 1.1rem; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--navy-800); box-shadow: var(--shadow-sm);
+}
+.ms-practises h2 { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-500); margin: 0 0 0.7rem; }
+.ms-practises ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.ms-practises a { display: flex; align-items: center; gap: 0.7rem; color: var(--text); text-decoration: none; }
+.ms-practises .ms-clinic-doc-photo { width: 38px; height: 38px; border-radius: 10px; }
+.inq-doctor { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; font-size: 0.84rem; }
+.inq-doctor label { font-weight: 650; color: var(--gray-300); }
+.inq-doctor select { width: 100%; }
+
 /* ── Provider modal ── */
 .ms-pm {
   position: fixed;
@@ -2060,6 +2111,12 @@ select option {
 .acct-msg { font-size: 0.82rem; line-height: 1.5; margin: 0; }
 .acct-msg--error { color: var(--red); }
 .acct-msg--block { padding: 0.75rem 0.9rem; border-radius: var(--radius-sm); border: 1px solid var(--red); }
+/* Two-way choice cards (listing kind). */
+.acct-choice { flex: 1 1 200px; display: flex; flex-direction: column; gap: 0.2rem; text-align: left; padding: 0.75rem 0.9rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--navy); color: var(--white); cursor: pointer; }
+.acct-choice.is-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.acct-choice:disabled { opacity: 0.6; cursor: wait; }
+/* A note above the dashboard tabs: a managed doctor listing, or a clinic waiting on an answer. */
+.acct-banner { margin-bottom: 1.25rem; padding: 0.75rem 0.9rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); }
 
 /* buttons */
 .acct-btn {
