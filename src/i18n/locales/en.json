@@ -2,7 +2,7 @@
   "nav": {
     "askDoctor": "Ask a Doctor",
     "medSociety": "Med Society",
-    "findProviders": "Find Providers",
+    "findProviders": "Find doctors & clinics",
     "forProviders": "For Providers",
     "toggleTheme": "Toggle theme",
     "switchToSpanish": "Cambiar a Español",
@@ -28,7 +28,7 @@
       "insurance": "Insurance"
     },
     "whatLabel": "What",
-    "whatPlaceholder": "Dentist, therapy, a clinic name",
+    "whatPlaceholder": "Dentist, therapy, a doctor or clinic name",
     "whereLabel": "Where",
     "coverLabel": "Insurance",
     "anywhere": "Both sides of the border",
@@ -91,10 +91,13 @@
     "showResults_other": "Show {{count}} results"
   },
   "map": {
-    "loading": "Loading clinics",
-    "noResults": "No clinics match these filters",
-    "suggestClinic": "Know a clinic that should be listed?",
-    "suggestBtn": "Suggest a clinic",
+    "loading": "Loading doctors and clinics",
+    "noResults": "No doctors or clinics match these filters",
+    "otherRegion_one": "1 result for this in {{city}}",
+    "otherRegion_other": "{{count}} results for this in {{city}}",
+    "searchIn": "Search in {{city}}",
+    "suggestClinic": "Know a doctor or clinic that should be listed?",
+    "suggestBtn": "Suggest one",
     "viewList": "View list",
     "viewMap": "View map",
     "findMe": "Find my location",

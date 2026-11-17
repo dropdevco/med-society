@@ -2,7 +2,7 @@
   "nav": {
     "askDoctor": "Pregunta al Doctor",
     "medSociety": "Med Society",
-    "findProviders": "Buscar Clínicas",
+    "findProviders": "Buscar médicos y clínicas",
     "forProviders": "Para Clínicas",
     "toggleTheme": "Cambiar tema",
     "switchToSpanish": "Cambiar a Español",
@@ -28,7 +28,7 @@
       "insurance": "Seguro"
     },
     "whatLabel": "Qué",
-    "whatPlaceholder": "Dentista, terapia, nombre de clínica",
+    "whatPlaceholder": "Dentista, terapia, nombre de médico o clínica",
     "whereLabel": "Dónde",
     "coverLabel": "Seguro",
     "anywhere": "Ambos lados de la frontera",
@@ -44,8 +44,8 @@
     "allProviders": "Todos los proveedores"
   },
   "filters": {
-    "providersFoundSuffix_one": "clínica",
-    "providersFoundSuffix_other": "clínicas",
+    "providersFoundSuffix_one": "resultado",
+    "providersFoundSuffix_other": "resultados",
     "clearFilters": "Limpiar filtros",
     "moreTags": "+{{count}} más",
     "fewerTags": "Menos",
@@ -91,10 +91,13 @@
     "showResults_other": "Ver {{count}} resultados"
   },
   "map": {
-    "loading": "Cargando clínicas",
-    "noResults": "Ninguna clínica coincide con estos filtros",
-    "suggestClinic": "¿Conoces una clínica que debería aparecer?",
-    "suggestBtn": "Sugerir una clínica",
+    "loading": "Cargando médicos y clínicas",
+    "noResults": "Ningún médico ni clínica coincide con estos filtros",
+    "otherRegion_one": "1 resultado para esto en {{city}}",
+    "otherRegion_other": "{{count}} resultados para esto en {{city}}",
+    "searchIn": "Buscar en {{city}}",
+    "suggestClinic": "¿Conoces un médico o clínica que debería aparecer?",
+    "suggestBtn": "Sugerir uno",
     "viewList": "Ver lista",
     "viewMap": "Ver mapa",
     "findMe": "Encontrar mi ubicación",
