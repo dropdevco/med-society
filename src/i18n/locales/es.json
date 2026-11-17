@@ -25,6 +25,7 @@
       "city": "Ciudad",
       "postal": "Código postal",
       "provider": "Médico",
+      "clinic": "Clínica",
       "insurance": "Seguro"
     },
     "whatLabel": "Qué",

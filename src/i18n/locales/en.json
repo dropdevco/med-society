@@ -24,7 +24,8 @@
       "service": "Service",
       "city": "City",
       "postal": "ZIP",
-      "provider": "Provider",
+      "provider": "Doctor",
+      "clinic": "Clinic",
       "insurance": "Insurance"
     },
     "whatLabel": "What",
