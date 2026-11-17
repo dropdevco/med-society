@@ -165,6 +165,10 @@
       "schedule": "0 15 * * *"
     },
     {
+      "path": "/api/claim-notify?job=drain",
+      "schedule": "30 14 * * *"
+    },
+    {
       "path": "/api/billing?job=sync",
       "schedule": "0 9 * * *"
     },

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useNoIndex } from '../hooks/useNoIndex';
-import { fetchFeedback, fetchForms, fetchSite, isAdmin, type FeedbackOverview, type FormsOverview, type SiteOverview } from '../lib/adminApi';
+import { fetchClaimQueue, fetchFeedback, fetchForms, fetchSite, isAdmin, type FeedbackOverview, type FormsOverview, type SiteOverview } from '../lib/adminApi';
 import { Card, DailyChart, HBars, Kpi, SplitBar } from '../components/admin/charts';
 import { SERIES, fmt, pct, type Series } from '../components/admin/format';
 import { TrafficPanel, ResponsesPanel } from '../components/admin/FormsPanel';
@@ -11,6 +11,7 @@ import { ClinicLookup } from '../components/admin/ClinicLookup';
 import { BillingPanel } from '../components/admin/BillingPanel';
 import { FeedbackPanel } from '../components/admin/FeedbackPanel';
 import { VerificationPanel } from '../components/admin/VerificationPanel';
+import { ClaimsPanel } from '../components/admin/ClaimsPanel';
 import { SEGMENTS, SEGMENT_LABEL, regionName } from '../components/admin/labels';
 import '../components/admin/admin.css';
 
@@ -20,6 +21,7 @@ const TABS = [
     ['responses', 'Survey responses'],
     ['directory', 'Directory'],
     ['accounts', 'Accounts & leads'],
+    ['claims', 'Claims'],
     ['feedback', 'Feedback'],
     ['verification', 'Verification'],
     ['billing', 'Billing'],
@@ -53,6 +55,8 @@ export function AdminPage() {
     const [loading, setLoading] = useState(false);
     // Null until loaded, and stays null if migration 0030 has not been applied: the tab then says so.
     const [feedback, setFeedback] = useState<FeedbackOverview | null>(null);
+    // Claims waiting for a decision; null until loaded or if migration 0047 is not applied.
+    const [claimsPending, setClaimsPending] = useState<number | null>(null);
 
     const userId = user?.id ?? null;
     useEffect(() => {
@@ -69,11 +73,12 @@ export function AdminPage() {
     }, []);
     const fetchAll = () => Promise.all([fetchForms(), fetchSite()]);
     const loadFeedback = useCallback(() => { fetchFeedback().then(setFeedback).catch(() => setFeedback(null)); }, []);
-    const refresh = () => { setLoading(true); apply(fetchAll()); loadFeedback(); };
+    const loadClaims = useCallback(() => { fetchClaimQueue().then((q) => setClaimsPending(q.counts.pending)).catch(() => setClaimsPending(null)); }, []);
+    const refresh = () => { setLoading(true); apply(fetchAll()); loadFeedback(); loadClaims(); };
 
     useEffect(() => {
-        if (allowed) { apply(Promise.all([fetchForms(), fetchSite()])); loadFeedback(); }
-    }, [allowed, apply, loadFeedback]);
+        if (allowed) { apply(Promise.all([fetchForms(), fetchSite()])); loadFeedback(); loadClaims(); }
+    }, [allowed, apply, loadFeedback, loadClaims]);
 
     if (sessionLoading) return <main className="adm-gate" id="main-content"><p>Loading…</p></main>;
     if (!user) return <Navigate to="/login?next=/admin" replace />;
@@ -97,19 +102,21 @@ export function AdminPage() {
                     <button key={k} type="button" className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined}
                         onClick={() => setParams(k === 'overview' ? {} : { tab: k }, { replace: true })}>
                         {l}{k === 'feedback' && feedback && feedback.counts.needs_attention > 0 ? ` (${feedback.counts.needs_attention})` : ''}
+                        {k === 'claims' && claimsPending ? ` (${claimsPending})` : ''}
                     </button>
                 ))}
             </nav>
 
             {error && <p className="adm-err" role="alert">Could not load data: {error}</p>}
-            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && tab !== 'verification' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
+            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && tab !== 'verification' && tab !== 'claims' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
 
-            {forms && site && tab === 'overview' && <Overview forms={forms} site={site} feedback={feedback} go={(t) => setParams({ tab: t }, { replace: true })} />}
+            {forms && site && tab === 'overview' && <Overview forms={forms} site={site} feedback={feedback} claimsPending={claimsPending} go={(t) => setParams({ tab: t }, { replace: true })} />}
             {forms && tab === 'traffic' && <TrafficPanel data={forms} />}
             {forms && tab === 'responses' && <ResponsesPanel data={forms} />}
             {site && tab === 'directory' && <DirectoryPanel site={site} />}
             {site && tab === 'accounts' && <AccountsPanel site={site} />}
             {tab === 'feedback' && <FeedbackPanel data={feedback} onChanged={loadFeedback} />}
+            {tab === 'claims' && <ClaimsPanel onChanged={loadClaims} />}
             {tab === 'verification' && <VerificationPanel />}
             {tab === 'billing' && <BillingPanel />}
             {tab === 'clinic' && <ClinicLookup />}
@@ -117,7 +124,7 @@ export function AdminPage() {
     );
 }
 
-function Overview({ forms, site, feedback, go }: { forms: FormsOverview; site: SiteOverview; feedback: FeedbackOverview | null; go: (t: Tab) => void }) {
+function Overview({ forms, site, feedback, claimsPending, go }: { forms: FormsOverview; site: SiteOverview; feedback: FeedbackOverview | null; claimsPending: number | null; go: (t: Tab) => void }) {
     const live = site.providers.completeness.live ?? 0;
     const liveBy = (r: string) => site.providers.by_region.filter((x) => x.region === r && x.status === 'live').reduce((s, x) => s + x.n, 0);
     const regs = [...new Set(site.providers.by_region.map((r) => r.region))].filter((r) => r !== '(none)').sort();
@@ -135,6 +142,7 @@ function Overview({ forms, site, feedback, go }: { forms: FormsOverview; site: S
     ];
 
     const attention: string[] = [];
+    if (claimsPending) attention.push(`${claimsPending} listing claim(s) waiting for verification (Claims tab)`);
     if (site.providers.flags.pending_review > 0) attention.push(`${site.providers.flags.pending_review} listing(s) waiting for review`);
     const sendErrors = forms.summary.reduce((s, r) => s + r.visits_with_send_error, 0);
     if (sendErrors > 0) attention.push(`${sendErrors} form visit(s) hit a send error`);

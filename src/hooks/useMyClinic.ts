@@ -7,8 +7,10 @@ import { normalizeProvider } from '../utils/normalizeProvider';
 export interface ClaimRow {
     id: string;
     provider_id: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'incomplete' | 'pending' | 'needs_info' | 'approved' | 'rejected';
     created_at: string;
+    /** The reviewer's message to the claimant (needs_info / rejected). */
+    review_note: string | null;
 }
 
 /**
@@ -36,7 +38,7 @@ export function useMyClinic(userId: string | null) {
 
         const [ownerRes, claimRes] = await Promise.all([
             supabase.from('provider_owners').select('provider_id'),
-            supabase.from('provider_claims').select('id, provider_id, status, created_at'),
+            supabase.from('provider_claims').select('id, provider_id, status, created_at, review_note'),
         ]);
 
         const ids = (ownerRes.data ?? []).map((row) => row.provider_id as string);

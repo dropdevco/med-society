@@ -9,6 +9,7 @@ import type { PlanKey } from '../lib/billing';
 import { supabase } from '../lib/supabase';
 import { useProviderStats, type ProviderStats } from '../hooks/useProviderStats';
 import { AuthShell } from '../components/account/AuthShell';
+import { authButton } from '../components/account/authStyles';
 import { ClinicProfileForm } from '../components/account/ClinicProfileForm';
 import { ClinicPhotoManager } from '../components/account/ClinicPhotoManager';
 import { ClinicPlanPanel } from '../components/account/ClinicPlanPanel';
@@ -134,12 +135,26 @@ export function DashboardPage() {
     // Claimed but not yet approved, or nothing at all. Both are "there is
     // nothing to manage here yet", and both need to say what happens next.
     if (owned.length === 0) {
-        const pending = claims.filter((c) => c.status === 'pending');
+        // The claim that most needs this person's attention decides the screen.
+        const ORDER = ['needs_info', 'incomplete', 'pending', 'rejected'] as const;
+        const claim = ORDER.map((s) => claims.find((c) => c.status === s)).find(Boolean);
+        const copy = {
+            needs_info: ['account.needsInfoTitle', 'account.needsInfoBody'],
+            incomplete: ['account.incompleteTitle', 'account.incompleteBody'],
+            pending: ['account.pendingTitle', 'account.pendingBody'],
+            rejected: ['account.rejectedTitle', 'account.noClinicBody'],
+        } as const;
+        const [title, body] = claim ? copy[claim.status as keyof typeof copy] : ['account.noClinicTitle', 'account.noClinicBody'];
         return (
-            <AuthShell
-                title={pending.length > 0 ? t('account.pendingTitle') : t('account.noClinicTitle')}
-                subtitle={pending.length > 0 ? t('account.pendingBody') : t('account.noClinicBody')}
-            >
+            <AuthShell title={t(title)} subtitle={t(body)}>
+                {claim?.review_note && (claim.status === 'needs_info' || claim.status === 'rejected') && (
+                    <p className="ms-claim-note warn" style={{ marginBottom: '1.25rem' }}>{claim.review_note}</p>
+                )}
+                {claim && claim.status !== 'rejected' && (
+                    <Link to={`/claim/${claim.provider_id}`} className="press" style={{ ...authButton, textDecoration: 'none', marginBottom: '0.75rem' }}>
+                        {t('account.openClaim')}
+                    </Link>
+                )}
                 <Link
                     to="/"
                     className="press"

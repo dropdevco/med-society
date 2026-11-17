@@ -173,10 +173,11 @@ export type OnboardingAction =
     | { kind: 'claim'; providerId: string; providerName: string; evidence: string }
     | { kind: 'listing'; draft: ListingDraft };
 
-export type ClaimStatus = 'approved' | 'pending' | 'owner';
+/** bh_claim_provider never grants ownership (0047): 'incomplete' means "finish at /claim/<id>". */
+export type ClaimStatus = 'owner' | 'incomplete' | 'pending' | 'needs_info' | 'rejected';
 
 export type Outcome =
-    | { kind: 'claim'; status: ClaimStatus; providerName: string }
+    | { kind: 'claim'; status: ClaimStatus; providerId: string; providerName: string }
     | { kind: 'listing'; providerId: string | null }
     /** A test-session survey: the flow ran, no RPC that writes was called. */
     | { kind: 'test' }
@@ -260,10 +261,9 @@ export async function runAction(action: OnboardingAction, submissionKey: string 
             });
             if (error) return { kind: 'error', code: rpcErrorCode(error.message) };
             const status = (data as { status?: string } | null)?.status;
-            if (status !== 'approved' && status !== 'pending' && status !== 'owner') {
-                return { kind: 'error', code: 'unknown' };
-            }
-            return { kind: 'claim', status, providerName: action.providerName };
+            const known: ClaimStatus[] = ['owner', 'incomplete', 'pending', 'needs_info', 'rejected'];
+            if (!known.includes(status as ClaimStatus)) return { kind: 'error', code: 'unknown' };
+            return { kind: 'claim', status: status as ClaimStatus, providerId: action.providerId, providerName: action.providerName };
         }
 
         const d = action.draft;
