@@ -53,6 +53,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { spikeEcho } from '../shared/spike/index.js';
 
 type Req = IncomingMessage & {
     body?: unknown;
@@ -3443,6 +3444,7 @@ export default async function handler(req: Req, res: Res) {
         switch (route) {
             case 'v1': return await restRoute(req, res, params);
             case 'mcp': return await mcpRoute(req, res);
+            case 'spike-shared': return sendJson(res, 200, spikeEcho(clean(params.get('q'), 80) || 'Ciudad Juárez'), 'no-store');
             case 'openapi': return sendJson(res, 200, openApiSpec(), CACHE_STATIC);
             case 'llms': return send(res, 200, 'text/markdown; charset=utf-8', await llmsText(false), { 'Cache-Control': CACHE_STATIC });
             case 'llms-full': return send(res, 200, 'text/markdown; charset=utf-8', await llmsText(true), { 'Cache-Control': CACHE_STATIC });

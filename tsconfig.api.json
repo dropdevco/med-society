@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["api", "middleware.ts"]
+  "include": ["api", "middleware.ts", "shared"]
 }
