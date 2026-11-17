@@ -2676,6 +2676,13 @@ export default async function handler(req: Req, res: Res) {
         return sendJson(res, 405, { ok: false, error: { code: 'method_not_allowed', message: 'Use GET (or POST for /mcp and /api/v1/symptoms).' } });
     }
 
+    // SEO-tool crawlers walk every listing; each page costs several database reads.
+    if (/AhrefsBot|SemrushBot|MJ12bot|DotBot/i.test(firstHeader(req.headers['user-agent']) || '')) {
+        res.statusCode = 403;
+        res.setHeader('Cache-Control', 'public, s-maxage=3600');
+        return res.end('Crawler blocked: see /robots.txt');
+    }
+
     const params = getParams(req);
     const route = params.get('route') || 'v1';
     try {
