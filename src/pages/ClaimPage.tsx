@@ -84,9 +84,11 @@ export function ClaimPage() {
         if (!user) return;
         setBusy(true);
         setError(null);
-        const result = await submitClaim(provider.id, user.id, evidence);
+        const result = await submitClaim(provider.id, evidence);
         setBusy(false);
         if (result.error) setError(result.error);
+        // Already yours (instant email match, or you owned it): go straight in.
+        else if (result.status === 'approved' || result.status === 'owner') navigate('/dashboard');
         else setDone(true);
     };
 

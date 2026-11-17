@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGooglePhotos } from '../../hooks/useGooglePhotos';
+import { googlePhotoAttribution } from '../../lib/googlePhotoAttribution';
 import { PhotoLightbox, type LightboxPhoto } from './PhotoLightbox';
 
 /**
@@ -126,7 +127,8 @@ export function ClinicPhotos({ placeId, portrait, galleryUrls }: {
                     {/*
                       Google requires the photographer attribution it supplies to
                       be shown with the photo. It arrives as pre-built anchor
-                      markup from the Places SDK, not user input.
+                      markup from the Places SDK, so it is parsed into elements
+                      rather than injected as HTML — see lib/googlePhotoAttribution.
                     */}
                     {photos.some((p) => p.attributionHtml) && (
                         <p
@@ -134,10 +136,11 @@ export function ClinicPhotos({ placeId, portrait, galleryUrls }: {
                                 margin: '0.45rem 0 0', fontSize: '0.7rem',
                                 color: 'var(--gray-500)', lineHeight: 1.5,
                             }}
-                            dangerouslySetInnerHTML={{
-                                __html: [...new Set(photos.map((p) => p.attributionHtml).filter(Boolean))].join(' · '),
-                            }}
-                        />
+                        >
+                            {googlePhotoAttribution(
+                                [...new Set(photos.map((p) => p.attributionHtml).filter(Boolean))].join(' · '),
+                            )}
+                        </p>
                     )}
                 </>
             )}

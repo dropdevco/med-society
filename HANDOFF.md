@@ -62,7 +62,7 @@ trip planning.
 
 Deploys go through GitHub: a push creates a Vercel Preview, a merge to `main` is Production (project
 `medsociety-marketplace`, team `dropdevs-projects-25301cf7`, domain `medsociety.one`, canonical host `www`).
-The Vercel MCP has no access to this project here; use `gh api repos/dropdevco/medora-marketplace/deployments`
+The Vercel MCP has no access to this project here; use `gh api repos/dropdevco/med-society/deployments`
 to watch a deploy.
 
 ## 3. Stack
@@ -255,9 +255,11 @@ npx tsx scripts/images-selftest.ts
   auto-fix migration (section 2).
 - **The Supabase project holds unrelated tables** (`clients`, `generations`, `approved_images`, `ha_meetings`,
   an empty `feedback`). Do not touch them. The widget table is `site_feedback` for that reason.
-- **Three names, one product:** MedSociety (brand), `medsociety-marketplace` (npm and Vercel), `medora-marketplace`
-  (repo and local folder). The repository is public on GitHub; the team keeps a private working copy (plan task
-  A4) because making it private breaks Claude tooling on non-enterprise accounts.
+- **Four names, one product:** MedSociety (brand), `medsociety-marketplace` (npm and Vercel), `med-society`
+  (the GitHub repo, renamed from `medora-marketplace` — the old URL still redirects, but update any remote
+  or `gh` command that uses it), `medora-marketplace` (local folder only). The repository is public on
+  GitHub; the team keeps a private working copy (plan task A4) because making it private breaks Claude
+  tooling on non-enterprise accounts.
 - **Known debt:** `npm run lint` reports errors (mostly `react-hooks/set-state-in-effect` in data hooks);
   `SearchBar.tsx` is unreferenced; `estimatedViews.ts` is modelled, not measured; the directory has duplicate
   rows; `doctoralia_doctors.google_rating` was never enriched; the main bundle is over 500 kB; no automated UI

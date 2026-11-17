@@ -55,20 +55,33 @@ export async function signOut(): Promise<void> {
  * their request rather than collide with it. Approval is manual — nothing
  * here grants anything, and `status` is not a column the client may write.
  */
+export type ClaimStatus = 'approved' | 'pending' | 'owner';
+
+/**
+ * Goes through `bh_claim_provider` rather than writing provider_claims
+ * directly: the table only grants the client UPDATE on `evidence`, so an
+ * upsert (which rewrites provider_id/user_id on conflict) is refused with
+ * "permission denied". The RPC also decides the outcome — instant only when
+ * the confirmed account email matches the listing's email, otherwise review.
+ */
 export async function submitClaim(
     providerId: string,
-    userId: string,
     evidence: string,
-): Promise<AuthResult> {
+): Promise<AuthResult & { status?: ClaimStatus }> {
     if (!supabase) return { error: NOT_CONFIGURED };
 
-    const { error } = await supabase
-        .from('provider_claims')
-        .upsert(
-            { provider_id: providerId, user_id: userId, evidence },
-            { onConflict: 'provider_id,user_id' },
-        );
+    const { data, error } = await supabase.rpc('bh_claim_provider', {
+        p_provider: providerId,
+        p_submission: null,
+        p_evidence: evidence,
+    });
+    const status = (data as { status?: string } | null)?.status;
+    const ok = !error && (status === 'approved' || status === 'pending' || status === 'owner');
 
-    track('claim_submitted', { provider_id: providerId, ok: !error });
-    return { error: error?.message ?? null };
+    track('claim_submitted', { provider_id: providerId, ok, status });
+    if (error) {
+        return { error: error.message.includes('listing_not_found') ? 'This listing is no longer available.' : error.message };
+    }
+    if (!ok) return { error: 'Something went wrong. Please try again.' };
+    return { error: null, status: status as ClaimStatus };
 }

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { IconClose, IconChevronLeft, IconChevronRight } from '../icons/Icons';
+import { googlePhotoAttribution } from '../../lib/googlePhotoAttribution';
 
 export interface LightboxPhoto {
     url: string;
-    /** Pre-built anchor markup from the Places SDK. Not user input. */
+    /** Pre-built anchor markup from the Places SDK, parsed before render. */
     attributionHtml?: string;
 }
 
@@ -150,10 +151,9 @@ export function PhotoLightbox({ photos, index, onClose, onIndex }: {
                   photo largest and credit it least.
                 */}
                 {photo.attributionHtml && (
-                    <span
-                        className="ms-photo-credit"
-                        dangerouslySetInnerHTML={{ __html: photo.attributionHtml }}
-                    />
+                    <span className="ms-photo-credit">
+                        {googlePhotoAttribution(photo.attributionHtml)}
+                    </span>
                 )}
             </div>
         </div>,
