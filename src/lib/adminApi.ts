@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { pingClaimEmails } from './claims';
 
 /**
  * Admin dashboard data. Every call goes through a SECURITY DEFINER function
@@ -133,7 +134,7 @@ export interface MatchItem {
     source_slug: string; external_id: string; tier: number; confidence: number | null; candidates: MatchCandidate[];
     name: string; label: string; specialties: string[]; cedulas: string[]; region: string | null; url: string | null;
     valid_to: string | null; facts: { consejo?: string; certificate?: string } | null;
-    /** Absent before migration 0048, null when the item has not been scored. */
+    /** Absent before migration 0051, null when the item has not been scored. */
     ai_score?: AiScore | null;
 }
 export interface MatchQueue { total: number; exact: number; items: MatchItem[] }
@@ -204,3 +205,58 @@ export interface FeedbackOverview {
 export const fetchFeedback = () => rpc<FeedbackOverview>('admin_feedback_overview');
 export const setFeedbackStatus = (fid: string, status: FeedbackItem['status']) =>
     rpc<void>('admin_feedback_set_status', { fid, new_status: status });
+
+// ── Claims (migration 0047) ─────────────────────────────────────────────────
+export type ClaimStatus = 'incomplete' | 'pending' | 'needs_info' | 'approved' | 'rejected';
+export interface ClaimQueueItem {
+    id: string; status: ClaimStatus; claimant_role: 'doctor' | 'owner' | 'manager' | null; legal_name: string | null;
+    created_at: string; submitted_at: string | null; reviewed_at: string | null;
+    provider_id: string; provider_name: string; city: string | null; country: string; region: string | null;
+    account_email: string | null; flags: string[]; cedula_check: string | null; documents: number;
+}
+export interface ClaimQueue {
+    generated_at: string;
+    counts: { pending: number; needs_info: number; incomplete: number; approved_30d: number; rejected_30d: number };
+    items: ClaimQueueItem[];
+}
+export interface ClaimSignals {
+    account_email: string | null; email_confirmed: boolean; account_age_days: number;
+    email_matches_listing: boolean; email_domain_matches_website: boolean; phone_matches_listing: boolean;
+    registry_doctor: string | null; cedulas_on_file: string[] | null; cedula_check: string;
+    npi_valid: boolean | null; name_similarity: number | null; listing_owners: number;
+    other_open_claims_on_listing: number; claimant_open_claims: number; claimant_rejected_claims: number;
+    documents: Record<string, number>; flags: string[];
+}
+export interface ClaimDetail {
+    claim: {
+        id: string; status: ClaimStatus; claimant_role: string | null; legal_name: string | null; phone: string | null;
+        cedula: string | null; npi: string | null; license_number: string | null; license_state: string | null; rfc: string | null;
+        evidence: string | null; created_at: string; submitted_at: string | null; reviewed_at: string | null;
+        review_note: string | null; reviewer_note: string | null; reviewer_checks: Record<string, unknown> | null;
+        history: { at: string; by: string; event: string; status: string; note?: string }[];
+        signals: ClaimSignals;
+    };
+    listing: { id: string; name: string; address: string | null; city: string | null; country: string; region: string | null;
+        phone: string | null; email: string | null; website: string | null; source: string | null; specialty: string[] | null };
+    owners: { email: string | null; role: string; since: string }[];
+    documents: { id: string; kind: string; path: string; created_at: string }[];
+    other_claims: { id: string; status: string; provider_name: string; created_at: string }[];
+    rival_claims: { id: string; status: string; legal_name: string | null; email: string | null }[];
+}
+export interface ClaimChecks { id_matches_name: boolean; credential_verified: boolean; contact_confirmed: boolean }
+export const fetchClaimQueue = () => rpc<ClaimQueue>('admin_claims_queue');
+export const fetchClaimDetail = (id: string) => rpc<ClaimDetail>('admin_claim_detail', { p_claim: id });
+export async function decideClaim(id: string, decision: 'approve' | 'reject' | 'needs_info', message: string, note: string, checks: ClaimChecks) {
+    const out = await rpc<{ status: ClaimStatus }>('admin_claim_decide', { p_claim: id, p_decision: decision, p_message: message || null, p_note: note || null, p_checks: checks });
+    void pingClaimEmails();
+    return out;
+}
+export interface ClaimEmail { kind: string; created_at: string; sent_at: string | null; attempts: number; last_error: string | null }
+export const fetchClaimEmails = (id: string) => rpc<ClaimEmail[]>('admin_claim_emails', { p_claim: id });
+/** A short-lived link to one uploaded document (the bucket is private; admins may read it). */
+export async function claimDocumentUrl(path: string): Promise<string> {
+    if (!supabase) throw new Error('Supabase is not configured');
+    const { data, error } = await supabase.storage.from('claim-documents').createSignedUrl(path, 300);
+    if (error || !data) throw new Error(error?.message ?? 'Could not open the document');
+    return data.signedUrl;
+}

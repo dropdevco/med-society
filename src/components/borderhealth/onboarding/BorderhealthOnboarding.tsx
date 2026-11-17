@@ -767,10 +767,15 @@ function ResultBody({ s, outcome }: { s: S; outcome: Outcome }) {
         );
     }
     const n = outcome.providerName;
-    if (outcome.status === 'approved') {
+    // Claims are never instant (0047): anything not yet submitted for review
+    // continues at /claim/<id>, where the ID and credential are collected.
+    if (outcome.status === 'incomplete' || outcome.status === 'needs_info' || outcome.status === 'rejected') {
         return (
-            <Panel title={s.approvedTitle} subtitle={s.approvedBody(n)} icon={<Burst verified />}>
-                <DashboardLink s={s} />
+            <Panel title={s.verifyTitle} subtitle={s.verifyBody(n)} icon={<div className="bho-badge"><IconVerified size={30} /></div>}>
+                <Link to={`/claim/${outcome.providerId}`} className="press" style={{ ...authButton, textDecoration: 'none' }}>
+                    {s.verifyCta}
+                    <span className="cta-arrow" style={{ display: 'flex' }}><IconArrowRight size={16} weight={2} /></span>
+                </Link>
             </Panel>
         );
     }

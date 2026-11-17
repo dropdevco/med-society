@@ -123,7 +123,12 @@ function ClinicAvatar({ provider }: { provider: Provider }) {
  * back. Asking for the account at the moment of sending — after the question is
  * written — rather than in front of an empty box.
  */
-export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?: () => void }) {
+export function InquiryForm({ provider, onSent, doctors = [] }: {
+    provider: Provider;
+    onSent?: () => void;
+    /** On a clinic page: its doctors, so the patient can say who they want to see. */
+    doctors?: { id: string; name: string }[];
+}) {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const uid = useId();
@@ -144,6 +149,7 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
     const contact = contactInput ?? user?.email ?? '';
 
     const [honeypot, setHoneypot] = useState('');
+    const [chosenPractitioner, setChosenPractitioner] = useState('');
     const [touched, setTouched] = useState({ name: false, contact: false, message: false });
     const [status, setStatus] = useState<Status>('idle');
     const [errorKind, setErrorKind] = useState<ErrorKind>('server');
@@ -234,6 +240,7 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
         const result = await sendInquiry({
             providerId: provider.id,
             providerName: provider.name,
+            ...(chosenPractitioner ? { practitionerId: chosenPractitioner } : {}),
             name: name.trim(),
             contact: contact.trim(),
             message: message.trim(),
@@ -332,6 +339,16 @@ export function InquiryForm({ provider, onSent }: { provider: Provider; onSent?:
                     <input type="text" name="website" tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
                 </label>
             </div>
+
+            {doctors.length > 0 && (
+                <div className="inq-doctor">
+                    <label htmlFor={`${uid}-doctor`}>{t('inquiry.doctorLabel')}</label>
+                    <select id={`${uid}-doctor`} value={chosenPractitioner} disabled={sending} onChange={(e) => setChosenPractitioner(e.target.value)}>
+                        <option value="">{t('inquiry.doctorAny')}</option>
+                        {doctors.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                </div>
+            )}
 
             <div className="inq-starters" role="group" aria-label={t('inquiry.startersLabel')}>
                 {STARTERS.map((s) => {

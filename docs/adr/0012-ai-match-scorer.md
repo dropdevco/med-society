@@ -30,7 +30,7 @@ Emilio wants a matcher that weighs everything we know: name, specialty, city, cl
 
 ## How it is built (16 Nov 2026)
 
-- Migration `0048_match_scores.sql`: `match_scores` (one row per item scored, with the run, model, reason and the exact fields the model saw), `match_links` (what each auto-link changed), and `scorer_auto_link`, `scorer_undo_run`, `scorer_split`, callable by the service role only. Both review queues return the latest score as `ai_score`.
+- Migration `0051_match_scores.sql` (numbered 0048 until main took 0047 to 0049 on 17 Nov): `match_scores` (one row per item scored, with the run, model, reason and the exact fields the model saw), `match_links` (what each auto-link changed), and `scorer_auto_link`, `scorer_undo_run`, `scorer_split`, callable by the service role only. Both review queues return the latest score as `ai_score`.
 - `npm run sources:score` scores the queue (50 items by default, `--limit=all` for every one), `--sample=<run>` writes the sheet for the check of about 50, `--outreach` lists what is still unresolved, `--undo=<run>` and `--split=<run> --doctor=<uuid> --group=…` reverse a run's links. `--dry` and `--try=N` write nothing.
 - Auto-linking is the environment setting `SCORER_AUTO_LINK_AT` (for example `80`). Unset, the scorer links nothing.
 - Scores are evidence, not decisions: `doctor_source_ids.decided_by` stays empty until a person or, later, the enabled auto-link decides.

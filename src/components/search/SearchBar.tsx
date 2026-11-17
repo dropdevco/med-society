@@ -220,7 +220,7 @@ export function SearchBar({ value, onChange, onSuggestion, vocabulary, large, re
                                     {s.label}
                                 </span>
                                 <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', flexShrink: 0 }}>
-                                    {t(`search.kind.${s.kind}`, { defaultValue: '' })}
+                                    {t(`search.kind.${s.clinic ? 'clinic' : s.kind}`, { defaultValue: '' })}
                                     {s.count ? ` · ${s.count.toLocaleString()}` : ''}
                                 </span>
                             </button>

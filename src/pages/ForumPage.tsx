@@ -28,7 +28,7 @@ export function ForumPage({ forum }: { forum: ForumKind }) {
     // The gate asks the one cheap question; the listings themselves (needed
     // only to post) load alongside, not in front of, the threads.
     const { isClinician, loading: clinicianLoading } = useIsClinician(user?.id ?? null);
-    const { owned } = useMyClinic(user?.id ?? null);
+    const { speaksAs } = useMyClinic(user?.id ?? null);
     const [params, setParams] = useSearchParams();
 
     const sort = (params.get('sort') === 'unanswered' ? 'unanswered' : 'recent') as ThreadSort;
@@ -139,7 +139,7 @@ export function ForumPage({ forum }: { forum: ForumKind }) {
                 {composing && (
                     <ThreadComposer
                         forum={forum}
-                        clinics={owned}
+                        clinics={speaksAs}
                         onCancel={() => { setComposing(false); setParam('compose', ''); }}
                         onPosted={(id) => navigate(`${base}/${id}`)}
                     />

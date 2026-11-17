@@ -128,6 +128,11 @@ export async function getAuthUser(
 export interface InquiryRow {
     provider_id: string | null;
     provider_name: string | null;
+    /**
+     * On a clinic page, the doctor the patient chose (their own listing id).
+     * Only sent when chosen, so an inquiry still inserts before migration 0049.
+     */
+    practitioner_id?: string;
     patient_name: string;
     contact: string;
     contact_kind: 'phone' | 'email';
@@ -168,6 +173,7 @@ export function parseInquiry(body: unknown): Parsed {
     }
 
     const providerId = clean(b.providerId, 64);
+    const chosen = clean(b.practitionerId, 64);
     const sourceUrl = clean(b.sourceUrl, 500);
 
     return {
@@ -176,6 +182,7 @@ export function parseInquiry(body: unknown): Parsed {
         row: {
             provider_id: UUID.test(providerId) ? providerId : null,
             provider_name: clean(b.providerName, 200) || null,
+            ...(UUID.test(chosen) && chosen !== providerId ? { practitioner_id: chosen } : {}),
             patient_name: name,
             contact,
             contact_kind: kind,
@@ -217,6 +224,7 @@ async function sendEmail(row: InquiryRow, account: AuthUser): Promise<void> {
     const rows: [string, string | null][] = [
         ['Provider', clinic],
         ['Provider id', row.provider_id],
+        ['Doctor chosen', row.practitioner_id ? `${SITE}/providers/${row.practitioner_id}` : null],
         ['Patient', row.patient_name],
         [row.contact_kind === 'email' ? 'Email' : 'Phone', row.contact],
         // The verified sign-in, which can differ from the contact they chose to be answered at.

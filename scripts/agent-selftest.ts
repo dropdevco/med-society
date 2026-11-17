@@ -172,6 +172,20 @@ const siteLd = siteJsonLd({ ...asProvider(FULL), description: 'Dental care.', so
 check('server and client schema.org JSON-LD agree', JSON.stringify(stripUndefined(serverLd)) === JSON.stringify(stripUndefined(siteLd)),
     { server: serverLd, client: siteLd });
 
+// A clinic (providers.kind = 'clinic', migration 0049) with two doctors, and a doctor who practises at it.
+const DOCS = [{ id: U(7), name: 'Dra. Ana Uno', specialty: ['dentist'], city: 'Tijuana' }, { id: U(8), name: 'Dr. Luis Dos', specialty: ['orthodontist'], city: 'Tijuana' }];
+const clinicRow = __test.toRow({ ...FULL, kind: 'clinic', name: 'Dr. Smile Clinic' })!;
+const clinicServer = __test.providerJsonLd({ row: clinicRow, description: null, hours: null, phone: null, website: null, socials: {}, gallery: [], services: [], team: { practitioners: DOCS, clinics: [] } });
+const clinicSite = siteJsonLd({ ...asProvider({ ...FULL, kind: 'clinic', name: 'Dr. Smile Clinic' }), phone: undefined, website: undefined, socials: {}, services: [] } as unknown as Provider,
+    { practitioners: DOCS, clinics: [] });
+check('a clinic is a MedicalClinic even with a dental specialty and a "Dr." name', clinicServer['@type'] === 'MedicalClinic', clinicServer['@type']);
+check('a clinic lists its doctors as member, server and client alike',
+    Array.isArray(clinicServer.member) && (clinicServer.member as unknown[]).length === 2
+    && JSON.stringify(stripUndefined(clinicServer.member)) === JSON.stringify(stripUndefined(clinicSite.member)),
+    { server: clinicServer.member, client: clinicSite.member });
+const docServer = __test.providerJsonLd({ row: detailRow, description: null, hours: null, phone: null, website: null, socials: {}, gallery: [], services: [], team: { practitioners: [], clinics: [{ id: U(9), name: 'Clínica Norte', specialty: [], city: 'Tijuana' }] } });
+check('a doctor names their clinic as memberOf', JSON.stringify(docServer.memberOf) === JSON.stringify([{ '@type': 'MedicalClinic', '@id': `${(clinicServer.url as string).replace(/[^/]+$/, U(9))}#provider`, name: 'Clínica Norte', url: (clinicServer.url as string).replace(/[^/]+$/, U(9)) }]), docServer.memberOf);
+
 // ── 2. parameter validation ──────────────────────────────────────────────────
 console.log('parameters');
 const parse = (o: Record<string, unknown>) => { try { return { q: __test.parseSearch(o) }; } catch (e) { return { err: e as { code: string; extra: Record<string, unknown>; message: string } }; } };

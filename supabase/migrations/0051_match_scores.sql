@@ -8,7 +8,7 @@
 --   scorer_split(run, doctor, ...)  moves the records a run attached to one doctor
 --                                   UUID into as many new UUIDs as there were people.
 -- A cédula conflict (tier 1) is never auto-linked.
--- Needs 0042 to 0047. Run in: Supabase dashboard -> SQL editor (or apply_migration).
+-- Needs 0042 to 0046 and 0050. Run in: Supabase dashboard -> SQL editor (or apply_migration).
 
 -- Scorer runs are source runs like any other: a UUIDv7, a start, a status, counts.
 insert into public.data_sources (slug, name, access, cadence, doctor_links)

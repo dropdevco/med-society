@@ -132,7 +132,7 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
 // ── Migrations ────────────────────────────────────────────────────────────
 {
     const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql'));
-    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql', '0047_organization_groups.sql', '0048_match_scores.sql'];
+    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql', '0050_organization_groups.sql', '0051_match_scores.sql'];
     for (const f of ours) {
         check(`${f}: exists and no other file has its number`, files.filter((x) => x.startsWith(f.slice(0, 4))).join() === f);
         check(`${f}: says how to undo it`, /rollback/i.test(read(`supabase/migrations/${f}`)));
@@ -147,7 +147,8 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     // A view can only gain columns at the end: badges must follow production's last columns (0040_providers_kind).
     const view = /create or replace view public\.provider_list[\s\S]*?from public\.providers p/.exec(read('supabase/migrations/0043_sources_and_badges.sql'))?.[0] ?? '';
     check('provider_list keeps service_names and kind, then adds badges last', /"googlePlaceId",\s*service_names,\s*kind,\s*badges\s*from/.test(view));
-    check('our migrations come after the newest on main', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0042'));
+    // 0042 to 0046 are in production; 0050 and 0051 are new and must come after everything else (main took 0047 to 0049).
+    check('our unapplied migrations come after every other one', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0050'));
     for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
         check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
     }

@@ -295,25 +295,21 @@ async function syncStats(days: number) {
 
     const [eventRows, impressionRows, searchRows] = await Promise.all([
         hogqlAll(
-            `select event, toString(properties.provider_id), distinct_id, toUnixTimestamp(timestamp),
-                    toString(properties.method), toString(properties.channel), toString(properties.$geoip_country_code),
-                    toString(properties.lang), toString(properties.$device_type), toString(properties.section)
-             from events
-             where event in ('provider_viewed', 'provider_clicked', 'provider_contact_click', 'provider_section_viewed')
-               and ${window}
-             order by timestamp, uuid`,
+            `event, toString(properties.provider_id), distinct_id, toUnixTimestamp(timestamp),
+             toString(properties.method), toString(properties.channel), toString(properties.$geoip_country_code),
+             toString(properties.lang), toString(properties.$device_type), toString(properties.section)`,
+            `event in ('provider_viewed', 'provider_clicked', 'provider_contact_click', 'provider_section_viewed')
+             and ${window}`,
         ),
         hogqlAll(
-            `select distinct_id, toUnixTimestamp(timestamp), toString(properties.ids)
-             from events where event = 'provider_impressions' and ${window}
-             order by timestamp, uuid`,
+            `distinct_id, toUnixTimestamp(timestamp), toString(properties.ids)`,
+            `event = 'provider_impressions' and ${window}`,
         ),
         hogqlAll(
-            `select toUnixTimestamp(timestamp), toString(properties.region), toString(properties.demand_specialties),
-                    toString(properties.terms), toString(properties.insurance_filter),
-                    toString(properties.language_filter), toString(properties.verified_only), toString(properties.no_results)
-             from events where event = 'search_performed' and ${window}
-             order by timestamp, uuid`,
+            `toUnixTimestamp(timestamp), toString(properties.region), toString(properties.demand_specialties),
+             toString(properties.terms), toString(properties.insurance_filter),
+             toString(properties.language_filter), toString(properties.verified_only), toString(properties.no_results)`,
+            `event = 'search_performed' and ${window}`,
         ),
     ]);
 
@@ -397,13 +393,37 @@ async function hogql(query: string): Promise<unknown[][]> {
     return body.results ?? [];
 }
 
-/** Every row of a query, a page at a time (HogQL otherwise stops at 100). */
-async function hogqlAll(query: string): Promise<unknown[][]> {
+/**
+ * Every matching event, a page at a time (HogQL otherwise stops at 100).
+ *
+ * A personal API key may not use OFFSET, so this pages by keyset on the
+ * timestamp: each page asks for `timestamp >= the last second seen` and skips
+ * the rows of that second it already has (told apart by uuid). Rows come back
+ * as the requested columns only. It needs PAGE to be larger than the events in
+ * any one second, which holds by a wide margin.
+ */
+async function hogqlAll(columns: string, where: string): Promise<unknown[][]> {
     const all: unknown[][] = [];
+    let cursor: number | null = null;
+    let seen = new Set<string>();
     for (let page = 0; page < MAX_PAGES; page++) {
-        const rows = await hogql(`${query} limit ${PAGE} offset ${page * PAGE}`);
-        all.push(...rows);
+        const after: string = cursor === null ? '' : ` and timestamp >= toDateTime(${cursor}, 'UTC')`;
+        const rows = await hogql(
+            `select ${columns}, toString(uuid), toUnixTimestamp(timestamp) from events
+             where ${where}${after} order by timestamp, uuid limit ${PAGE}`,
+        );
+        let fresh = 0;
+        for (const r of rows) {
+            const sec = Number(r[r.length - 1]);
+            const uuid = String(r[r.length - 2]);
+            if (cursor !== null && sec === cursor && seen.has(uuid)) continue;
+            if (sec !== cursor) { cursor = sec; seen = new Set(); }
+            seen.add(uuid);
+            all.push(r.slice(0, -2));
+            fresh++;
+        }
         if (rows.length < PAGE) return all;
+        if (fresh === 0) throw new Error('posthog paging made no progress');
     }
     console.error('[stats] stopped at the page cap; some events were not counted');
     return all;

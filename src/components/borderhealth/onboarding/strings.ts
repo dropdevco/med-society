@@ -63,8 +63,9 @@ interface Strings {
     confirmHint: string;
     confirmSignedIn: string;
 
-    approvedTitle: string;
-    approvedBody: (name: string) => string;
+    verifyTitle: string;
+    verifyBody: (name: string) => string;
+    verifyCta: string;
     pendingTitle: string;
     pendingBody: (name: string) => string;
     ownerTitle: string;
@@ -162,10 +163,11 @@ const es: Strings = {
     confirmHint: '¿Ya lo confirmó en otra pestaña? Inicie sesión aquí y continuamos.',
     confirmSignedIn: 'Cuenta confirmada. Terminando…',
 
-    approvedTitle: 'Su perfil es suyo',
-    approvedBody: (name) => `${name} ya está a su cargo. Actualice fotos, horarios y servicios desde su panel.`,
+    verifyTitle: 'Un paso más: verifiquemos que es suyo',
+    verifyBody: (name) => `Para proteger a ${name}, revisamos a mano cada solicitud: su identificación, su cédula o licencia, y una llamada a la clínica. Toma unos minutos.`,
+    verifyCta: 'Continuar con la verificación',
     pendingTitle: 'Recibimos su solicitud',
-    pendingBody: (name) => `Verificaremos que ${name} es suyo en 1–2 días hábiles y le avisaremos por correo.`,
+    pendingBody: (name) => `Estamos verificando que ${name} es suyo. Normalmente toma de 1 a 3 días hábiles; puede ver el estado en su panel.`,
     ownerTitle: 'Ya administra este perfil',
     ownerBody: (name) => `${name} ya está vinculado a su cuenta.`,
 
@@ -301,10 +303,11 @@ const en: Strings = {
     confirmHint: 'Already confirmed in another tab? Sign in here and we will continue.',
     confirmSignedIn: 'Account confirmed. Finishing up…',
 
-    approvedTitle: 'Your listing is yours',
-    approvedBody: (name) => `You now manage ${name}. Update photos, hours and services from your dashboard.`,
+    verifyTitle: 'One more step: let’s verify it’s yours',
+    verifyBody: (name) => `To protect ${name}, we check every claim by hand: your ID, your cédula or licence, and a call to the clinic. It takes a few minutes.`,
+    verifyCta: 'Continue to verification',
     pendingTitle: 'We received your request',
-    pendingBody: (name) => `We will verify that ${name} is yours within 1–2 business days and email you.`,
+    pendingBody: (name) => `We are verifying that ${name} is yours. This usually takes 1–3 business days; you can check the status in your dashboard.`,
     ownerTitle: 'You already manage this listing',
     ownerBody: (name) => `${name} is already linked to your account.`,
 

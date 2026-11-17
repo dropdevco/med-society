@@ -3,6 +3,8 @@ import { supabase } from './supabase';
 export interface InquiryPayload {
     providerId: string;
     providerName: string;
+    /** On a clinic page: the doctor the patient wants to see, if they picked one. */
+    practitionerId?: string;
     name: string;
     contact: string;
     message: string;

@@ -340,7 +340,7 @@ select 'candidates: the planner can answer it from the index' as check,
   (select count(*) from public.providers p where p.name_norm % public.bh_norm('Casa Prueba Recovery')) >= 1 as ok;
 reset enable_seqscan;
 
--- ── 0047: organizations are the groups ───────────────────────────────────────
+-- ── 0050: organizations are the groups ───────────────────────────────────────
 select 'groups: Baja Health Cluster is a cluster' as check, (select kind = 'cluster' from public.organizations where slug = 'baja-health-cluster') as ok;
 select 'groups: its doctor directory is its own doctor source' as check,
   (select entity = 'doctor' and access = 'open' and organization_id = (select id from public.organizations where slug = 'baja-health-cluster')

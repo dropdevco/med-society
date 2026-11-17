@@ -360,7 +360,7 @@ export function SearchHero({
                                         <SuggestionIcon s={s} />
                                         <span className="ms-pop-label">{s.label}</span>
                                         <span className="ms-pop-meta">
-                                            {t(`search.kind.${s.kind}`, { defaultValue: '' })}
+                                            {t(`search.kind.${s.clinic ? 'clinic' : s.kind}`, { defaultValue: '' })}
                                             {s.count ? ` · ${s.count.toLocaleString()}` : ''}
                                         </span>
                                     </button>

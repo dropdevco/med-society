@@ -9,10 +9,13 @@ import type { PlanKey } from '../lib/billing';
 import { supabase } from '../lib/supabase';
 import { useProviderStats, type ProviderStats } from '../hooks/useProviderStats';
 import { AuthShell } from '../components/account/AuthShell';
+import { authButton } from '../components/account/authStyles';
 import { ClinicProfileForm } from '../components/account/ClinicProfileForm';
 import { ClinicPhotoManager } from '../components/account/ClinicPhotoManager';
 import { ClinicPlanPanel } from '../components/account/ClinicPlanPanel';
 import { ClinicSitePanel, type SiteRow } from '../components/account/ClinicSitePanel';
+import { ClinicTeamPanel } from '../components/account/ClinicTeamPanel';
+import { updatePractitionerLink } from '../lib/team';
 import { StatsPanel, StatsSummary } from '../components/account/StatsPanel';
 import { ClinicAvatar } from '../components/account/ClinicAvatar';
 import { ProfileCompleteness } from '../components/account/ProfileCompleteness';
@@ -22,27 +25,27 @@ import { FORUMS_LISTED } from '../lib/forumRoutes';
 import type { CompletenessTarget } from '../utils/profileCompleteness';
 import { IconViews } from '../components/icons/Icons';
 
-type Tab = 'overview' | 'insights' | 'profile' | 'photos' | 'website' | 'plan';
+type Tab = 'overview' | 'insights' | 'profile' | 'photos' | 'website' | 'team' | 'plan';
 
 /**
  * What a clinic can actually do once it has claimed a listing — which, until
  * now, was nothing.
  *
- * Single page with tabs rather than nested routes: there are four panels, they
+ * Single page with tabs rather than nested routes: there are a handful of panels, they
  * all operate on one listing, and giving each its own URL would mostly buy the
  * ability to deep-link into a form nobody links to.
  */
 export function DashboardPage() {
     const { t } = useTranslation();
     const { user, loading: sessionLoading } = useSession();
-    const { owned, claims, loading, reload } = useMyClinic(user?.id ?? null);
+    const { owned, access, pendingLinks, claims, loading, reload } = useMyClinic(user?.id ?? null);
     const location = useLocation();
     const [params] = useSearchParams();
     // The pricing page sends `?tab=plan&buy=<plan>`; the payment page sends the
     // customer back to `?tab=plan&paid=<plan>`. Read once, at mount.
     const [tab, setTab] = useState<Tab>(() => {
         const wanted = params.get('tab');
-        return wanted === 'plan' || wanted === 'insights' || wanted === 'website' ? wanted : 'overview';
+        return wanted === 'plan' || wanted === 'insights' || wanted === 'website' || wanted === 'team' ? wanted : 'overview';
     });
     const planParam = (key: string): PlanKey | null => {
         const v = params.get(key);
@@ -134,12 +137,26 @@ export function DashboardPage() {
     // Claimed but not yet approved, or nothing at all. Both are "there is
     // nothing to manage here yet", and both need to say what happens next.
     if (owned.length === 0) {
-        const pending = claims.filter((c) => c.status === 'pending');
+        // The claim that most needs this person's attention decides the screen.
+        const ORDER = ['needs_info', 'incomplete', 'pending', 'rejected'] as const;
+        const claim = ORDER.map((s) => claims.find((c) => c.status === s)).find(Boolean);
+        const copy = {
+            needs_info: ['account.needsInfoTitle', 'account.needsInfoBody'],
+            incomplete: ['account.incompleteTitle', 'account.incompleteBody'],
+            pending: ['account.pendingTitle', 'account.pendingBody'],
+            rejected: ['account.rejectedTitle', 'account.noClinicBody'],
+        } as const;
+        const [title, body] = claim ? copy[claim.status as keyof typeof copy] : ['account.noClinicTitle', 'account.noClinicBody'];
         return (
-            <AuthShell
-                title={pending.length > 0 ? t('account.pendingTitle') : t('account.noClinicTitle')}
-                subtitle={pending.length > 0 ? t('account.pendingBody') : t('account.noClinicBody')}
-            >
+            <AuthShell title={t(title)} subtitle={t(body)}>
+                {claim?.review_note && (claim.status === 'needs_info' || claim.status === 'rejected') && (
+                    <p className="ms-claim-note warn" style={{ marginBottom: '1.25rem' }}>{claim.review_note}</p>
+                )}
+                {claim && claim.status !== 'rejected' && (
+                    <Link to={`/claim/${claim.provider_id}`} className="press" style={{ ...authButton, textDecoration: 'none', marginBottom: '0.75rem' }}>
+                        {t('account.openClaim')}
+                    </Link>
+                )}
                 <Link
                     to="/"
                     className="press"
@@ -157,15 +174,28 @@ export function DashboardPage() {
     }
 
     const clinic = owned.find((p) => p.id === activeId) ?? owned[0];
+    // A doctor's listing run on a clinic's behalf: the clinic edits the profile
+    // and photos; insights, website, team and plan stay the doctor's.
+    const managed = access[clinic.id] === 'managed';
+    const switchTo = (id: string, nextTab?: Tab) => {
+        if (tab === 'profile' && !confirmLeave()) return;
+        dirtyRef.current = false;
+        setActiveId(id);
+        if (nextTab) setTab(nextTab);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    const myPending = pendingLinks.filter((l) => l.practitioner_id === clinic.id);
 
     // Insights stays out of sight until the database says the listing has enough
     // traffic (`ready`: 30-day views past the threshold in stats_settings, or a
     // manual override). It appears by itself the moment that flips; a deep link to
     // it falls back to Overview until then.
     const insightsReady = Boolean(stats?.ready);
-    const visibleTabs = (['overview', 'insights', 'profile', 'photos', 'website', 'plan'] as Tab[])
-        .filter((key) => (key !== 'insights' || insightsReady) && (key !== 'website' || site !== null));
-    const activeTab: Tab = (tab === 'insights' && !insightsReady) || (tab === 'website' && site === null) ? 'overview' : tab;
+    const visibleTabs = (managed
+        ? ['overview', 'profile', 'photos'] as Tab[]
+        : (['overview', 'insights', 'profile', 'photos', 'website', 'team', 'plan'] as Tab[])
+            .filter((key) => (key !== 'insights' || insightsReady) && (key !== 'website' || site !== null)));
+    const activeTab: Tab = visibleTabs.includes(tab) ? tab : 'overview';
 
     return (
         <ToastProvider>
@@ -175,15 +205,15 @@ export function DashboardPage() {
             {owned.length > 1 && (
                 <select
                     value={clinic.id}
-                    onChange={(e) => {
-                        if (tab === 'profile' && !confirmLeave()) return;
-                        dirtyRef.current = false;
-                        setActiveId(e.target.value);
-                    }}
+                    onChange={(e) => switchTo(e.target.value)}
                     style={{ marginBottom: '1.25rem' }}
                     aria-label={t('account.switchClinic')}
                 >
-                    {owned.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {owned.map((p) => (
+                        <option key={p.id} value={p.id}>
+                            {access[p.id] === 'managed' ? `${p.name} · ${t('team.pickerSpecialist')}` : p.name}
+                        </option>
+                    ))}
                 </select>
             )}
 
@@ -206,6 +236,23 @@ export function DashboardPage() {
                     {t('account.viewPublic')}
                 </Link>
             </div>
+
+            {managed && <p className="acct-muted acct-banner">{t('team.managedBanner')}</p>}
+
+            {/* A clinic asked to list this doctor: answer here, not only in the Team tab. */}
+            {myPending.map((l) => (
+                <div key={l.clinic_id} className="acct-banner acct-row" role="status">
+                    <span style={{ flex: '1 1 240px' }}>{t('team.pendingBanner', { clinic: l.clinic_name, city: l.clinic_city ?? '' })}</span>
+                    <button type="button" className="acct-btn acct-btn--sm"
+                        onClick={() => void updatePractitionerLink(l.clinic_id, clinic.id, { accept: true }).then(() => reload())}>
+                        {t('team.accept')}
+                    </button>
+                    <button type="button" className="acct-link"
+                        onClick={() => void updatePractitionerLink(l.clinic_id, clinic.id, { accept: false }).then(() => reload())}>
+                        {t('team.decline')}
+                    </button>
+                </div>
+            ))}
 
             <div
                 role="tablist"
@@ -257,10 +304,10 @@ export function DashboardPage() {
                     onSeePlans={() => goTab('plan')}
                 />
             )}
-            {tab === 'profile' && (
+            {activeTab === 'profile' && (
                 <ClinicProfileForm key={clinic.id} clinic={clinic} onSaved={reload} onDirtyChange={setDirty} />
             )}
-            {tab === 'photos' && (
+            {activeTab === 'photos' && (
                 <ClinicPhotoManager
                     key={clinic.id}
                     clinic={clinic}
@@ -268,10 +315,18 @@ export function DashboardPage() {
                     onGoToProfile={() => goTo({ tab: 'profile', field: 'acct-avatar' })}
                 />
             )}
-            {tab === 'website' && site && (
+            {activeTab === 'website' && site && (
                 <ClinicSitePanel key={`${clinic.id}:${siteNonce}`} clinic={clinic} site={site} onSaved={reloadSite} onEditProfile={(field) => goTo({ tab: 'profile', field })} />
             )}
-            {tab === 'plan' && (
+            {activeTab === 'team' && (
+                <ClinicTeamPanel
+                    key={clinic.id}
+                    clinic={clinic}
+                    onChanged={() => { void reload(); }}
+                    onEdit={(id) => switchTo(id, 'profile')}
+                />
+            )}
+            {activeTab === 'plan' && (
                 <ClinicPlanPanel
                     key={clinic.id}
                     clinic={clinic}

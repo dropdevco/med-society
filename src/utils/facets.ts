@@ -82,6 +82,8 @@ export interface Suggestion {
     value: string;
     /** How many providers sit behind it, when that is meaningful. */
     count?: number;
+    /** A provider suggestion that is a clinic, so it is labelled as one. */
+    clinic?: boolean;
 }
 
 /** Vocabulary the suggester draws on. Built once per [providers, language]. */
@@ -97,7 +99,7 @@ export interface SuggestVocabulary {
     cities: { label: string; folded: string; count: number; country: Country; region: RegionId }[];
     postals: { label: string; count: number }[];
     insurers: { label: string; folded: string; count: number }[];
-    providers: { id: string; label: string; folded: string }[];
+    providers: { id: string; label: string; folded: string; clinic?: boolean }[];
 }
 
 /** How many distinct service names to keep. The long tail is one-offs. */
@@ -197,7 +199,7 @@ export function buildVocabulary(
         ],
         postals: ranked(postalCounts).map(([label, count]) => ({ label, count })),
         insurers: ranked(insurerCounts).map(([label, count]) => ({ label, folded: fold(label), count })),
-        providers: providers.map((p) => ({ id: p.id, label: p.name, folded: fold(p.name ?? '') })),
+        providers: providers.map((p) => ({ id: p.id, label: p.name, folded: fold(p.name ?? ''), clinic: p.kind === 'clinic' })),
     };
 }
 
@@ -267,7 +269,7 @@ export function suggest(vocab: SuggestVocabulary, query: string, max = 8): Sugge
         }
     }
     for (const p of vocab.providers) {
-        consider(p.folded, { kind: 'provider', label: p.label, value: p.id }, 0);
+        consider(p.folded, { kind: 'provider', label: p.label, value: p.id, clinic: p.clinic || undefined }, 0);
     }
 
     scored.sort((a, b) => b.r - a.r || b.c - a.c || a.s.label.length - b.s.label.length);

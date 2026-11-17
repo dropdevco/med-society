@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs migrations 0042 to 0048 in a throwaway local Postgres 17 (never production) with made-up data.
+# Runs our migrations (0042 to 0046, 0050, 0051) in a throwaway local Postgres 17 (never production) with made-up data.
 #   bash supabase/tests/doctors-and-badges/run.sh
 set -euo pipefail
 export MSYS_NO_PATHCONV=1   # Git Bash: keep /sql paths inside the container as written
@@ -12,7 +12,7 @@ for _ in $(seq 1 40); do docker exec ms-badges-test pg_isready -U postgres -q &&
 sleep 2
 psql() { docker exec ms-badges-test psql -U postgres -v ON_ERROR_STOP=1 -q -X "$@"; }
 psql -f /sql/stubs.sql
-psql -f /migrations/0042_doctor_identity.sql && psql -f /migrations/0043_sources_and_badges.sql && psql -f /migrations/0044_facility_badges.sql && psql -f /migrations/0046_facility_candidates_index.sql && psql -f /migrations/0047_organization_groups.sql && psql -f /migrations/0048_match_scores.sql && echo "migrations applied"
+psql -f /migrations/0042_doctor_identity.sql && psql -f /migrations/0043_sources_and_badges.sql && psql -f /migrations/0044_facility_badges.sql && psql -f /migrations/0046_facility_candidates_index.sql && psql -f /migrations/0050_organization_groups.sql && psql -f /migrations/0051_match_scores.sql && echo "migrations applied"
 # 0045 comes after the exercise, which needs a logo-free start to test the permission rule.
 out="$(psql -f /sql/exercise.sql 2>&1 && psql -f /migrations/0045_organization_logos.sql 2>&1 && psql -f /sql/logos.sql 2>&1 && psql -f /sql/scorer.sql 2>&1)" || { echo "$out"; echo "FAILED: a script stopped on an error"; exit 1; }
 echo "$out"

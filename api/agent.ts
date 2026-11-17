@@ -350,8 +350,8 @@ interface Row {
     id: string;
     name: string;
     specialty: string[];
-    /** 'stay' = recovery house / lodging-style practice (providers.kind); undefined for everyone else. */
-    kind?: 'stay';
+    /** providers.kind: 'stay' = recovery house; 'clinic' = a practice with several doctors (0049); undefined = one doctor or unknown. */
+    kind?: 'stay' | 'clinic';
     country: 'US' | 'MX';
     city: string;
     region: RegionId;
@@ -471,7 +471,7 @@ function toRow(raw: any): Row | null {
         id: String(raw.id),
         name: String(raw.name ?? '').trim(),
         specialty: strArray(raw.specialty),
-        kind: raw.kind === 'stay' ? 'stay' : undefined,
+        kind: raw.kind === 'stay' || raw.kind === 'clinic' ? raw.kind : undefined,
         country: raw.country === 'US' ? 'US' : 'MX',
         city: String(raw.city ?? '').trim(),
         region,
@@ -1280,6 +1280,19 @@ interface Detail {
     socials: Record<string, string>;
     gallery: string[];
     services: ServiceOut[];
+    /** The clinic's doctors, or the doctor's clinics: active links to live listings (provider_team, 0049). */
+    team?: TeamOut;
+}
+
+interface TeamRef { id: string; name: string; specialty: string[]; city: string | null }
+interface TeamOut { practitioners: TeamRef[]; clinics: TeamRef[] }
+
+function toTeam(raw: unknown): TeamOut {
+    const r = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const list = (v: unknown): TeamRef[] => (Array.isArray(v) ? v : []).slice(0, 100)
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object' && UUID.test(String((x as Record<string, unknown>).id)))
+        .map((x) => ({ id: String(x.id), name: clean(x.name, 200), specialty: strArray(x.specialty), city: x.city ? clean(x.city, 80) : null }));
+    return { practitioners: list(r.practitioners), clinics: list(r.clinics) };
 }
 
 const httpUrl = (v: unknown): string | null => {
@@ -1293,7 +1306,11 @@ async function fetchDetail(id: string): Promise<Detail | null> {
     if (!UUID.test(id)) return null;
     // The table grant hides contact columns from the anon key (migration 0032),
     // so one provider's full row comes from the throttled RPC instead.
-    const { data } = await sb('rpc/provider_public', { method: 'POST', body: { p_id: id } });
+    const [{ data }, teamRes] = await Promise.all([
+        sb('rpc/provider_public', { method: 'POST', body: { p_id: id } }),
+        // Empty, not a failure, before migration 0049 or for a listing with no links.
+        sb('rpc/provider_team', { method: 'POST', body: { p_id: id } }).catch(() => ({ data: null })),
+    ]);
     const raw = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
     const row = raw && raw.status === 'live' ? toRow(raw) : null;
     if (!raw || !row) return null;
@@ -1329,6 +1346,7 @@ async function fetchDetail(id: string): Promise<Detail | null> {
         socials,
         gallery: strArray(raw.galleryUrls ?? raw.galleryurls).map(photoUrl).filter((u): u is string => u !== null).slice(0, 12),
         services,
+        team: toTeam(teamRes.data),
     };
 }
 
@@ -1358,6 +1376,9 @@ async function detailEnvelope(d: Detail, lang: Lang) {
             },
             services: d.services,
             photos: d.gallery,
+            listing_kind: d.row.kind === 'clinic' ? 'clinic' : d.row.kind === 'stay' ? 'stay' : 'doctor',
+            doctors: (d.team?.practitioners ?? []).map((x) => ({ id: x.id, name: x.name, specialties: x.specialty, url: providerUrl(x.id) })),
+            practises_at: (d.team?.clinics ?? []).map((x) => ({ id: x.id, name: x.name, city: x.city, url: providerUrl(x.id) })),
             reviews_api_url: `${SITE}/api/v1/providers/${d.row.id}/reviews`,
         },
         notes: [RATING_NOTE, UNTRUSTED_NOTICE],
@@ -1803,6 +1824,8 @@ const SPECIALTY_SCHEMA: Partial<Record<SpecialtyId, string>> = {
 
 function schemaTypeOf(p: Row): string {
     if (p.specialty.includes('pharmacy') && p.specialty.length === 1) return 'Pharmacy';
+    // A clinic with several doctors is a clinic, whatever its first specialty or name.
+    if (p.kind === 'clinic') return 'MedicalClinic';
     if (p.specialty[0] === 'dentist' || p.specialty[0] === 'orthodontist') return 'Dentist';
     if (p.specialty[0] === 'optometry') return 'Optician';
     return /^\s*(dr|dra|doctor|doctora)\b\.?/i.test(p.name) ? 'Physician' : 'MedicalClinic';
@@ -1839,9 +1862,14 @@ function providerJsonLd(d: Detail): Record<string, unknown> {
         ...(r !== null ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: r, reviewCount: p.reviewCount, bestRating: 5, worstRating: 1 } } : {}),
         ...(p.languagesConfirmed && p.languages.length ? { availableLanguage: p.languages } : {}),
         ...(sameAs.length ? { sameAs } : {}),
+        // A doctor's clinics as `memberOf`, a clinic's doctors as `member`; same order as src/utils/structuredData.ts.
+        ...(d.team?.clinics.length ? { memberOf: d.team.clinics.map(teamRef('MedicalClinic')) } : {}),
         ...(offers.length ? { makesOffer: offers } : {}),
+        ...(d.team?.practitioners.length ? { member: d.team.practitioners.map(teamRef('Physician')) } : {}),
     };
 }
+
+const teamRef = (type: string) => (x: TeamRef) => ({ '@type': type, '@id': `${providerUrl(x.id)}#provider`, name: x.name, url: providerUrl(x.id) });
 
 function breadcrumbJsonLd(trail: [string, string][]): Record<string, unknown> {
     return {
@@ -1948,6 +1976,20 @@ async function providerPage(id: string, lang: Lang): Promise<PageDoc> {
     ];
     if (detail.description) {
         blocks.push({ k: 'h', level: 2, text: 'About' }, { k: 'p', parts: [detail.description] });
+    }
+    const team = detail.team;
+    if (team?.practitioners.length) {
+        blocks.push({ k: 'h', level: 2, text: `Doctors at this clinic (${team.practitioners.length})` }, {
+            k: 'ul',
+            items: team.practitioners.map((x): Inline[] => [{ text: x.name, href: `/providers/${x.id}` },
+                x.specialty.length ? ` — ${x.specialty.map((s) => specialtyLabel(s, lang)).join(', ')}` : '']),
+        });
+    }
+    if (team?.clinics.length) {
+        blocks.push({ k: 'h', level: 2, text: 'Practises at' }, {
+            k: 'ul',
+            items: team.clinics.map((x): Inline[] => [{ text: x.name, href: `/providers/${x.id}` }, x.city ? ` — ${x.city}` : '']),
+        });
     }
     if (detail.services.length) {
         blocks.push({ k: 'h', level: 2, text: 'Services and published prices' }, {
@@ -2105,8 +2147,9 @@ async function homePage(sp: URLSearchParams): Promise<PageDoc> {
     const total = REGION_IDS.reduce((n, id) => n + (counts[id] ?? 0), 0);
     return {
         status: 200, kind: 'home',
-        title: 'MedSociety — Medical care across the US–Mexico border',
-        description: 'Find dentists, surgeons and specialists on both sides of the US–Mexico border, in El Paso – Ciudad Juárez and San Diego – Tijuana. Compare ratings, published prices and licenses, in English and Spanish.',
+        // Keep in step with index.html's <title> and meta description.
+        title: 'MedSociety — Medical care in Tijuana and Ciudad Juárez, Mexico',
+        description: 'Get treated in Mexico and make a trip of it. Compare dentists, surgeons and specialists in Tijuana and Ciudad Juárez by rating, price and credentials before you cross, in English or Spanish.',
         canonical, ogImage: SHARE_IMAGE, blocks,
         jsonld: [{
             '@context': 'https://schema.org', '@type': 'ItemList', name: 'MedSociety regions',

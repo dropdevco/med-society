@@ -23,8 +23,8 @@ psql -f /supabase/migrations/0043_sources_and_badges.sql
 psql -f /supabase/migrations/0044_facility_badges.sql
 psql -f /supabase/migrations/0045_organization_logos.sql
 psql -f /supabase/migrations/0046_facility_candidates_index.sql
-psql -f /supabase/migrations/0047_organization_groups.sql
-psql -f /supabase/migrations/0048_match_scores.sql
+psql -f /supabase/migrations/0050_organization_groups.sql
+psql -f /supabase/migrations/0051_match_scores.sql
 psql -f /sandbox/admin.sql
 docker run -d --name ms-sandbox-api --network ms-sandbox \
     -e PGRST_DB_URI=postgres://postgres:sandbox@ms-sandbox-db:5432/postgres \

@@ -2,7 +2,7 @@
 
 Status: recovery centers built 6 Nov 2026; doctors and dentists built 16 Nov 2026 · Owner: Emilio · Adapters: `scripts/sources/adapters/baja-health-cluster.ts`, `scripts/sources/adapters/baja-health-cluster-doctors.ts`
 
-The medical industry cluster's directories of recovery centers (source `baja-health-cluster`, facility badges) and of doctors and dentists (source `baja-health-cluster-doctors`, doctor badges). Both feed the one organization, whose kind is `cluster` (migration 0047), so "doctors at Baja Health Cluster" is one search filter. A listed center or doctor gets an **affiliation** badge. This is membership, not a safety check: the COEPRIS badge is what shows a center is regulated.
+The medical industry cluster's directories of recovery centers (source `baja-health-cluster`, facility badges) and of doctors and dentists (source `baja-health-cluster-doctors`, doctor badges). Both feed the one organization, whose kind is `cluster` (migration 0050), so "doctors at Baja Health Cluster" is one search filter. A listed center or doctor gets an **affiliation** badge. This is membership, not a safety check: the COEPRIS badge is what shows a center is regulated.
 
 ## Access
 

@@ -29,9 +29,14 @@ What exists today:
 - **Doctor accounts.** Supabase Auth. A doctor claims a listing or publishes a new one (`/borderhealth`
   survey onboarding, `/claim/:id`), then manages it in `/dashboard`: profile, photos, social links, plan,
   team, Insights.
-- **Clinic teams.** A clinic links its specialists as their own listings (`clinic_practitioners`) and invites
-  staff. Staff (`provider_owners.role = 'staff'`) can do everything an owner can in the dashboard except act
-  as a clinician (no forum posting as the listing, no forum e-mail).
+- **Clinics and their doctors.** A listing is marked a clinic (`providers.kind = 'clinic'`, migration 0049)
+  and gets its own page layout: focus areas, its doctors (each their own listing, via `clinic_practitioners`),
+  and a "which doctor" choice on the message form. A doctor's page shows "Practises at". The dashboard's Team
+  tab invites staff, adds or creates doctors, and works through Doctoralia suggestions. Staff
+  (`provider_owners.role = 'staff'`) do everything except change roles or add owners, and never act as a
+  clinician. Linking never lets a clinic edit a doctor's listing, and a doctor invited to own theirs still goes
+  through claim review. See [docs/clinics.md](docs/clinics.md) and ADR 0013. **Database side of 0020b is in
+  production; 0049 and the UI are on `feat/clinic-pages`, not applied or deployed.**
 - **Paid plans.** Promoted (US$49) and Featured (US$99) sold through GHL payment links, turned into a listing
   tier by `api/billing.ts` and migration `0029`. Still in GHL **test mode**.
 - **Patient messages.** A signed-in patient sends one-way questions to a clinic (`api/inquiry.ts`). There is
@@ -62,7 +67,7 @@ trip planning.
 
 Deploys go through GitHub: a push creates a Vercel Preview, a merge to `main` is Production (project
 `medsociety-marketplace`, team `dropdevs-projects-25301cf7`, domain `medsociety.one`, canonical host `www`).
-The Vercel MCP has no access to this project here; use `gh api repos/dropdevco/medora-marketplace/deployments`
+The Vercel MCP has no access to this project here; use `gh api repos/dropdevco/med-society/deployments`
 to watch a deploy.
 
 ## 3. Stack
@@ -255,9 +260,11 @@ npx tsx scripts/images-selftest.ts
   auto-fix migration (section 2).
 - **The Supabase project holds unrelated tables** (`clients`, `generations`, `approved_images`, `ha_meetings`,
   an empty `feedback`). Do not touch them. The widget table is `site_feedback` for that reason.
-- **Three names, one product:** MedSociety (brand), `medsociety-marketplace` (npm and Vercel), `medora-marketplace`
-  (repo and local folder). The repository is public on GitHub; the team keeps a private working copy (plan task
-  A4) because making it private breaks Claude tooling on non-enterprise accounts.
+- **Four names, one product:** MedSociety (brand), `medsociety-marketplace` (npm and Vercel), `med-society`
+  (the GitHub repo, renamed from `medora-marketplace` — the old URL still redirects, but update any remote
+  or `gh` command that uses it), `medora-marketplace` (local folder only). The repository is public on
+  GitHub; the team keeps a private working copy (plan task A4) because making it private breaks Claude
+  tooling on non-enterprise accounts.
 - **Known debt:** `npm run lint` reports errors (mostly `react-hooks/set-state-in-effect` in data hooks);
   `SearchBar.tsx` is unreferenced; `estimatedViews.ts` is modelled, not measured; the directory has duplicate
   rows; `doctoralia_doctors.google_rating` was never enriched; the main bundle is over 500 kB; no automated UI
