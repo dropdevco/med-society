@@ -15,6 +15,7 @@ export const defaultFilters: ProviderFilters = {
     minRating: 0,
     insurances: [],
     languages: [],
+    orgs: [],
     verifiedOnly: false,
     withPricing: false,
     maxPriceMxn: null,
@@ -59,6 +60,7 @@ export function countActiveFilters(filters: ProviderFilters): number {
     n += filters.specialty.length;
     n += filters.insurances.length;
     n += filters.languages.length;
+    n += filters.orgs.length;
     if (filters.country) n++;
     if (filters.minRating > 0) n++;
     if (filters.postalCode) n++;
@@ -181,6 +183,11 @@ export function matchesFilters(
     if (!skipped('languages') && filters.languages.length) {
         const held = p.languages ?? [];
         if (!filters.languages.some((l) => held.includes(l))) return false;
+    }
+
+    // Groups: a confirmed, unexpired badge from any chosen organization (expired ones are dropped on read).
+    if (!skipped('orgs') && filters.orgs.length) {
+        if (!(p.badges ?? []).some((b) => filters.orgs.includes(b.org))) return false;
     }
 
     /**

@@ -29,6 +29,8 @@ export interface RunRecord {
     entries: ObservedEntry[];
     /** Lookup sources: question → when it was last answered. */
     lookups?: Record<string, string>;
+    /** Set when the file was rebuilt from the database on a machine without history (lib/restore.ts). */
+    restoredFrom?: 'database';
 }
 
 const runsDir = (source: string) => path.join(DATA_DIR, source, 'runs');

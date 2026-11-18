@@ -176,6 +176,22 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
                 </div>
             </Section>
 
+            {facets.org.size > 0 && (
+                <Section title={t('filters.orgGroup', { defaultValue: 'Hospitals and organizations' })}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                        {[...facets.org.entries()].sort((a, b) => b[1].count - a[1].count).map(([slug, o]) => (
+                            <CheckRow
+                                key={slug}
+                                label={o.name}
+                                count={o.count}
+                                checked={filters.orgs.includes(slug)}
+                                onChange={() => updateFilter('orgs', toggle(filters.orgs, slug))}
+                            />
+                        ))}
+                    </div>
+                </Section>
+            )}
+
             {languageOptions.length > 1 && (
                 <Section title={t('filters.languageGroup', { defaultValue: 'Language' })}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>

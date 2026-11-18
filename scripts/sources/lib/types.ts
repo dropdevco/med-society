@@ -6,7 +6,7 @@
 /** Same ids as src/utils/region.ts. A copy, because scripts/ runs without the app. */
 export type RegionId = 'elpaso-juarez' | 'sandiego-tijuana';
 
-export type OrganizationKind = 'hospital' | 'consejo' | 'colegio' | 'association' | 'regulator' | 'accreditor';
+export type OrganizationKind = 'hospital' | 'consejo' | 'colegio' | 'association' | 'cluster' | 'wellness_center' | 'regulator' | 'accreditor';
 
 /** One page the adapter reads per run. */
 export interface Target {

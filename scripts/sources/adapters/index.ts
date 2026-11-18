@@ -7,6 +7,7 @@
  */
 import type { SourceAdapter } from '../lib/types';
 import { bajaHealthCluster } from './baja-health-cluster';
+import { bajaHealthClusterDoctors } from './baja-health-cluster-doctors';
 import { coeprisBc } from './coepris-bc';
 import { conacem } from './conacem';
 import { hospitalAngeles } from './hospital-angeles';
@@ -20,4 +21,5 @@ export const ADAPTERS: Record<string, SourceAdapter> = {
     [coeprisBc.slug]: coeprisBc,
     [padronSaludBc.slug]: padronSaludBc,
     [bajaHealthCluster.slug]: bajaHealthCluster,
+    [bajaHealthClusterDoctors.slug]: bajaHealthClusterDoctors,
 };

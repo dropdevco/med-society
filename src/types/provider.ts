@@ -6,7 +6,7 @@ export type ProviderSource = 'google' | 'manual' | 'doctoralia';
 export interface ProviderBadge {
   org: string;
   name: string;
-  kind: 'hospital' | 'consejo' | 'colegio' | 'association' | 'regulator' | 'accreditor';
+  kind: 'hospital' | 'consejo' | 'colegio' | 'association' | 'cluster' | 'wellness_center' | 'regulator' | 'accreditor';
   /** What it says: the hospital site, or the certified specialty. */
   label: string;
   logo: string | null;
@@ -228,6 +228,11 @@ export interface ProviderFilters {
   insurances: string[];
   /** ISO-ish language codes as stored on the provider, e.g. 'en', 'es'. */
   languages: string[];
+  /**
+   * Organization slugs (`org=`): only listings with a confirmed badge from any of
+   * them, e.g. "doctors at Hospital Ángeles". Separate from open search.
+   */
+  orgs: string[];
   /** Only providers whose credentials we verified. */
   verifiedOnly: boolean;
   /**

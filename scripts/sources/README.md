@@ -32,7 +32,7 @@ npx tsx --env-file=.env.local scripts/sources/run.ts --all --load            # l
 npx tsx --env-file=.env.local scripts/sources/run.ts --all --commit          # scrape, then load
 ```
 
-A run's rows all carry its run ID. A source record is matched once: a cédula we hold confirms it, anything else waits in `/admin` → Verification, and later runs reuse the decision (`lib/load.ts`, `lib/match.ts`). The timer loads each run when `SOURCES_LOAD=1` is set. See [docs/badges.md](../../docs/badges.md).
+A run's rows all carry its run ID. A source record is matched once: a cédula we hold confirms it, anything else waits in `/admin` → Verification, and later runs reuse the decision (`lib/load.ts`, `lib/match.ts`). The timer loads each run when `SOURCES_LOAD=1` is set; `docker compose up -d scheduler` sets it, so the weekly cycle updates badges in the database the key in `.env.local` points at. See [docs/badges.md](../../docs/badges.md).
 
 ### Local sandbox
 
@@ -65,6 +65,21 @@ npx tsx --env-file=.env.local scripts/sources/cedula-report.ts     # totals only
 npx tsx --env-file=.env.local scripts/sources/backfill-doctors.ts --undo=<run ID>   # removes one backfill
 ```
 
+## Preview a new source, and score the review queue
+
+```bash
+npm run sources:preview -- --source=<slug>            # what loading the last good run would decide; reads only
+npm run sources:score -- --dry                        # what the AI scorer would send for one item; no call, no writes
+npm run sources:score -- --try=3                      # three live answers, printed; no writes
+npm run sources:score -- --source=<slug> --limit=all  # score every queued item of one source (shadow mode)
+npm run sources:score -- --sample=<run ID>            # the sheet for checking ~50 scores by hand
+npm run sources:score -- --outreach                   # what is still unresolved, by organization
+npm run sources:score -- --undo=<run ID>              # put back every link a run made
+npm run sources:score -- --split=<run ID> --doctor=<uuid> --group=src/ext,src/ext --group=...
+```
+
+The scorer ([ADR 0012](../../docs/adr/0012-ai-match-scorer.md), [ADR 0014](../../docs/adr/0014-ai-auto-link-live.md)) asks Gemini 3.8 Flash through OpenRouter (`OPENROUTER_API_KEY`; another model with `--model`) to rate each name-only match from 0 to 100, and stores the score, verdict and reason beside the item in `/admin` → Verification. It sends public directory fields only. With `SCORER_AUTO_LINK_AT=80` (the production setting since 17 Nov) it links what it approves at 80 or above; unset, it links nothing. It never links across a cédula conflict. `compare-models.ts` reruns the model comparison. CSV files go to `.data/scorer/`.
+
 ## Change one badge by hand
 
 `npm run badges:manual -- find|list|add|change|remove|restore|undo`. Every change is a run of the `manual` source with its own run ID, and `undo --run=<id>` reverses it. See [docs/badges.md](../../docs/badges.md#changing-a-badge-by-hand).
@@ -77,6 +92,8 @@ docker compose stop scheduler dashboard      # stop both
 npm run sources:schedule                     # the timer in the foreground; add -- --now to run a cycle at once
 npm run sources:dashboard                    # the dashboard without Docker
 ```
+
+**On GitHub Actions** ([ADR 0011](../../docs/adr/0011-scheduler-on-private-actions.md)): the weekly run lives in the private `dropdevco/med-society-ops`, from the workflow reviewed in [`docs/ops/`](../../docs/ops/README.md). A runner starts with no run files, so any run that loads (`--commit`, `--load`, or the timer with `SOURCES_LOAD=1`) first rebuilds each source's last green run from `source_runs` and `source_observations` (`lib/restore.ts`) and writes it to disk. The drop check, COEPRIS's links to the Padrón, and CONACEM's lookups then work as on a laptop.
 
 **Timer** (`schedule.ts`): sleeps until the next slot, **Mondays 06:00 America/Mexico_City** by default, then runs every source one after another. One failing source never stops the others. If the machine was off at the slot, a source with no run since the last slot is caught up at start-up; a manual run counts. Change the slot with `SOURCES_RUN_DAY` (`0`–`6` or `MON`…`SUN`), `SOURCES_RUN_TIME` (`HH:MM`) and `SOURCES_TZ` (IANA zone). It writes `schedule.json` in the data folder (next run, heartbeat every 10 minutes, last cycle with each source's run ID).
 
@@ -103,6 +120,9 @@ Loading into the database and matching to listings (`--commit`) arrive with road
 ```
 run.ts                      CLI and the run loop
 schedule.ts                 the weekly timer
+match-preview.ts            what loading a run would decide, read-only
+score-matches.ts            the AI match scorer: score, sample, outreach, undo, split
+lib/scorer.ts               what the scorer sends and how its answer is checked (pure)
 dashboard/server.ts         local health dashboard (read-only)
 dashboard/index.html        its page
 lib/types.ts                SourceAdapter, SourceEntry, Target
@@ -112,6 +132,7 @@ lib/http.ts                 polite, honest GET; BlockedError
 lib/robots.ts               robots.txt reader (RFC 9309)
 lib/judge.ts                green/red rules; duplicate merging
 lib/snapshot.ts             run files; last good run; diff
+lib/restore.ts              last green run rebuilt from the database on a machine without run files
 lib/names.ts                splits a Mexican name; name_key
 lib/match.ts                the match decision (pure)
 lib/load.ts                 a run into the database

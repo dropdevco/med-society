@@ -1,6 +1,6 @@
 # 0006. Pipeline runtime: one Docker image, weekly on a Hetzner VM
 
-Status: Proposed · Owner: Emilio · 2 Nov 2026
+Status: Superseded in part by [0011](0011-scheduler-on-private-actions.md) (runtime) · Owner: Emilio · 2 Nov 2026
 
 ## Context
 

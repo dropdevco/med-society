@@ -12,6 +12,9 @@ import { changedIds, extendRegistry } from './doctor-registry';
 import { bhNorm, similarity } from './lib/trigram';
 import { buildSheet, csvCell, topListings } from './review-sheet';
 import { parseDirectory as parseDirectory2 } from './adapters/baja-health-cluster';
+import { recordFromRows } from './lib/restore';
+import { autoLinkThreshold, buildEvidence, mayAutoLink, parseAnswer, userMessage, type QueueItem } from './lib/scorer';
+import { parseList as parseBhcList, parseProfile as parseBhcProfile, toEntry as bhcToEntry } from './adapters/baja-health-cluster-doctors';
 import { isRecoveryCenter, parseFeed, validationUrl, type RepssabiRecord } from './adapters/coepris-bc';
 import { lookupsFrom, planLookups, surnameQuery, toEntry, type ConacemRecord } from './adapters/conacem';
 import { parseDirectory } from './adapters/hospital-angeles';
@@ -269,6 +272,25 @@ const ch = parseDirectory2(`<section>${clusterCard('casa-prueba-2', 'Casa &amp; 
 check('Cluster: one entry per center, each with its own name', ch.map((e) => e.name).join() === 'Casa & Prueba Recovery,Otra Casa', ch.map((e) => e.name));
 check('Cluster: links to the center page', ch[0].url === 'https://bajahealthcluster.mx/institucion/casa-prueba-2/' && ch[0].externalId === 'casa-prueba-2');
 
+// Cluster doctors: synthetic list and profile pages in the site's Elementor shape.
+const bhcList = (slug: string, name: string, tags: string[]) => `<div class="e-loop-item"><a href="https://bajahealthcluster.mx/directorio/${slug}/"><img></a><h2>${name}</h2><ul>${tags.map((t) => `<li><span class="elementor-icon-list-text">${t}</span></li>`).join('')}</ul><a href="https://bajahealthcluster.mx/directorio/${slug}/">More Information</a></div>`;
+const bhcCards = parseBhcList(bhcList('dra-ana-prueba', 'Dra. Ana Prueba Ejemplo', ['Cardiology', 'Cardiology']) + bhcList('juan-prueba', 'Juan Prueba', []) + bhcList('dra-ana-prueba', 'Dra. Ana Prueba Ejemplo', []), 'https://bajahealthcluster.mx/general-directory/doctors/');
+check('Cluster doctors: one card per profile, tags kept once', bhcCards.length === 2 && bhcCards[0].tags.join() === 'Cardiology' && bhcCards[0].url === 'https://bajahealthcluster.mx/directorio/dra-ana-prueba/', bhcCards);
+const bhcProfile = parseBhcProfile('<h1 class="elementor-heading-title">Dra. Ana Prueba Ejemplo</h1><h2 class="elementor-heading-title">ESPECIALISTA CERTIFICADO</h2><h2 class="elementor-heading-title">Cardiología</h2><h2 class="elementor-heading-title">Medicina Interna</h2><p>Cédula Profesional: 9999001 · Céd. de especialidad 9999002</p><a href="tel:6640000000">Make a call</a><iframe src="https://maps.google.com/maps?q=x" title="Av. Ejemplo 100, Zona Rio, 22010 Tijuana, B.C. Hospital Ejemplo del Mar. Dra. Ana."></iframe>');
+check('Cluster doctors: Spanish specialties, labels dropped', bhcProfile.specialties.join() === 'Cardiología,Medicina Interna', bhcProfile.specialties);
+check('Cluster doctors: every cédula printed is kept', bhcProfile.cedulas.join() === '9999001,9999002', bhcProfile.cedulas);
+check('Cluster doctors: address from the map, hospital from the address', bhcProfile.address?.startsWith('Av. Ejemplo 100') === true && bhcProfile.hospital === 'Hospital Ejemplo del Mar', bhcProfile);
+check('Cluster doctors: no phone is read', !JSON.stringify(bhcProfile).includes('664'));
+const bhcTarget: Target = { key: 'doctors', label: 'Doctors', url: 'https://bajahealthcluster.mx/general-directory/doctors/', region: 'sandiego-tijuana' };
+const bhcEntry = bhcToEntry(bhcCards[0], bhcProfile, bhcTarget);
+check('Cluster doctors: title split from the name', bhcEntry.title === 'Dra.' && bhcEntry.name === 'Ana Prueba Ejemplo', bhcEntry);
+check('Cluster doctors: cédulas and site reach the entry', bhcEntry.cedulas.length === 2 && bhcEntry.sites[0]?.name === 'Hospital Ejemplo del Mar' && bhcEntry.externalId === 'dra-ana-prueba');
+const bhcBare = bhcToEntry(bhcCards[1], null, { ...bhcTarget, key: 'dentists' });
+check('Cluster doctors: an unread profile keeps the list tags and no cédula', bhcBare.title === null && bhcBare.cedulas.length === 0 && bhcBare.sites.length === 0 && bhcBare.extra?.profileRead === 0 && bhcBare.extra?.label === 'Member dentist', bhcBare);
+check('Cluster doctors: no cédula from a bare number', parseBhcProfile('<p>Tel 6641234567, 28 años, CP 22010</p>').cedulas.length === 0);
+check('Cluster doctors: English forms the site uses', parseBhcProfile('<p>UABC, class of 2009. Professional license 9999003. Treatments</p>').cedulas.join() === '9999003' && parseBhcProfile('<p>Professional License: No. 13333.National Registry (DGP): No. 9999004.Postgraduate</p>').cedulas.join() === '9999004');
+check('Cluster doctors: "license number: in process" is no cédula', parseBhcProfile('<p>Professional License Number: In process (due to subspecialty)GPA: 8.87</p>').cedulas.length === 0);
+
 const place = { provider_id: 'p1', name: 'Casa Prueba', similarity: 1, region: 'sandiego-tijuana' };
 check('facility match: a register number we hold confirms', decideFacility({ registerListing: 'p9', candidates: [place] }).status === 'confirmed' && decideFacility({ registerListing: 'p9', candidates: [place] }).providerId === 'p9');
 check('facility match: an exact name alone waits for a person', decideFacility({ registerListing: null, candidates: [place] }).status === 'probable');
@@ -284,6 +306,7 @@ const badgeRows = {
     coepris: entryRow({ ...cof[0], ...run }, 'coepris-bc'),
     padron: entryRow({ ...pe!, ...run }, 'padron-salud-bc'),
     cluster: entryRow({ ...ch[0], ...run }, 'baja-health-cluster'),
+    clusterDoctor: entryRow({ ...bhcEntry, ...run }, 'baja-health-cluster-doctors'),
 };
 check('label: Hospital Ángeles shows the hospital', badgeRows.angeles.label === 'Hospital Angeles Tijuana', badgeRows.angeles.label);
 check('label: Star Médica shows the hospital', badgeRows.star.label === 'Star Médica Ciudad Juárez', badgeRows.star.label);
@@ -291,9 +314,46 @@ check('label: CONACEM shows the specialty, with the certificate', badgeRows.cona
 check('label: COEPRIS shows the register and number', badgeRows.coepris.label === 'REPSSABI' && badgeRows.coepris.facts.register === '20260000001' && badgeRows.coepris.valid_to === '2028-09-03', badgeRows.coepris);
 check('label: the Padrón keeps the number that ties it to COEPRIS', badgeRows.padron.label === 'Padrón Estatal de Salud' && badgeRows.padron.facts.register === '20260000001', badgeRows.padron);
 check('label: the cluster says what list it is', badgeRows.cluster.label === 'Recovery centers' && badgeRows.cluster.valid_to === null, badgeRows.cluster);
+check('label: a cluster doctor reads as a member', badgeRows.clusterDoctor.label === 'Member doctor', badgeRows.clusterDoctor);
+
+// ── History rebuilt from the database (fresh runners, docs/adr/0011) ──────────
+{
+    const payload = (id: string) => ({ externalId: id, name: `Ana ${id}`, title: null, specialties: [], cedulas: [], sites: [], region: 'sandiego-tijuana' as const, url: `https://x.test/${id}`, photoUrl: null, runId: 'r0', observedAt: '2026-11-16T00:00:00.000Z' });
+    const rebuilt = recordFromRows({ id: '01a1e69c-9c41-7e54-8819-5d499d4d7dc4', source_slug: 'starmedica', started_at: '2026-11-16 23:06:25.729+00', finished_at: null, status: 'green', reasons: null, counts: { entries: 2, added: 1, removed: 0 }, targets: [{ key: 'k', url: 'u', ok: true, count: 2 }] }, [payload('b'), payload('a')]);
+    check('restore: a database run reads as a run file', rebuilt.source === 'starmedica' && rebuilt.status === 'green' && rebuilt.entries.length === 2 && rebuilt.targets[0].count === 2 && rebuilt.restoredFrom === 'database', rebuilt);
+    check('restore: times are ISO, a missing finish is the start', rebuilt.startedAt === '2026-11-16T23:06:25.729Z' && rebuilt.finishedAt === rebuilt.startedAt);
+    check('restore: records in a stable order, each keeping the run that saw it', rebuilt.entries.map((e) => e.externalId).join() === 'a,b' && rebuilt.entries[0].runId === 'r0');
+}
+
+// ── AI match scorer: what it shows, and how its answer is checked (ADR 0012) ──
+{
+    const cand = (id: string, name: string, similarity: number, extra: Partial<NameCandidate> = {}): NameCandidate =>
+        ({ doctor_id: id, display_name: name, similarity, regions: ['sandiego-tijuana'], listings: ['l1'], specialties: ['Cardiología'], ...extra });
+    const item: QueueItem = {
+        kind: 'doctor', source_slug: 'baja-health-cluster-doctors', source_name: 'Baja Health Cluster', external_id: 'x', proposed: 'd2', tier: 3,
+        name: 'Ana Prueba Ejemplo', label: 'Member doctor', specialties: ['Cardiología'], region: 'sandiego-tijuana', cedulaPrinted: true,
+        candidates: [cand('d1', 'Ana Prueba', 0.8), cand('d2', 'Ana Prueba Ejemplo', 1), cand('d3', 'Ana Prueba Ejemplo', 1, { regions: ['elpaso-juarez'] })],
+    };
+    const ev = buildEvidence(item, new Map([['d2', { organizations: ['Hospital Ángeles'] }]]));
+    check('scorer: the proposed candidate is C1, then by similarity', ev.candidates.map((c) => c.name).join('|') === 'Ana Prueba Ejemplo|Ana Prueba Ejemplo|Ana Prueba' && ev.candidates[0].organizations[0] === 'Hospital Ángeles', ev.candidates);
+    check('scorer: two candidates share the exact name, and it says so', ev.same_name_count === 2);
+    const sent = userMessage(ev);
+    check('scorer: it sends whether a cédula was printed, never the number or ids', sent.includes('"cedula_printed": true') && !/\d{7}/.test(sent) && !sent.includes('d2') && !sent.includes('l1'), sent);
+    check('scorer: an approve maps back to the candidate\'s id', parseAnswer('{"candidate":"C1","score":92,"verdict":"approve","reason":"Same name, specialty and city."}', ev, item).candidateId === 'd2');
+    check('scorer: a reply wrapped in prose still reads', parseAnswer('Here: {"candidate":null,"score":10,"verdict":"reject","reason":"Different city."} done', ev, item).candidateId === null);
+    const refused = (text: string) => { try { parseAnswer(text, ev, item); return false; } catch { return true; } };
+    check('scorer: a ref it was not offered is refused', refused('{"candidate":"C9","score":90,"verdict":"approve","reason":"x"}'));
+    check('scorer: approve without a candidate is refused', refused('{"candidate":null,"score":90,"verdict":"approve","reason":"x"}'));
+    check('scorer: a score outside 0-100, an odd verdict or no reason is refused', refused('{"candidate":"C1","score":101,"verdict":"approve","reason":"x"}') && refused('{"candidate":"C1","score":80,"verdict":"maybe","reason":"x"}') && refused('{"candidate":"C1","score":80,"verdict":"approve","reason":" "}'));
+    const yes = parseAnswer('{"candidate":"C1","score":85,"verdict":"approve","reason":"x"}', ev, item);
+    check('scorer: auto-link is off unless the setting is there', !mayAutoLink(item, yes, autoLinkThreshold(undefined)) && autoLinkThreshold('') === null);
+    check('scorer: with the setting, an approve at the bar links', mayAutoLink(item, yes, autoLinkThreshold('80')) && !mayAutoLink(item, yes, autoLinkThreshold('90')));
+    check('scorer: a cédula conflict or a clinic never auto-links', !mayAutoLink({ ...item, tier: 1 }, yes, 80) && !mayAutoLink({ ...item, kind: 'facility' }, yes, 80));
+    check('scorer: a nonsense setting stops the run', (() => { try { autoLinkThreshold('eighty'); return false; } catch { return true; } })() && (() => { try { autoLinkThreshold('20'); return false; } catch { return true; } })());
+}
 
 const slugs = Object.keys(ADAPTERS);
-check('all six sources run', slugs.length === 6 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster'].every((s) => slugs.includes(s)), slugs);
+check('all seven sources run', slugs.length === 7 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster', 'baja-health-cluster-doctors'].every((s) => slugs.includes(s)), slugs);
 check('facilities are marked, doctors are not', slugs.filter((s) => ADAPTERS[s].entity === 'facility').length === 3);
 check('COEPRIS loads before the sources that match on its numbers', slugs.indexOf('coepris-bc') < slugs.indexOf('padron-salud-bc'));
 check('no source runs without open access or a recorded letter', Object.values(ADAPTERS).every((a) => a.access === 'open' || !!a.permission));

@@ -17,6 +17,7 @@ import { database } from './lib/db';
 import { BlockedError, politeGet } from './lib/http';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { loadRun } from './lib/load';
+import { restoreFromDatabase } from './lib/restore';
 import { robotsVerdict } from './lib/robots';
 import { diffIds, lastGoodRun, uuidv7, writeRun, type RunRecord } from './lib/snapshot';
 import type { ObservedEntry, SourceAdapter, SourceEntry } from './lib/types';
@@ -118,6 +119,12 @@ export async function runAndReport(adapter: SourceAdapter, commit = false): Prom
     return run.status === 'green' ? 0 : 2;
 }
 
+export async function restoreAndReport(sources: string[]) {
+    for (const r of await restoreFromDatabase(database(), sources)) {
+        console.log(`${r.source}: no run on disk, restored green run ${r.run} (${r.entries} entries) from the database`);
+    }
+}
+
 async function loadAndReport(run: RunRecord) {
     const s = await loadRun(database(), run, ADAPTERS[run.source]?.entity);
     console.log(`  loaded: ${s.entries} entries, ${s.newRecords} new | confirmed ${s.confirmed}, to review ${s.probable}, unmatched ${s.unmatched} | badges ${JSON.stringify(s.badges)}`);
@@ -129,6 +136,8 @@ async function main() {
         return;
     }
     const commit = !!arg('commit');
+    // Loading means the database is there: a machine without run files takes its history from it.
+    if (commit || arg('load')) await restoreAndReport(Object.keys(ADAPTERS));
     if (arg('load')) {
         const slug = arg('source');
         const list = typeof slug === 'string' ? [ADAPTERS[slug]] : Object.values(ADAPTERS);

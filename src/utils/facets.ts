@@ -18,6 +18,8 @@ export interface FacetCounts {
     specialty: Map<Specialty, number>;
     insurance: Map<string, number>;
     language: Map<string, number>;
+    /** Organization slug → its name and how many results carry its badge. */
+    org: Map<string, { name: string; count: number }>;
     /** Results that would remain if only this toggle were added. */
     verified: number;
     withPricing: number;
@@ -31,6 +33,7 @@ export function buildFacets(
     const specialty = new Map<Specialty, number>();
     const insurance = new Map<string, number>();
     const language = new Map<string, number>();
+    const org = new Map<string, { name: string; count: number }>();
     let verified = 0;
     let withPricing = 0;
 
@@ -46,11 +49,17 @@ export function buildFacets(
         if (matchesFilters(p, filters, ctx, 'languages')) {
             for (const l of p.languages ?? []) bump(language, l);
         }
+        if (matchesFilters(p, filters, ctx, 'orgs')) {
+            for (const slug of new Set((p.badges ?? []).map((b) => b.org))) {
+                const b = p.badges!.find((x) => x.org === slug)!;
+                org.set(slug, { name: b.name, count: (org.get(slug)?.count ?? 0) + 1 });
+            }
+        }
         if (matchesFilters(p, filters, ctx, 'verifiedOnly') && p.licensed) verified++;
         if (matchesFilters(p, filters, ctx, 'withPricing') && p.priceFromMxn != null) withPricing++;
     }
 
-    return { specialty, insurance, language, verified, withPricing };
+    return { specialty, insurance, language, org, verified, withPricing };
 }
 
 /** Insurers most worth offering first, since there are far too many to list. */
