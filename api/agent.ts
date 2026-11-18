@@ -588,7 +588,7 @@ function expandTerm(term: string): readonly string[] {
     return [term];
 }
 
-const FIELD_WEIGHTS = { name: 100, specialty: 45, service: 35, city: 20, address: 15, insurance: 10 } as const;
+const FIELD_WEIGHTS = { name: 100, specialty: 45, service: 35, city: 20, address: 15, org: 30, insurance: 10 } as const;
 type FieldKey = keyof typeof FIELD_WEIGHTS;
 const ALL_FIELDS = Object.keys(FIELD_WEIGHTS) as FieldKey[];
 const CONCEPT_FIELDS: FieldKey[] = ['specialty', 'service', 'insurance'];
@@ -604,6 +604,8 @@ interface SearchDoc {
     city: string;
     address: string;
     insurance: string;
+    org: string;
+    doctor: boolean;
     quality: number;
 }
 
@@ -638,6 +640,18 @@ function scoreDoc(doc: SearchDoc, terms: readonly string[]): number {
     return total * doc.quality;
 }
 
+// Same as src/utils/search.ts badgeMatches: the query names an organization this doctor holds a badge from.
+const GENERIC_ORG_WORDS = new Set([
+    'hospital', 'hospitales', 'clinica', 'clinicas', 'clinic', 'clinics', 'centro', 'center', 'centre',
+    'medico', 'medica', 'medical', 'colegio', 'consejo', 'asociacion', 'association', 'sociedad', 'society',
+    'grupo', 'group', 'mexicano', 'mexicana', 'nacional', 'general', 'salud', 'health',
+]);
+function badgeMatches(doc: SearchDoc, terms: readonly string[]): boolean {
+    if (!doc.doctor || !doc.org || !terms.length) return false;
+    if (terms.every((t) => GENERIC_ORG_WORDS.has(t))) return false;
+    return doc.org.split('|').some((name) => terms.every((t) => matchStrength(name, t) >= PREFIX));
+}
+
 function qualityOf(p: Row): number {
     const reviews = Math.log1p(Math.max(0, p.reviewCount || 0)) / Math.log1p(1000);
     const rating = Math.max(0, Math.min(2, (p.rating || 0) - 3)) / 2;
@@ -657,6 +671,8 @@ function buildDoc(p: Row): SearchDoc {
         city: fold(p.city),
         address: fold(p.address),
         insurance: fold(p.insurances.join('|')),
+        org: fold(p.organizations.map((o) => o.organization).join('|')),
+        doctor: !p.kind,
         quality: qualityOf(p),
     };
 }
@@ -1050,6 +1066,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
     const insurance = q.insurance.map(fold);
     const kept: Row[] = [];
     const scores = new Map<string, number>();
+    const badged = new Set<string>();
     const distances = new Map<string, number>();
 
     for (const snap of snaps) {
@@ -1080,6 +1097,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
                 const score = doc ? scoreDoc(doc, q.terms) : 0;
                 if (score === 0) continue;
                 scores.set(p.id, score);
+                if (doc && badgeMatches(doc, q.terms)) badged.add(p.id);
             }
             kept.push(p);
         }
@@ -1111,6 +1129,11 @@ async function runSearch(q: Query): Promise<SearchResult> {
             if (ra !== rb) return ra - rb;
         }
         if (q.paidPlacement === 'first' && placement(a) !== placement(b)) return placement(b) - placement(a);
+        // Doctors holding a badge from the organization the query names (src/utils/filters.ts).
+        if (sort === 'relevance' && badged.size) {
+            const d = (badged.has(b.id) ? 1 : 0) - (badged.has(a.id) ? 1 : 0);
+            if (d !== 0) return d;
+        }
 
         switch (sort) {
             case 'relevance': {
@@ -3729,7 +3752,7 @@ async function siteGrabRoute(req: Req, res: Res) {
 
 /** Exported for scripts/agent-selftest.ts, which checks these against the site's own src/utils. */
 export const __test = {
-    tokenize, scoreDoc, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
+    tokenize, scoreDoc, badgeMatches, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
     openApiSpec, languageCodes, expandTerm, fold, SEARCH_PARAMS, MCP_TOOLS, providerJsonLd, rpcHandle,
     parseCopy, copyWarnings, parseSiteHtml, isPublicIp, fetchPublicHtml,
 };

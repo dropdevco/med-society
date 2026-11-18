@@ -14,7 +14,8 @@
  *   npx tsx scripts/agent-selftest.ts
  */
 import handler, { __test } from '../api/agent';
-import { buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
+import { applyFilters, defaultFilters } from '../src/utils/filters';
+import { badgeMatches as siteBadgeMatches, buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
 import { ratingOf as siteRatingOf, shrunkScore as siteShrunk } from '../src/utils/rating';
 import { providerJsonLd as siteJsonLd } from '../src/utils/structuredData';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
@@ -152,6 +153,28 @@ for (const q of queries) {
     if (!parityOk) break;
 }
 check('tokenize / synonym expansion / scoring match src/utils/search.ts', parityOk, parityDetail);
+
+// Ranking: paid placement, then doctors holding a badge from the organization the query names, then the rest.
+{
+    const angeles = { org: 'hospital-angeles', name: 'Hospital Ángeles', kind: 'hospital', label: 'Tijuana', logo: null, url: null, confirmed_at: '2026-11-17', valid_from: null, valid_to: null };
+    const rows = [
+        { ...base, id: U(40), name: 'Hospital Ángeles Tijuana', kind: 'clinic', specialty: ['urgent_care'], rating: 4.9, reviewCount: 900 },
+        { ...base, id: U(41), name: 'Dra. Paz Ibarra', specialty: ['cardiology'], rating: 4, reviewCount: 3, badges: [angeles] },
+        { ...base, id: U(42), name: 'Dr. Paga Mucho', specialty: ['cardiology'], tier: 'featured', promoted: true, verified: true, address: 'Hospital Ángeles, Tijuana' },
+        { ...base, id: U(43), name: 'Clinica Angeles del Mar', kind: 'clinic', specialty: ['dentist'], badges: [angeles] },
+    ];
+    const ps = rows.map(asProvider);
+    const index = buildSearchIndex(ps, labelOf);
+    const docs = new Map(rows.map((r) => [r.id, __test.buildDoc(__test.toRow(r)!)]));
+    const site = (q: string) => applyFilters(ps, { ...defaultFilters, region: 'sandiego-tijuana' }, { index, terms: siteTokenize(q), centre: null, prior: 4.5 }).map((p) => p.id);
+    check('"hospital angeles": paying doctor, then the badged doctor, then the hospital and clinics',
+        JSON.stringify(site('hospital angeles')) === JSON.stringify([U(42), U(41), U(40), U(43)]), site('hospital angeles'));
+    check('a badge name alone makes a doctor findable ("angeles" finds Dra. Ibarra)', site('angeles').includes(U(41)));
+    check('a generic word alone ("hospital") does not lift badged doctors over the hospital', site('hospital')[1] === U(40), site('hospital'));
+    check('clinics never take the badge tier, even holding the badge', !siteBadgeMatches(index.get(U(43))!, ['angeles']));
+    const pairs = ['hospital angeles', 'angeles', 'hospital', 'angeles tijuana', 'cardio'].flatMap((q) => ps.map((p) => [siteBadgeMatches(index.get(p.id)!, siteTokenize(q)), __test.badgeMatches(docs.get(p.id)!, __test.tokenize(q)), siteScoreDoc(index.get(p.id)!, siteTokenize(q)), __test.scoreDoc(docs.get(p.id)!, __test.tokenize(q))]));
+    check('badge matching and badge-name scoring match src/utils/search.ts', pairs.every(([a, b, c, d]) => a === b && Math.abs((c as number) - (d as number)) < 1e-9));
+}
 
 const rated = providers.map((p) => [siteRatingOf(p), __test.ratingOf(p), siteShrunk(p, 4.7), __test.shrunkScore(p, 4.7)]);
 check('ratingOf / shrunkScore match src/utils/rating.ts', rated.every(([a, b, c, d]) => a === b && Math.abs((c as number) - (d as number)) < 1e-12));
