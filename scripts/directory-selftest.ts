@@ -5,6 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { readAllByKeyset, sliceBounds, type KeysetPage } from '../src/utils/keysetPages';
+import { insurerSections, isUsPlan } from '../src/utils/insurers';
 
 let failures = 0;
 const check = (label: string, ok: boolean, detail?: unknown) => {
@@ -50,6 +51,22 @@ check('slices: one slice means the whole range', JSON.stringify(sliceBounds(1)) 
 const t = table(ids(8571));
 await readAllByKeyset(t.page(1000), 1000);
 check('a Tijuana-sized region takes about 16 requests, not 9 offset pages reading 45,000 rows', t.stats().requests <= 20, t.stats());
+
+// The insurance list: most accepted first, then US plans A–Z, then the rest A–Z; every name reachable.
+{
+    const byCount = ['AXA Seguros', 'MetLife México', 'GNP Seguros', 'Seguros Monterrey', 'Seguros Atlas', 'Allianz', 'MAPFRE', 'Zurich',
+        'Aetna', 'Cigna Healthcare', 'BCBS', 'Quálitas', 'Blue Cross Blue Shield', 'Anthem Blue Cross', 'United Healthcare Global', 'Bupa México'];
+    const s = insurerSections(byCount, '', []);
+    const names = s.flatMap((x) => x.names);
+    check('insurers: every one listed once, none cut off', names.length === byCount.length && new Set(names).size === byCount.length);
+    check('insurers: the six most accepted come first, in demand order', JSON.stringify(s[0].names) === JSON.stringify(byCount.slice(0, 6)));
+    check('insurers: US plans next, A–Z', s[1].key === 'us' && JSON.stringify(s[1].names) === JSON.stringify(['Aetna', 'Anthem Blue Cross', 'BCBS', 'Blue Cross Blue Shield', 'Cigna Healthcare', 'United Healthcare Global']), s[1]);
+    check('insurers: the rest A–Z, accents ignored', s[2].key === 'all' && JSON.stringify(s[2].names) === JSON.stringify(['Bupa México', 'MAPFRE', 'Quálitas', 'Zurich']), s[2]);
+    check('insurers: Mexican insurers and "Medical …" names are not US plans', !isUsPlan('MetLife México') && !isUsPlan('Medical Group') && isUsPlan('Medi-Cal') && !isUsPlan('GNP Seguros') && isUsPlan('BCBS'));
+    const typed = insurerSections(byCount, 'blue', ['AXA Seguros']);
+    check('insurers: typing narrows, keeps a selected insurer visible', typed.length === 1 && JSON.stringify(typed[0].names) === JSON.stringify(['AXA Seguros', 'Blue Cross Blue Shield', 'Anthem Blue Cross']), typed);
+    check('insurers: nothing matches, no sections', insurerSections(byCount, 'zzz', []).length === 0);
+}
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
