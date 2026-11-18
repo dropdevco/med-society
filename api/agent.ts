@@ -676,22 +676,29 @@ interface Snapshot {
 
 const PAGE_SIZE = 1000;
 
-/** The whole lean directory of one region, paged exactly like src/hooks/useProviders.ts. */
+/**
+ * The whole lean directory of one region, paged by id like src/hooks/useProviders.ts:
+ * each page starts after the last id, so no request reads rows it skips (offset paging
+ * hit the anon role's 3 s statement timeout when the database was slow). One stream:
+ * this runs server-side and the snapshot is cached. A page that times out is asked again once.
+ */
 async function loadRegion(region: RegionId): Promise<Snapshot> {
-    const page = (from: number, count: boolean) =>
-        sb(`provider_list?select=*&region=eq.${region}&order=id&limit=${PAGE_SIZE}&offset=${from}`, { count });
-    const first = await page(0, true);
-    const raw: unknown[] = [...(first.data as unknown[])];
-    if (first.total != null && first.total > PAGE_SIZE) {
-        const starts: number[] = [];
-        for (let from = PAGE_SIZE; from < first.total; from += PAGE_SIZE) starts.push(from);
-        for (const next of await Promise.all(starts.map((from) => page(from, false)))) raw.push(...(next.data as unknown[]));
-    } else if (first.total == null && raw.length === PAGE_SIZE) {
-        for (let from = PAGE_SIZE; ; from += PAGE_SIZE) {
-            const next = (await page(from, false)).data as unknown[];
-            raw.push(...next);
-            if (next.length < PAGE_SIZE) break;
+    const page = async (after: string | null): Promise<Array<{ id?: unknown }>> => {
+        const path = `provider_list?select=*&region=eq.${region}${after ? `&id=gt.${after}` : ''}&order=id&limit=${PAGE_SIZE}`;
+        try {
+            return (await sb(path)).data as Array<{ id?: unknown }>;
+        } catch (err) {
+            if (!/\b500\b|57014|statement timeout/.test((err as Error).message)) throw err;
+            await new Promise((r) => setTimeout(r, 400));
+            return (await sb(path)).data as Array<{ id?: unknown }>;
         }
+    };
+    const raw: unknown[] = [];
+    for (let after: string | null = null; ;) {
+        const next = await page(after);
+        raw.push(...next);
+        if (next.length < PAGE_SIZE) break;
+        after = String(next[next.length - 1].id);
     }
 
     const rows = raw.map(toRow).filter((r): r is Row => r !== null);

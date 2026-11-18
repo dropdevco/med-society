@@ -224,6 +224,8 @@ check('priced_only + max_price_mxn', (await rest('providers&max_price_mxn=900').
 check('licensed_only', (await rest('providers&licensed_only=true').then((x) => x.json().pagination.total)) === 1);
 check('country=US', (await rest('providers&country=US').then((x) => x.json().data[0].id)) === U(6));
 check('paging: offset/next_offset', (await rest('providers&region=sandiego-tijuana&limit=2').then((x) => x.json().pagination.next_offset)) === 2);
+// Offset paging made the last page read ~9,000 rows; nine in parallel passed the 3 s anon limit (18 Nov 2026).
+check('directory loads by id (keyset), never by offset', calls.some((c) => c.includes('provider_list?select=*')) && calls.filter((c) => c.includes('provider_list?select=*')).every((c) => !c.includes('offset=') && /order=id&limit=1000$/.test(c)));
 const near = (await rest('providers&near_postal=22000&radius_km=3&sort=distance')).json();
 check('near_postal centres on providers holding that code and reports distance', near.pagination.total === 5 && typeof near.data[0].distance_km === 'number');
 check('unknown postal code is a clear 400', (await rest('providers&near_postal=99999')).status === 400);

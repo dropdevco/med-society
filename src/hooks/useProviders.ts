@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { mockProviders } from '../data/providers';
 import { normalizeProvider } from '../utils/normalizeProvider';
 import { readProviderCache, writeProviderCache } from '../utils/providerCache';
+import { readAllByKeyset } from '../utils/keysetPages';
 import { DEFAULT_RADIUS_KM, distanceKm } from '../utils/geo';
 import { buildSearchIndex, tokenize } from '../utils/search';
 import { buildVocabulary, buildFacets } from '../utils/facets';
@@ -37,21 +38,23 @@ const PAGE_SIZE = 1000;
  */
 const LIST_VIEW = 'provider_list';
 
+/** Postgres "canceling statement due to statement timeout": the anon role stops reads at 3 s. */
+const STATEMENT_TIMEOUT = '57014';
+
 /**
- * One border region of the directory, paged from Supabase.
+ * One border region of the directory, paged from Supabase by id (keyset):
+ * each page starts after the last id the previous one returned, so every
+ * request reads only its own rows. Paging by offset made the last page of a
+ * region read ~9,000 rows to return 1,000, and nine such pages in parallel
+ * went past the anon role's 3 s limit together whenever the database was
+ * slow (statement timeouts every day before 18 Nov 2026).
  *
- * Page 0 asks for an exact count (`{ count: 'exact' }`), which lets every
- * remaining page be requested concurrently with `Promise.all` instead of one
- * after another. `.order('id')` is added to every page (page 0 included)
- * so the ranges stay stable across concurrent requests: without a stable
- * order Postgres is free to return a different row order per request, and
- * parallel `.range()` calls would then silently overlap or skip rows.
+ * Two streams run at once, one up from the lowest id and one down from the
+ * highest, and stop where they meet; rows both happen to read in the last
+ * round are kept once. That is about half the round trips of one stream.
+ * A page that times out is asked again once.
  *
- * Only the selected region is fetched. Loading every live provider used to
- * cost ~17 MB of `select=*` per visit; one region of the view is 3–6 MB.
- *
- * If Supabase ever declines to report a count (some proxies/mocks omit it),
- * this falls back to a sequential loop rather than guess a total.
+ * Only the selected region is fetched (3–6 MB of the lean view).
  */
 async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]> {
     if (!supabase) {
@@ -59,40 +62,19 @@ async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]
     }
     const client = supabase;
     // The view only exposes live rows, so there is no status filter here.
-    const page = (from: number, count?: 'exact') => client
-        .from(LIST_VIEW)
-        .select('*', count ? { count } : undefined)
-        .eq('region', region)
-        .order('id')
-        .range(from, from + PAGE_SIZE - 1);
-
-    const first = await page(0, 'exact');
-    if (first.error) throw first.error;
-
-    const data: RawProviderRow[] = [...(first.data ?? [])];
-    const count = first.count;
-    const firstLen = first.data?.length ?? 0;
-
-    if (count == null) {
-        // No count back from the server: page sequentially.
-        for (let from = PAGE_SIZE; firstLen === PAGE_SIZE; from += PAGE_SIZE) {
-            const next = await page(from);
-            if (next.error) throw next.error;
-            data.push(...(next.data ?? []));
-            if (!next.data || next.data.length < PAGE_SIZE) break;
+    const page = async (dir: 'up' | 'down', after: string | null, before: string | null): Promise<RawProviderRow[]> => {
+        for (let attempt = 0; ; attempt++) {
+            let q = client.from(LIST_VIEW).select('*').eq('region', region);
+            if (after) q = q.gt('id', after);
+            if (before) q = q.lt('id', before);
+            const res = await q.order('id', { ascending: dir === 'up' }).limit(PAGE_SIZE);
+            if (!res.error) return (res.data ?? []) as RawProviderRow[];
+            if (res.error.code !== STATEMENT_TIMEOUT || attempt >= 1) throw res.error;
+            await new Promise((r) => setTimeout(r, 400));
         }
-    } else if (firstLen === PAGE_SIZE && count > PAGE_SIZE) {
-        const starts: number[] = [];
-        for (let from = PAGE_SIZE; from < count; from += PAGE_SIZE) starts.push(from);
+    };
 
-        const pages = await Promise.all(starts.map((from) => page(from)));
-        for (const next of pages) {
-            if (next.error) throw next.error;
-            data.push(...(next.data ?? []));
-        }
-    }
-
-    return data;
+    return readAllByKeyset(page, PAGE_SIZE);
 }
 
 /**
