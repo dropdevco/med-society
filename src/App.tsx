@@ -19,6 +19,7 @@ import { ProviderModal } from './components/provider/ProviderModal';
 import { AnalyticsBridge } from './components/AnalyticsBridge';
 import { RouteMeta } from './components/RouteMeta';
 import { AcerbacPage } from './pages/AcerbacPage';
+import { hostSite } from './utils/hostSite';
 import { AgentBridge } from './components/AgentBridge';
 import { FeedbackWidget } from './components/feedback/FeedbackWidget';
 import './index.css';
@@ -115,6 +116,16 @@ function SiteFooter() {
 }
 
 export default function App() {
+  // acerbac.medsociety.one: the ACERBAC page on every path, without the
+  // directory's meta, agent bridge or chrome (see utils/hostSite.ts).
+  if (hostSite() === 'acerbac') {
+    return (
+      <BrowserRouter>
+        <AnalyticsBridge />
+        <AcerbacPage />
+      </BrowserRouter>
+    );
+  }
   return (
     <BrowserRouter>
       <AnalyticsBridge />

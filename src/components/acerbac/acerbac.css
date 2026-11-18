@@ -79,6 +79,22 @@
 .ac-find .ac-cta{margin-top:0;justify-content:flex-end}
 .ac-find .ac-todo{grid-column:1/-1;margin:0;justify-self:start}
 
+/* certified centers */
+.ac-centers-head{margin-top:clamp(48px,7vw,88px)}
+.ac-h3{font:500 clamp(1.4rem,3vw,2rem)/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 8px}
+.ac-centers{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.ac-centers .ac-core{padding:0;overflow:hidden}
+.ac-center{display:flex;flex-direction:column;text-decoration:none;height:100%}
+.ac-photo{aspect-ratio:4/3;display:grid;place-items:center;background:radial-gradient(110% 90% at 20% 0,#1d6b57 0,var(--deep) 70%);overflow:hidden}
+.ac-photo img{width:100%;height:100%;object-fit:cover;transition:transform .6s var(--ease)}
+.ac-photo span{font:400 2.6rem/1 var(--serif);color:#cfeee2;letter-spacing:.04em}
+.ac-center-meta{padding:16px 18px 18px;display:grid;gap:2px}
+.ac-center-meta strong{font:500 1.05rem/1.3 var(--serif)}
+.ac-center-meta span{color:var(--muted);font-size:.86rem}
+.ac-center-meta em{font-style:normal;font-size:.84rem;font-weight:600;color:var(--accent);margin-top:8px}
+a.ac-center:hover .ac-photo img{transform:scale(1.04)}
+a.ac-center:hover em{text-decoration:underline}
+
 /* guide: editorial numbered list */
 .ac-guide{display:grid;grid-template-columns:.8fr 1.2fr;gap:clamp(32px,6vw,90px);align-items:start}
 .ac-guide-sticky{position:sticky;top:110px}

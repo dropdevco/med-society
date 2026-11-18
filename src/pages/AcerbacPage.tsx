@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AC, AC_EMAIL, AC_WHATSAPP } from '../components/acerbac/content';
+import { AC, AC_CENTERS, AC_EMAIL, AC_WHATSAPP } from '../components/acerbac/content';
+import { directoryUrl } from '../utils/hostSite';
 import type { AcLang } from '../components/acerbac/content';
 import '../components/acerbac/acerbac.css';
 
@@ -15,6 +16,10 @@ function initialLang(): AcLang {
     } catch { /* storage can be blocked */ }
     return 'es';
 }
+
+/** "Bella Recovery House" → "BR": stands in for a photo we may not publish yet. */
+const monogram = (name: string) =>
+    name.replace(/&/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
 const todo = (s: string) => (s.includes('TODO(acerbac)') ? <p className="ac-todo">{s}</p> : null);
 
@@ -117,9 +122,42 @@ export function AcerbacPage() {
                                 <h2 className="ac-h2">{c.find.h}</h2>
                                 <p className="ac-p">{c.find.p}</p>
                             </div>
-                            <div className="ac-cta"><a className="ac-btn light" href="/">{c.find.cta}<Arrow /></a></div>
+                            <div className="ac-cta"><a className="ac-btn light" href={directoryUrl('/')}>{c.find.cta}<Arrow /></a></div>
                             {todo(c.find.note)}
                         </div>
+
+                        <div className="ac-centers-head ac-rv">
+                            <h3 className="ac-h3">{c.centers.h}</h3>
+                            <p className="ac-p">{c.centers.p}</p>
+                        </div>
+                        <ul className="ac-centers">
+                            {AC_CENTERS.map((ce) => {
+                                const href = ce.providerId ? directoryUrl(`/providers/${ce.providerId}`) : null;
+                                const body = (
+                                    <>
+                                        <div className="ac-photo">
+                                            {ce.photo
+                                                ? <img src={ce.photo} alt={ce.name} loading="lazy" />
+                                                : <span aria-hidden="true">{monogram(ce.name)}</span>}
+                                        </div>
+                                        <div className="ac-center-meta">
+                                            <strong>{ce.name}</strong>
+                                            <span>Tijuana, B.C.</span>
+                                            <em>{href ? `${c.centers.listing} →` : c.centers.noListing}</em>
+                                        </div>
+                                    </>
+                                );
+                                return (
+                                    <li className="ac-bezel ac-rv" key={ce.name}>
+                                        {href
+                                            ? <a className="ac-core ac-center" href={href}>{body}</a>
+                                            : <div className="ac-core ac-center">{body}</div>}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                        <p className="ac-note">{c.centers.source}</p>
+                        {todo(c.centers.todo)}
                     </div>
                 </section>
 

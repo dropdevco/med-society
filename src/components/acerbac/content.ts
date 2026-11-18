@@ -14,6 +14,7 @@ export interface AcContent {
     hero: { eyebrow: string; h1: string; lead: string; ctaFind: string; ctaJoin: string; cardH: string; cardItems: string[] };
     trust: { n: string; label: string }[];
     find: { h: string; p: string; cta: string; note: string };
+    centers: { h: string; p: string; listing: string; noListing: string; source: string; todo: string };
     guide: { h: string; p: string; items: { h: string; p: string }[] };
     certify: { h: string; p: string; steps: { h: string; p: string }[]; note: string };
     join: { h: string; p: string; perks: string[]; cta: string };
@@ -25,6 +26,31 @@ export interface AcContent {
 
 export const AC_EMAIL = 'info@dropdev.co'; // TODO(acerbac): replace with the association's contact address
 export const AC_WHATSAPP = ''; // TODO(acerbac): E.164 number, digits only
+
+/**
+ * Centers the association itself named as certified, as reported by Diario
+ * Tijuana on 25 June 2025 (president then: Dr. Eugenio Carrasco; the article
+ * calls it the "Asociación de Centros de Recuperación Posquirúrgica de Baja
+ * California"). Zen & Healthy Recovery also states ACERBAC membership on its
+ * Baja Health Cluster listing. TODO(acerbac): confirm the current list.
+ *
+ * `providerId` links the card to the MedSociety listing (providers.id, matched
+ * by name in Tijuana). `photo` stays null until the center or ACERBAC sends a
+ * picture we may publish: never copy one from a center's own site or socials.
+ */
+export interface AcCenter {
+    name: string;
+    providerId: string | null;
+    photo: string | null;
+}
+
+export const AC_CENTERS: AcCenter[] = [
+    { name: 'Alice', providerId: null, photo: null },
+    { name: 'Zen & Healthy Recovery', providerId: '7d5158a7-125e-4ad1-b991-2becc1f91dc0', photo: null },
+    { name: 'Baja Premium Care', providerId: null, photo: null },
+    { name: 'Bella Recovery House', providerId: '5056bb8d-1288-4fa1-b9fc-1eb9f230c718', photo: null },
+    { name: 'Better Than Ever', providerId: '6f1f2c83-ca5c-418e-88f9-0e42ef7fb808', photo: null },
+];
 
 export const AC: Record<AcLang, AcContent> = {
     es: {
@@ -51,6 +77,14 @@ export const AC: Record<AcLang, AcContent> = {
             cta: 'Ver el directorio',
             note: 'TODO(acerbac): el sello “Certificado” solo aparecerá en centros que ACERBAC confirme por escrito.',
         },
+        centers: {
+            h: 'Centros certificados',
+            p: 'Los centros que la asociación ha presentado como certificados.',
+            listing: 'Ver ficha',
+            noListing: 'Ficha próximamente',
+            source: 'Fuente: la asociación, citada por Diario Tijuana el 25 de junio de 2025.',
+            todo: 'TODO(acerbac): confirmar la lista vigente y enviar una foto de cada centro con su permiso.',
+        },
         guide: {
             h: 'Guía para pacientes y familias',
             p: 'Antes de reservar, haz estas preguntas. Un centro serio responde todas con gusto.',
@@ -64,11 +98,11 @@ export const AC: Record<AcLang, AcContent> = {
         },
         certify: {
             h: 'Certificación',
-            p: 'ACERBAC y el Baja Health Cluster impulsan programas de certificación, protocolos de atención y proyectos de investigación para fortalecer la seguridad del paciente.',
+            p: 'La asociación cuenta con el respaldo de COEPRIS, la Comisión Estatal para la Protección contra Riesgos Sanitarios de Baja California. Con el Baja Health Cluster impulsa programas de certificación, protocolos de atención y proyectos de investigación para fortalecer la seguridad del paciente.',
             steps: [
                 { h: 'Acércate', p: 'Los centros sin certificación pueden acercarse a ACERBAC para recibir capacitación y acompañamiento.' },
                 { h: 'Capacítate', p: 'TODO(acerbac): contenido, duración y costo de la capacitación.' },
-                { h: 'Certifica', p: 'TODO(acerbac): quién evalúa, qué criterios se revisan y vigencia del sello.' },
+                { h: 'Certifica', p: 'TODO(acerbac): confirmar quién certifica (COEPRIS estatal o COFEPRIS federal), qué criterios se revisan y vigencia del sello.' },
             ],
             note: 'Los criterios los publica ACERBAC; esta página no los inventa.',
         },
@@ -86,7 +120,7 @@ export const AC: Record<AcLang, AcContent> = {
             h: 'Quiénes somos',
             p: 'La Asociación de Centros de Recuperación de Baja California agrupa a quienes cuidan a los pacientes en las horas más delicadas después de una cirugía.',
             allies: 'Aliados',
-            allyList: ['Comité de Turismo y Convenciones de Tijuana (Cotuco)', 'Baja Health Cluster'],
+            allyList: ['COEPRIS Baja California', 'Comité de Turismo y Convenciones de Tijuana (Cotuco)', 'Baja Health Cluster'],
             board: 'Presidenta 2026–2028: Marla Luna',
         },
         report: {
@@ -130,6 +164,14 @@ export const AC: Record<AcLang, AcContent> = {
             cta: 'Open the directory',
             note: 'TODO(acerbac): the “Certified” badge will only appear on centers ACERBAC confirms in writing.',
         },
+        centers: {
+            h: 'Certified centers',
+            p: 'The centers the association has presented as certified.',
+            listing: 'View listing',
+            noListing: 'Listing coming soon',
+            source: 'Source: the association, quoted by Diario Tijuana on 25 June 2025.',
+            todo: 'TODO(acerbac): confirm the current list and send a photo of each center with its permission.',
+        },
         guide: {
             h: 'Guide for patients and families',
             p: 'Ask these before you book. A serious center is glad to answer every one.',
@@ -143,11 +185,11 @@ export const AC: Record<AcLang, AcContent> = {
         },
         certify: {
             h: 'Certification',
-            p: 'ACERBAC and the Baja Health Cluster are advancing certification programs, care protocols and research projects to strengthen patient safety.',
+            p: 'The association is backed by COEPRIS, Baja California’s state commission for protection against health risks. With the Baja Health Cluster it is advancing certification programs, care protocols and research projects to strengthen patient safety.',
             steps: [
                 { h: 'Reach out', p: 'Centers without certification can contact ACERBAC for training and guidance.' },
                 { h: 'Train', p: 'TODO(acerbac): training content, length and cost.' },
-                { h: 'Certify', p: 'TODO(acerbac): who evaluates, which criteria are reviewed and how long the seal lasts.' },
+                { h: 'Certify', p: 'TODO(acerbac): confirm who certifies (state COEPRIS or federal COFEPRIS), which criteria are reviewed and how long the seal lasts.' },
             ],
             note: 'ACERBAC publishes the criteria; this page does not make them up.',
         },
@@ -165,7 +207,7 @@ export const AC: Record<AcLang, AcContent> = {
             h: 'About us',
             p: 'The Baja California Recovery Centers Association groups the people who care for patients in the most delicate hours after surgery.',
             allies: 'Partners',
-            allyList: ['Tijuana Tourism and Convention Committee (Cotuco)', 'Baja Health Cluster'],
+            allyList: ['COEPRIS Baja California', 'Tijuana Tourism and Convention Committee (Cotuco)', 'Baja Health Cluster'],
             board: 'President 2026–2028: Marla Luna',
         },
         report: {
