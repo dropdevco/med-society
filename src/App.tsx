@@ -18,6 +18,7 @@ import { FORUM_PATH } from './lib/forumRoutes';
 import { ProviderModal } from './components/provider/ProviderModal';
 import { AnalyticsBridge } from './components/AnalyticsBridge';
 import { RouteMeta } from './components/RouteMeta';
+import { AcerbacPage } from './pages/AcerbacPage';
 import { AgentBridge } from './components/AgentBridge';
 import { FeedbackWidget } from './components/feedback/FeedbackWidget';
 import './index.css';
@@ -70,6 +71,8 @@ function AppRoutes() {
             Providers who finish it go straight into claiming or listing. */}
         <Route path="/borderhealth" element={<BorderhealthPage />} />
         <Route path="/research" element={<BorderhealthPage research />} />
+        {/* ACERBAC (Tijuana recovery-center association): own chrome, draft copy. */}
+        <Route path="/acerbac" element={<AcerbacPage />} />
         {/* Internal analytics. Admin-only, enforced in the database. */}
         <Route path="/admin" element={<Suspense fallback={null}><AdminPage /></Suspense>} />
         {/*
@@ -95,13 +98,19 @@ function AppRoutes() {
 /** /research is a co-branded study page: no MedSociety navigation on it. */
 function SiteNavbar() {
   const { pathname } = useLocation();
-  return pathname.startsWith('/research') ? null : <Navbar />;
+  return pathname.startsWith('/research') || pathname.startsWith('/acerbac') ? null : <Navbar />;
+}
+
+/** ACERBAC has its own chrome and a sticky mobile CTA the widget would cover. */
+function SiteFeedback() {
+  const { pathname } = useLocation();
+  return pathname.startsWith('/acerbac') ? null : <FeedbackWidget />;
 }
 
 /** Same hide rules as the nav; admin keeps a clean chrome without site chrome. */
 function SiteFooter() {
   const { pathname } = useLocation();
-  if (pathname.startsWith('/research') || pathname.startsWith('/admin')) return null;
+  if (pathname.startsWith('/research') || pathname.startsWith('/acerbac') || pathname.startsWith('/admin')) return null;
   return <Footer />;
 }
 
@@ -114,7 +123,7 @@ export default function App() {
       <SiteNavbar />
       <AppRoutes />
       <SiteFooter />
-      <FeedbackWidget />
+      <SiteFeedback />
     </BrowserRouter>
   );
 }
