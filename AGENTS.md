@@ -19,6 +19,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 | `docs/roadmap/` | Roadmaps with phase status |
 | `docs/sources/` | Data-source permissions register and one page per source |
 | `docs/badges.md` | How organization badges work, end to end |
+| `docs/groupings.md` | Listings, doctors, clinics, organizations, clusters, sources and badges: what each is and how they connect |
 | `docs/clinics.md` | Clinics: teams, adding doctors, invites, the clinic page |
 
 ## Hard rules

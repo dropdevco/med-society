@@ -29,4 +29,19 @@ ADR 0004 says a name alone never confirms a match. ADR 0012 kept the AI scorer i
 
 ## Model comparison (17 Nov 2026)
 
-To be filled in from the comparison run.
+50 queued doctors, spread over Hospital Ángeles, CONACEM, Star Médica and Baja Health Cluster (13, 13, 11, 13), exact and similar names alike. Claude judged them from the same evidence the models saw: 39 the same person, 9 different, 2 too close to call ("Alfonso García Chávez" vs "Dr. Alfonso Garcia", "Daniel A. Maciel Roman" vs "Dr. Daniel Maciel"). Same prompt and output schema for every model, through OpenRouter.
+
+| Model | Links at 80+ | Wrong links | Missed matches | $ per 1,000 items | Avg seconds |
+|---|---|---|---|---|---|
+| **google/gemini-3.8-flash** (chosen) | 28 | 0 | 11 | 1.70 | 4.0 |
+| deepseek/deepseek-v4.1-flash | 32 | 2 | 9 | 0.49 | 4.5 |
+| deepseek/deepseek-v4-pro-0813 | 29 | 1 | 11 | 2.74 | 6.4 |
+| google/gemini-4-hydrogen | 26 | 1 | 14 | 6.07 | 4.3 |
+
+Every "wrong" link above is one of the two close calls, linked at 85 to 92; no model linked a doctor the judge called different. Gemini 3.8 Flash was the only one to hold back on both, so it was chosen, as the rule above says (fewest wrong links, then misses, then cost). DeepSeek V4.1 Flash is the cheaper option at a quarter of the cost, and links four more true matches, at the price of linking close calls. One DeepSeek V4 Pro answer was not valid JSON. At a bar of 90 neither flash model made a wrong link, but each missed more (13 and 17).
+
+Run again with `npx tsx --env-file=.env.local scripts/sources/compare-models.ts --report --bar=80` (the sample, answer key and answers are in `scripts/sources/.data/scorer/compare/`, not in git).
+
+## First production run (17 Nov 2026)
+
+Run `01a1eab6-8de2-7c24-9a84-6facee5f0000`, Gemini 3.8 Flash, auto-link at 80. It was meant to stop when Emilio asked at about 780 items; the shell stopped but the Node process did not, and it ran on until 18:34 UTC. It scored **1,129 of 1,185** queued items (482 approve, 350 needs a person, 297 reject) and **linked 482**. Listings showing a badge went from 92 to 347. The run is recorded red, "interrupted"; its scores and links stand, and `--undo` takes all 482 back at once. The remaining 56 items are scored by a second run.

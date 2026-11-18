@@ -6,10 +6,11 @@
 # Secrets (added by a person in med-society-ops → Settings → Secrets → Actions):
 #   VITE_SUPABASE_URL           the project URL
 #   SUPABASE_SERVICE_ROLE_KEY   the service-role key: never echo it
-#   OPENROUTER_API_KEY          optional: the AI scorer (docs/adr/0012). Without it the step is skipped
+#   OPENROUTER_API_KEY          optional: the AI scorer (docs/adr/0012, 0014). Without it the step is skipped
 #
-# The scorer step runs in shadow mode: it scores new queue items and links nothing.
-# Do not set SCORER_AUTO_LINK_AT here until ADR 0012 records the checked sample.
+# The scorer step scores new queue items with the model chosen in ADR 0014 and links
+# those it approves at 80 or above (SCORER_AUTO_LINK_AT). Remove that line to go back
+# to shadow mode; undo a run with: npm run sources:score -- --undo=<run ID>.
 name: Weekly source run
 
 on:
@@ -63,12 +64,14 @@ jobs:
           fi
 
       # Runs even when a source was red: the queue from the green ones still needs scores.
-      - name: Score new queue items (shadow mode)
+      - name: Score new queue items and link at 80+ (ADR 0014)
         if: ${{ !cancelled() }}
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SCORER_MODEL: google/gemini-3.8-flash
+          SCORER_AUTO_LINK_AT: '80'
         run: |
           if [ -z "$OPENROUTER_API_KEY" ]; then echo "no OPENROUTER_API_KEY secret: scoring skipped"; exit 0; fi
           npx tsx scripts/sources/score-matches.ts --limit=300

@@ -8,8 +8,8 @@
  */
 import type { FacilityCandidate, NameCandidate } from './match';
 
-/** Through OpenRouter, as the rest of the project calls Claude (api/ai-search.ts). */
-export const SCORER_MODEL = 'anthropic/claude-opus-5.5';
+/** Through OpenRouter (api/ai-search.ts does the same). Chosen on a judged 50-doctor sample, ADR 0014; override with --model or SCORER_MODEL. */
+export const SCORER_MODEL = 'google/gemini-3.8-flash';
 export const MAX_CANDIDATES = 5;
 
 export type Kind = 'doctor' | 'facility';

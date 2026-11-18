@@ -78,7 +78,7 @@ npm run sources:score -- --undo=<run ID>              # put back every link a ru
 npm run sources:score -- --split=<run ID> --doctor=<uuid> --group=src/ext,src/ext --group=...
 ```
 
-The scorer ([ADR 0012](../../docs/adr/0012-ai-match-scorer.md)) asks Claude through OpenRouter (`OPENROUTER_API_KEY`) to rate each name-only match from 0 to 100, and stores the score, verdict and reason beside the item in `/admin` → Verification. It sends public directory fields only. It links nothing unless `SCORER_AUTO_LINK_AT` is set, and never links across a cédula conflict. CSV files go to `.data/scorer/`.
+The scorer ([ADR 0012](../../docs/adr/0012-ai-match-scorer.md), [ADR 0014](../../docs/adr/0014-ai-auto-link-live.md)) asks Gemini 3.8 Flash through OpenRouter (`OPENROUTER_API_KEY`; another model with `--model`) to rate each name-only match from 0 to 100, and stores the score, verdict and reason beside the item in `/admin` → Verification. It sends public directory fields only. With `SCORER_AUTO_LINK_AT=80` (the production setting since 17 Nov) it links what it approves at 80 or above; unset, it links nothing. It never links across a cédula conflict. `compare-models.ts` reruns the model comparison. CSV files go to `.data/scorer/`.
 
 ## Change one badge by hand
 
