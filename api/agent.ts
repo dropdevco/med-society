@@ -696,17 +696,19 @@ const PAGE_SIZE = 1000;
  * The whole lean directory of one region, paged by id like src/hooks/useProviders.ts:
  * each page starts after the last id, so no request reads rows it skips (offset paging
  * hit the anon role's 3 s statement timeout when the database was slow). One stream:
- * this runs server-side and the snapshot is cached. A page that times out is asked again once.
+ * this runs server-side and the snapshot is cached. A page that times out is asked again, twice.
  */
 async function loadRegion(region: RegionId): Promise<Snapshot> {
     const page = async (after: string | null): Promise<Array<{ id?: unknown }>> => {
         const path = `provider_list?select=*&region=eq.${region}${after ? `&id=gt.${after}` : ''}&order=id&limit=${PAGE_SIZE}`;
-        try {
-            return (await sb(path)).data as Array<{ id?: unknown }>;
-        } catch (err) {
-            if (!/\b500\b|57014|statement timeout/.test((err as Error).message)) throw err;
-            await new Promise((r) => setTimeout(r, 400));
-            return (await sb(path)).data as Array<{ id?: unknown }>;
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return (await sb(path)).data as Array<{ id?: unknown }>;
+            } catch (err) {
+                // Two retries, backing off, as in useProviders.ts: a slow spell lasts seconds.
+                if (attempt >= 2 || !/\b500\b|57014|statement timeout/.test((err as Error).message)) throw err;
+                await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
+            }
         }
     };
     const raw: unknown[] = [];

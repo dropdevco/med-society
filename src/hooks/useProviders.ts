@@ -29,7 +29,14 @@ type RawProviderRow = Record<string, unknown>;
 /** Distinguishes "no client configured" from a real fetch error, above. */
 class NoSupabaseClientError extends Error {}
 
-const PAGE_SIZE = 1000;
+/**
+ * Rows per request. PostgREST builds the JSON inside the statement, so a page's
+ * time counts against the anon role's 3 s limit: ~0.6 s for 1,000 rows when the
+ * database is idle, and several times that when its CPU is starved (17 Nov 2026:
+ * planning one trivial query swung from 1 ms to 58 ms). 500 keeps a page well
+ * under the limit; Tijuana takes ~20 requests, eight in flight.
+ */
+const PAGE_SIZE = 500;
 
 /**
  * The lean directory view (migration 0021): only what cards, the map, search
@@ -69,8 +76,12 @@ async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]
             if (before) q = q.lt('id', before);
             const res = await q.order('id', { ascending: dir === 'up' }).limit(PAGE_SIZE);
             if (!res.error) return (res.data ?? []) as RawProviderRow[];
-            if (res.error.code !== STATEMENT_TIMEOUT || attempt >= 1) throw res.error;
-            await new Promise((r) => setTimeout(r, 400));
+            // Two retries, backing off: a slow spell on the database lasts a few
+            // seconds, and one page failing twice blanked the whole region
+            // ("0 providers") on 17 Nov 2026 while the same read took 0.6 s a
+            // minute later.
+            if (res.error.code !== STATEMENT_TIMEOUT || attempt >= 2) throw res.error;
+            await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
         }
     };
 
