@@ -20,6 +20,11 @@
  *         queued, so a caller cannot make it mail anything else.
  *   GET   ?job=drain, the daily Vercel cron (Authorization: Bearer CRON_SECRET),
  *         for anything the POST missed.
+ *   GET   ?job=review, the daily Vercel cron: one e-mail to REVIEW_ALERT_TO
+ *         listing the records the AI match scorer judged in the last day near
+ *         the 80 auto-link bar (REVIEW_ALERT_BAND, default 70-89, either side)
+ *         and every cédula conflict it saw. Nothing to report, nothing sent.
+ *         Reads review_near_bar (migration 0052); docs/adr/0014.
  *
  * ── Setup (Vercel → Settings → Environment Variables, server-side) ──────────
  *   VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   required
@@ -29,6 +34,9 @@
  *   CLAIM_NOTIFY_TO          team inboxes, comma-separated (falls back to
  *                            LEAD_NOTIFY_TO). Each becomes a GHL contact.
  *   CLAIM_EMAIL_FROM         optional sender address; GHL's default otherwise
+ *   REVIEW_ALERT_TO          who gets the scorer alert, comma-separated (falls
+ *                            back to CLAIM_NOTIFY_TO, then LEAD_NOTIFY_TO)
+ *   REVIEW_ALERT_BAND        "low-high" scores to report, default 70-89
  *   PUBLIC_SITE_URL          defaults to https://medsociety.one
  *   CRON_SECRET              for the daily drain
  *
@@ -67,6 +75,9 @@ interface Cfg {
     pit: string;
     location: string;
     team: string[];
+    /** Who gets the daily scorer alert. */
+    review: string[];
+    band: { low: number; high: number };
     from: string | null;
     site: string;
 }
@@ -79,9 +90,18 @@ export function config(): Cfg {
         pit: process.env.GHL_PIT_MEDSOCIETY || '',
         location: process.env.GHL_LOCATION_MEDSOCIETY || DEFAULT_LOCATION,
         team: list(process.env.CLAIM_NOTIFY_TO || process.env.LEAD_NOTIFY_TO),
+        review: list(process.env.REVIEW_ALERT_TO || process.env.CLAIM_NOTIFY_TO || process.env.LEAD_NOTIFY_TO),
+        band: parseBand(process.env.REVIEW_ALERT_BAND),
         from: (process.env.CLAIM_EMAIL_FROM || '').trim() || null,
         site: (process.env.PUBLIC_SITE_URL || 'https://medsociety.one').replace(/\/$/, ''),
     };
+}
+
+/** "70-89" → { low: 70, high: 89 }; anything unreadable falls back to 70-89. Exported for the self-test. */
+export function parseBand(v: string | undefined): { low: number; high: number } {
+    const m = /^\s*(\d{1,3})\s*-\s*(\d{1,3})\s*$/.exec(v ?? '');
+    const low = m ? Number(m[1]) : NaN, high = m ? Number(m[2]) : NaN;
+    return m && low <= high && high <= 100 ? { low, high } : { low: 70, high: 89 };
 }
 
 // ── Rendering ───────────────────────────────────────────────────────────────
@@ -215,6 +235,57 @@ async function sendEmail(cfg: Cfg, to: string, name: string | null, subject: str
     return typeof id === 'string' ? id : '';
 }
 
+// ── Scorer alert ────────────────────────────────────────────────────────────
+
+/** One row of review_near_bar (migration 0052). */
+export interface NearBarItem {
+    source_slug: string; external_id: string; score: number; verdict: 'approve' | 'reject' | 'needs_human'; reason: string;
+    scored_at: string; status: string; tier: number; name: string; label: string | null; region: string | null;
+    candidate: string | null; linked: boolean;
+}
+
+/**
+ * The daily alert: cédula conflicts first, then the linked ones (already on
+ * the site, so the most worth a second look), then those waiting. Names and
+ * scores only: no cédula numbers or contact data in an e-mail. Exported for
+ * the self-test.
+ */
+export function renderReviewDigest(items: NearBarItem[], site: string, band: { low: number; high: number }): { subject: string; html: string } {
+    const conflicts = items.filter((i) => i.tier === 1);
+    const linked = items.filter((i) => i.tier !== 1 && i.linked);
+    const waiting = items.filter((i) => i.tier !== 1 && !i.linked);
+    const line = (i: NearBarItem) => `${i.name}${i.candidate ? ` → ${i.candidate}` : ''} · AI ${i.score} · ${i.reason}`;
+    const blocks: Block[] = [{
+        heading: `${items.length} AI match${items.length === 1 ? '' : 'es'} to look at`,
+        paragraphs: [
+            `The match scorer links a source record to a doctor at a score of 80 or more. In the last day it judged these within ${band.low}-${band.high}, or found a cédula that belongs to another doctor.`,
+            `Open each one in Verification to see the record and the doctor side by side.`,
+        ],
+        button: { label: 'Open Verification', href: `${site}/admin?tab=verification` },
+    }];
+    const section = (heading: string, why: string, list: NearBarItem[]) => {
+        if (list.length) blocks.push({ heading: `${heading} (${list.length})`, paragraphs: [why, ...list.slice(0, 40).map(line), ...(list.length > 40 ? [`…and ${list.length - 40} more in Verification.`] : [])] });
+    };
+    section('Cédula conflicts', 'Never linked automatically. A person decides.', conflicts);
+    section('Linked, badge live', 'Scored at or above 80, so the badge is on the site now. Worth a second look.', linked);
+    section('Waiting for a person', 'Scored below 80, so nothing was linked.', waiting);
+    return { subject: `MedSociety: ${items.length} AI match${items.length === 1 ? '' : 'es'} near the 80 bar`, html: page(blocks) };
+}
+
+/** Sends the daily alert. Nothing near the bar, nothing sent. */
+export async function reviewAlert(cfg: Cfg, now = new Date()): Promise<{ items: number; sent: number; failed: number }> {
+    const since = new Date(now.getTime() - 24 * 3600_000).toISOString();
+    const items = await rpc<NearBarItem[]>(cfg, 'review_near_bar', { p_since: since, p_low: cfg.band.low, p_high: cfg.band.high });
+    if (!items?.length) return { items: 0, sent: 0, failed: 0 };
+    if (!cfg.review.length) throw new Error('REVIEW_ALERT_TO is not set');
+    const { subject, html } = renderReviewDigest(items, cfg.site, cfg.band);
+    let sent = 0, failed = 0;
+    for (const to of cfg.review) {
+        try { await sendEmail(cfg, to, null, subject, html); sent++; } catch (err) { failed++; console.error('claim-notify review:', (err as Error).message); }
+    }
+    return { items: items.length, sent, failed };
+}
+
 // ── Supabase (service role) ─────────────────────────────────────────────────
 async function rpc<T>(cfg: Cfg, fn: string, args: Record<string, unknown>): Promise<T> {
     const r = await fetch(`${cfg.url}/rest/v1/rpc/${fn}`, {
@@ -282,6 +353,17 @@ export default async function handler(req: Req, res: Res) {
     } else {
         res.setHeader('Allow', 'GET, POST');
         return res.status(405).json({ error: 'method_not_allowed' });
+    }
+
+    const job = Array.isArray(req.query?.job) ? req.query?.job[0] : req.query?.job;
+    if (job === 'review') {
+        if (req.method !== 'GET') return res.status(405).json({ error: 'method_not_allowed' });
+        try {
+            return res.status(200).json(await reviewAlert(cfg));
+        } catch (err) {
+            console.error('claim-notify review:', (err as Error).message);
+            return res.status(500).json({ error: 'review_failed' });
+        }
     }
 
     try {

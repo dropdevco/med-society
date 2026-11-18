@@ -169,6 +169,10 @@
       "schedule": "30 14 * * *"
     },
     {
+      "path": "/api/claim-notify?job=review",
+      "schedule": "0 16 * * *"
+    },
+    {
       "path": "/api/billing?job=sync",
       "schedule": "0 9 * * *"
     },

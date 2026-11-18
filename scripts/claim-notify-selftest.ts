@@ -8,7 +8,7 @@
  *
  *   npx tsx scripts/claim-notify-selftest.ts
  */
-import handler, { renderEmail, type QueuedEmail } from '../api/claim-notify';
+import handler, { parseBand, renderEmail, renderReviewDigest, type NearBarItem, type QueuedEmail } from '../api/claim-notify';
 
 process.env.VITE_SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
@@ -17,6 +17,7 @@ process.env.GHL_PIT_MEDSOCIETY = 'pit';
 process.env.GHL_LOCATION_MEDSOCIETY = 'loc-1';
 process.env.CLAIM_NOTIFY_TO = 'team@example.com, ops@example.com, not-an-email';
 process.env.CRON_SECRET = 'cron-secret';
+process.env.REVIEW_ALERT_TO = 'david@example.com';
 process.env.PUBLIC_SITE_URL = 'https://medsociety.one';
 
 let failures = 0;
@@ -54,12 +55,32 @@ const team = renderEmail({ ...base, kind: 'team_new_claim' }, 'https://medsociet
 check('team: links to the admin queue', team.html.includes('/admin?tab=claims'));
 check('no name: neutral greeting', renderEmail({ ...base, legal_name: null }, 'https://medsociety.one').html.includes('Hola:'));
 
+// ── Scorer alert (job=review) ───────────────────────────────────────────────
+const near = (over: Partial<NearBarItem>): NearBarItem => ({
+    source_slug: 'baja-health-cluster-doctors', external_id: 'x', score: 82, verdict: 'approve', reason: 'Unique name.', scored_at: '2026-11-18T00:00:00Z',
+    status: 'confirmed', tier: 3, name: 'Rosa Ejemplo Rio', label: 'Member doctor', region: 'sandiego-tijuana', candidate: 'Dra. Rosa Ejemplo Rio', linked: true, ...over,
+});
+const digest = renderReviewDigest([
+    near({ external_id: 'a' }),
+    near({ external_id: 'b', score: 74, linked: false, status: 'probable', verdict: 'needs_human', name: 'Pablo <b>Ejemplo</b>' }),
+    near({ external_id: 'c', score: 40, tier: 1, linked: false, status: 'probable', verdict: 'reject', name: 'Lucia Prueba' }),
+], 'https://medsociety.one', { low: 70, high: 89 });
+check('review: subject counts the matches', digest.subject.includes('3 AI matches'), digest.subject);
+check('review: cédula conflicts come first, then linked, then waiting',
+    digest.html.indexOf('Cédula conflicts') < digest.html.indexOf('Linked, badge live') && digest.html.indexOf('Linked, badge live') < digest.html.indexOf('Waiting for a person'));
+check('review: links to Verification', digest.html.includes('https://medsociety.one/admin?tab=verification'));
+check('review: names are escaped', !digest.html.includes('<b>Ejemplo</b>') && digest.html.includes('&lt;b&gt;'));
+check('review: says the band it used', digest.html.includes('70-89'));
+check('review: band parses, and a bad one falls back to 70-89',
+    JSON.stringify(parseBand('75-85')) === '{"low":75,"high":85}' && JSON.stringify(parseBand('90-10')) === '{"low":70,"high":89}' && JSON.stringify(parseBand(undefined)) === '{"low":70,"high":89}');
+
 // ── Stubbed network ─────────────────────────────────────────────────────────
 interface Call { url: string; body: Record<string, unknown> | null; headers: Record<string, string> }
 let calls: Call[] = [];
 let queue: QueuedEmail[] = [];
 let userOk = true;
 let failSendTo: string | null = null;
+let nearBar: NearBarItem[] = [];
 
 globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
@@ -69,6 +90,7 @@ globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     if (url.endsWith('/auth/v1/user')) return userOk ? reply(200, { id: 'u-1' }) : reply(401, {});
     if (url.endsWith('/rpc/claim_emails_take')) { const q = queue; queue = []; return reply(200, q); }
     if (url.endsWith('/rpc/claim_emails_done')) return new Response(null, { status: 204 });
+    if (url.endsWith('/rpc/review_near_bar')) return reply(200, nearBar);
     if (url.endsWith('/contacts/upsert')) return reply(200, { contact: { id: `ct-${String(body?.email)}` } });
     if (url.endsWith('/conversations/messages')) {
         const contact = String(body?.contactId ?? '');
@@ -79,7 +101,7 @@ globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
 }) as typeof fetch;
 
 interface Out { code: number; body: unknown }
-async function call(method: string, headers: Record<string, string>): Promise<Out> {
+async function call(method: string, headers: Record<string, string>, query: Record<string, string> = {}): Promise<Out> {
     let code = 0; let out: unknown = null;
     const res = {
         statusCode: 200,
@@ -87,7 +109,7 @@ async function call(method: string, headers: Record<string, string>): Promise<Ou
         status(c: number) { code = c; return res; },
         json(b: unknown) { out = b; },
     };
-    await handler({ method, headers } as never, res as never);
+    await handler({ method, headers, query } as never, res as never);
     return { code, body: out };
 }
 const dones = () => calls.filter((c) => c.url.endsWith('/rpc/claim_emails_done')).map((c) => c.body);
@@ -133,6 +155,25 @@ console.log('handler');
     check('cron drain counts a GHL failure', r.code === 200 && (r.body as { failed: number }).failed === 1, r);
     check('the failure is recorded with GHL\'s reason', dones().some((x) => x?.p_id === 'e-9' && x?.p_ok === false && String(x?.p_error).includes('422')), dones());
     failSendTo = null;
+
+    // job=review: one digest to REVIEW_ALERT_TO, only when something is near the bar.
+    calls = [];
+    nearBar = [];
+    r = await call('GET', { authorization: 'Bearer cron-secret' }, { job: 'review' });
+    const nothing = calls.filter((c) => c.url.endsWith('/conversations/messages')).length;
+    check('review: nothing near the bar sends nothing', r.code === 200 && (r.body as { items: number }).items === 0 && nothing === 0, r);
+    calls = [];
+    nearBar = [near({}), near({ external_id: 'b', score: 75, linked: false })];
+    r = await call('GET', { authorization: 'Bearer cron-secret' }, { job: 'review' });
+    const reviewSends = calls.filter((c) => c.url.endsWith('/conversations/messages'));
+    check('review: one e-mail to REVIEW_ALERT_TO', r.code === 200 && reviewSends.length === 1 && calls.some((c) => c.url.endsWith('/contacts/upsert') && c.body?.email === 'david@example.com'), r);
+    const asked = calls.find((c) => c.url.endsWith('/rpc/review_near_bar'))?.body;
+    check('review: asks for the last day, band 70-89', asked?.p_low === 70 && asked?.p_high === 89 && Date.now() - Date.parse(String(asked?.p_since)) > 23 * 3600_000, asked);
+    check('review: the claim queue is not drained by it', !calls.some((c) => c.url.endsWith('/rpc/claim_emails_take')));
+    r = await call('GET', { authorization: 'Bearer wrong' }, { job: 'review' });
+    check('review: the wrong cron secret is refused', r.code === 401, r);
+    r = await call('POST', { authorization: 'Bearer abc.def' }, { job: 'review' });
+    check('review: a signed-in POST cannot trigger it', r.code === 405, r);
 
     delete process.env.GHL_PIT_MEDSOCIETY;
     r = await call('POST', { authorization: 'Bearer abc.def' });

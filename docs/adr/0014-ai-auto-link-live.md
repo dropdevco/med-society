@@ -26,6 +26,7 @@ ADR 0004 says a name alone never confirms a match. ADR 0012 kept the AI scorer i
 - Some badges on the site rest on a name, specialty and city, not on a cédula. The wrong-link rate measured on the sample is the expected error; it is recorded below.
 - Carlos should be told: this reverses the rule he accepted in 0004.
 - "Verified" ([0005](0005-meaning-of-verified.md)) is still undecided; an AI-linked badge must not count as verified until it is.
+- The close calls get a person's eyes after the fact (added 18 Nov 2026, migration 0052): /admin → Verification has a "Near the bar" card (every record scored 70–89, linked or waiting, and every cédula conflict) and a side-by-side compare of the record against the doctor. A daily e-mail (`/api/claim-notify?job=review`, to `REVIEW_ALERT_TO`, band `REVIEW_ALERT_BAND`) lists the new ones. A wrong link is put right with `scorer_split` or `scorer_undo_run`; there is no one-click undo of a single link yet.
 
 ## Model comparison (17 Nov 2026)
 
