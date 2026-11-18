@@ -11,9 +11,11 @@ create schema auth;
 create table auth.users (id uuid primary key);
 create table public.doctoralia_doctors (doctoralia_id text primary key, entity_type text, name text, cedulas text[], provider_id uuid);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
+create function auth.role() returns text language sql stable as $$ select nullif(current_setting('test.role', true), '') $$;
 grant usage on schema auth to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
+grant execute on function auth.role() to anon, authenticated, service_role;
 create table public.providers (
     id uuid primary key default gen_random_uuid(), name text, specialty text[] default '{}', country text default 'MX', city text, region text,
     address text, lat numeric, lng numeric, "postalCode" text, rating numeric, "reviewCount" integer, promoted boolean default false,

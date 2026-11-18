@@ -157,6 +157,30 @@ export const fetchMatchQueue = (source: string | null, limit: number, offset: nu
 export const decideMatch = (source: string, external: string, decision: 'confirm' | 'reject', doctor?: string) =>
     rpc<void>('admin_match_decide', { p_source: source, p_external: external, p_decision: decision, p_doctor: doctor ?? null });
 export const confirmExactMatches = (source: string) => rpc<number>('admin_match_confirm_exact', { p_source: source });
+/** One record beside each candidate doctor (migration 0052). */
+export interface CompareCandidate {
+    doctor_id: string; display_name: string; similarity: number | null; linked: boolean;
+    cedulas: { cedula: string; title: string | null; kind: string | null }[];
+    listings: { id: string; name: string; city: string | null; region: string | null; specialty: string[] | null; kind: string | null }[];
+    badges: { organization: string; label: string | null; source: string }[];
+}
+export interface MatchCompare {
+    status: string; tier: number; confidence: number | null; doctor_id: string | null;
+    record: { name: string; label: string | null; specialties: string[] | null; cedulas: string[] | null; region: string | null;
+        url: string | null; valid_to: string | null; facts: Record<string, string> | null } | null;
+    candidates: CompareCandidate[];
+    ai: (AiScore & { evidence: unknown }) | null;
+    link: { doctor_id: string; score: number; run: string; linked_at: string } | null;
+}
+export const fetchMatchCompare = (source: string, external: string) =>
+    rpc<MatchCompare | null>('admin_match_compare', { p_source: source, p_external: external });
+/** A record the AI scored near the auto-link bar, or a cédula conflict (migration 0052). */
+export interface NearBarItem {
+    source_slug: string; external_id: string; score: number; verdict: AiScore['verdict']; reason: string; scored_at: string; run: string;
+    status: 'probable' | 'confirmed'; tier: number; name: string; label: string | null; region: string | null; candidate: string | null; linked: boolean;
+}
+export const fetchNearBar = (sinceDays = 14) =>
+    rpc<NearBarItem[]>('review_near_bar', { p_since: new Date(Date.now() - sinceDays * 86_400_000).toISOString() });
 export const fetchFacilityQueue = () => rpc<FacilityQueue>('admin_facility_queue', { p_limit: 200, p_offset: 0 });
 export const decideFacility = (source: string, external: string, decision: 'confirm' | 'reject', provider?: string) =>
     rpc<void>('admin_facility_decide', { p_source: source, p_external: external, p_decision: decision, p_provider: provider ?? null });
