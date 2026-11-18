@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProviderFilters, Specialty, Country } from '../../types/provider';
 import { parseCityValue, suggest, type Suggestion, type SuggestVocabulary } from '../../utils/facets';
@@ -53,6 +53,12 @@ interface SearchHeroProps {
      * it unset, because there the box is the page.
      */
     onDismiss?: () => void;
+    /**
+     * The filter area a click must land outside of to dismiss: the whole
+     * results toolbar (mode toggle, box, category rail), not only the box.
+     * Defaults to the box itself.
+     */
+    dismissArea?: RefObject<HTMLElement | null>;
 }
 
 /** The WHERE segment's draft: region, side and postal code. */
@@ -83,6 +89,7 @@ function draftFrom(f: ProviderFilters): Draft {
 export function SearchHero({
     filters, vocabulary, insurers, onSubmit, onProvider, autoFocus, onWhereChange, onRegionChange,
     onDismiss,
+    dismissArea,
 }: SearchHeroProps) {
     const { t } = useTranslation();
     const [draft, setDraft] = useState<Draft>(() => draftFrom(filters));
@@ -171,17 +178,33 @@ export function SearchHero({
         // finger. And by the path, not contains(): a click that removes its
         // own target (a chip's ×, a suggestion row) is no longer inside the
         // box by the time it bubbles up here.
-        const onClick = (e: MouseEvent) => {
-            if (wrapRef.current && !e.composedPath().includes(wrapRef.current)) onDismiss();
+        //
+        // And only when the press began outside too. A press inside that is
+        // released outside (dragging to select typed text, slipping off a row)
+        // still produces a click, aimed at the nearest common ancestor, which
+        // is outside the box; that collapsed it mid-edit (17 Nov 2026).
+        const area = () => dismissArea?.current ?? wrapRef.current;
+        let pressedInside = false;
+        const onPress = (e: PointerEvent) => {
+            const a = area();
+            pressedInside = !!a && e.composedPath().includes(a);
         };
+        const onClick = (e: MouseEvent) => {
+            const a = area();
+            if (pressedInside) { pressedInside = false; return; }
+            if (a && !e.composedPath().includes(a)) onDismiss();
+        };
+        // Capture: a control inside that stops propagation still counts as a press inside.
+        document.addEventListener('pointerdown', onPress, true);
         // Attached a task later: the tap that opened the box is still on its
         // way up to the document, and would close it again on arrival.
         const timer = window.setTimeout(() => document.addEventListener('click', onClick));
         return () => {
             window.clearTimeout(timer);
+            document.removeEventListener('pointerdown', onPress, true);
             document.removeEventListener('click', onClick);
         };
-    }, [onDismiss]);
+    }, [onDismiss, dismissArea]);
 
     const suggestions = useMemo(
         () => (open === 'what' ? suggest(vocabulary, draft.text) : []),

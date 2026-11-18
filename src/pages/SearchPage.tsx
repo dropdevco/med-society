@@ -252,7 +252,9 @@ export function SearchPage() {
      * floating below a gap on exactly the screens where it matters.
      */
     const [bandHeight, setBandHeight] = useState(BAND_HEIGHT);
+    const bandEl = useRef<HTMLDivElement | null>(null);
     const attachBand = useCallback((node: HTMLDivElement | null) => {
+        bandEl.current = node;
         if (!node) return;
         // Set-if-changed: an observer that writes the same number back on every
         // layout pass is one dependency away from an update loop.
@@ -554,6 +556,8 @@ export function SearchPage() {
             // anywhere else folds it back to the pill. On the home page it is
             // the page itself, with nothing to fold into.
             onDismiss={searching ? collapseHero : undefined}
+            // The toolbar is the filter area: only a click outside it folds the box.
+            dismissArea={bandEl}
         />
     );
 
