@@ -1108,6 +1108,8 @@ interface StripeSub {
     status: string;
     customer: string | { id: string };
     cancel_at_period_end?: boolean;
+    /** Newer API versions record a scheduled cancel here (a date) instead of cancel_at_period_end. */
+    cancel_at?: number | null;
     current_period_end?: number;
     metadata?: Record<string, string>;
     items?: { data: { current_period_end?: number; price?: StripePrice }[] };
@@ -1125,6 +1127,9 @@ export interface StripeEvent {
 const invoiceSubscriptionId = (inv: StripeInvoice) => inv.subscription || inv.parent?.subscription_details?.subscription || '';
 const subPeriodEnd = (s: StripeSub) => s.current_period_end ?? s.items?.data?.[0]?.current_period_end ?? null;
 const isoFromUnix = (n: number | null) => (n ? new Date(n * 1000).toISOString() : null);
+/** When a subscription is set to end (either way Stripe records it), else null. */
+const scheduledEnd = (s: StripeSub): number | null =>
+    s.cancel_at_period_end === true ? subPeriodEnd(s) ?? s.cancel_at ?? null : s.cancel_at ?? null;
 const customerId = (s: StripeSub) => (typeof s.customer === 'string' ? s.customer : s.customer?.id ?? '');
 
 export interface StripeApply {
@@ -1190,9 +1195,11 @@ export async function stripeToApply(sk: StripeCfg, evt: StripeEvent): Promise<St
             const sub = obj as unknown as StripeSub;
             const base = fromSubscription(sub);
             if (!base || sub.status === 'canceled') return null;
-            const was = evt.data.previous_attributes?.cancel_at_period_end;
-            if (sub.cancel_at_period_end === true) return { ...base, key, kind: 'canceled', email: '', amount: null, currency: '' };
-            if (was === true && sub.cancel_at_period_end === false) return { ...base, key, kind: 'resumed', email: '', amount: null, currency: '' };
+            const prev = evt.data.previous_attributes ?? {};
+            const end = scheduledEnd(sub);
+            if (end) return { ...base, key, kind: 'canceled', periodEnd: isoFromUnix(end), email: '', amount: null, currency: '' };
+            const wasScheduled = prev.cancel_at_period_end === true || (typeof prev.cancel_at === 'number' && prev.cancel_at > 0);
+            if (wasScheduled) return { ...base, key, kind: 'resumed', email: '', amount: null, currency: '' };
             return null; // a price change is applied when its invoice is paid
         }
         case 'customer.subscription.deleted': {
@@ -1255,7 +1262,10 @@ async function stripeWebhook(req: Req, res: Res) {
         console.error('billing: stripe event mapping failed', String(e).slice(0, 200));
         return res.status(502).json({ ok: false, error: 'stripe_unreachable' });
     }
-    if (!a) return res.status(200).json({ ok: true, ignored: evt.type });
+    if (!a) {
+        console.info('billing: stripe event ignored', evt.type, evt.id);
+        return res.status(200).json({ ok: true, ignored: evt.type });
+    }
 
     let result: ApplyResult;
     try {
@@ -1476,7 +1486,7 @@ export async function pollStripe(cfg: Cfg, sk: StripeCfg): Promise<PollSummary> 
         const end = base.periodEnd ?? 'none';
         const blank = { email: '', amount: null, currency: '' };
         if (sub.status === 'canceled') events.push({ ...base, ...blank, key: `stripe:rec:ended:${sub.id}`, kind: 'canceled', periodEnd: null });
-        else if (sub.cancel_at_period_end) events.push({ ...base, ...blank, key: `stripe:rec:canceled:${sub.id}:${end}`, kind: 'canceled' });
+        else if (scheduledEnd(sub)) events.push({ ...base, ...blank, key: `stripe:rec:canceled:${sub.id}:${end}`, kind: 'canceled', periodEnd: isoFromUnix(scheduledEnd(sub)) });
     }
 
     s.seen = events.length;

@@ -494,6 +494,10 @@ async function main() {
     check('stripe: cancel at period end → canceled, keeping the period end', ap?.kind === 'canceled' && ap.periodEnd !== null && ap.plan === 'promoted', ap);
     ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: false }), { previous_attributes: { cancel_at_period_end: true } }));
     check('stripe: undoing a cancel → resumed', ap?.kind === 'resumed', ap);
+    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: false, cancel_at: 1_800_000_000 }), { previous_attributes: { cancel_at: null } }));
+    check('stripe: a portal cancel recorded as cancel_at (newer API) → canceled, ending at that date', ap?.kind === 'canceled' && ap.periodEnd === new Date(1_800_000_000_000).toISOString(), ap);
+    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at: null }), { previous_attributes: { cancel_at: 1_800_000_000 } }));
+    check('stripe: undoing a cancel_at → resumed', ap?.kind === 'resumed', ap);
     ap = await stripeToApply(sk, evt('customer.subscription.updated', sub(), { previous_attributes: { items: {} } }));
     check('stripe: a plain price change is not applied until its invoice is paid', ap === null);
     ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ status: 'canceled', cancel_at_period_end: true })));
@@ -643,13 +647,14 @@ async function main() {
         { ...sub(), latest_invoice: { id: 'in_10', status: 'paid', customer_email: 'o@c.com', amount_paid: 4900, currency: 'usd' } },
         { ...sub({ id: 'sub_2', cancel_at_period_end: true }), latest_invoice: { id: 'in_11', status: 'paid', amount_paid: 4900, currency: 'usd' } },
         { ...sub({ id: 'sub_3', status: 'canceled' }), latest_invoice: { id: 'in_12', status: 'open' } },
+        { ...sub({ id: 'sub_5', cancel_at: 1_800_000_000 }), latest_invoice: { id: 'in_14', status: 'paid' } },
         { ...sub({ id: 'sub_4', metadata: {} }), latest_invoice: { id: 'in_13', status: 'paid' } },
     ];
     r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
     const keys = calls.filter((c) => c.url.includes('/rpc/apply_stripe_event')).map((c) => (c.body as Record<string, unknown>).p_event_key);
     check('sync: the daily run applies paid invoices, scheduled cancels and ended subscriptions, and skips ones not made through our checkout',
         keys.includes('stripe:invoice:in_10') && keys.includes('stripe:invoice:in_11') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_2'))
-        && keys.includes('stripe:rec:ended:sub_3') && !keys.some((k) => String(k).includes('sub_4') || String(k).includes('in_13') || String(k).includes('in_12')), { keys, r });
+        && keys.includes('stripe:rec:ended:sub_3') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_5')) && !keys.some((k) => String(k).includes('sub_4') || String(k).includes('in_13') || String(k).includes('in_12')), { keys, r });
 
     reset();
     delete process.env.STRIPE_SECRET_KEY;
