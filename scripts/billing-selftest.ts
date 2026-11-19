@@ -8,7 +8,7 @@
  *
  *   npx tsx scripts/billing-selftest.ts
  */
-import handler, { ensureSite, eventsFromGhl, formEncode, planFromLookupKey, siteSubdomain, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, stripeToApply, tagsFor, toE164 } from '../api/billing';
+import handler, { ensureSite, eventsFromGhl, formEncode, planFromLookupKey, returnBase, siteSubdomain, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, stripeToApply, tagsFor, toE164 } from '../api/billing';
 
 process.env.VITE_SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
@@ -564,6 +564,12 @@ async function main() {
     check('webhook: no Stripe key configured → 500', r.code === 500);
     process.env.STRIPE_SECRET_KEY = 'sk_test_abc123';
 
+
+    check('return: our own origins are kept, anything else falls back to production',
+        returnBase('https://medsociety-marketplace-git-feat-stripe-billing-dropdevs-projects-25301cf7.vercel.app') === 'https://medsociety-marketplace-git-feat-stripe-billing-dropdevs-projects-25301cf7.vercel.app'
+        && returnBase('https://www.medsociety.one') === 'https://www.medsociety.one' && returnBase('http://localhost:5174') === 'http://localhost:5174'
+        && returnBase('https://evil.example.com') === 'https://medsociety.one' && returnBase('https://medsociety-marketplace-x-dropdevs-projects-25301cf7.vercel.app.evil.com') === 'https://medsociety.one'
+        && returnBase('http://medsociety.one') === 'https://medsociety.one' && returnBase(undefined) === 'https://medsociety.one');
     // checkout
     const auth = { authorization: 'Bearer good-token' };
     const checkoutBody = { provider_id: PROVIDER_ID, plan: 'featured', market: 'mx' };

@@ -1339,6 +1339,25 @@ async function ownerRequest(req: Req, res: Res): Promise<{ cfg: Cfg; sk: StripeC
     return { cfg, sk, user, body };
 }
 
+/**
+ * Where Stripe sends the owner back: the site they came from when it is one of
+ * ours (production, this project's Vercel previews, local dev), else production.
+ * Never an arbitrary origin, so a crafted request cannot turn Stripe into a redirect.
+ */
+export function returnBase(origin: string | string[] | undefined): string {
+    const raw = (Array.isArray(origin) ? origin[0] : origin) ?? '';
+    try {
+        const u = new URL(raw);
+        const host = u.hostname;
+        const site = new URL(SITE).hostname.replace(/^www\./, '');
+        const ours = (u.protocol === 'https:' && (host === site || host === `www.${site}`
+            || /^medsociety-marketplace-[a-z0-9-]+-dropdevs-projects-25301cf7\.vercel\.app$/.test(host)))
+            || (u.protocol === 'http:' && host === 'localhost');
+        if (ours) return u.origin;
+    } catch { /* not a URL */ }
+    return SITE;
+}
+
 async function stripeCheckout(req: Req, res: Res) {
     const ctx = await ownerRequest(req, res);
     if (!ctx) return;
@@ -1382,8 +1401,8 @@ async function stripeCheckout(req: Req, res: Res) {
             line_items: [{ price: price.id, quantity: 1 }],
             subscription_data: { metadata: meta },
             metadata: meta,
-            success_url: `${SITE}/dashboard?tab=plan&paid=${plan}`,
-            cancel_url: `${SITE}/dashboard?tab=plan`,
+            success_url: `${returnBase(req.headers.origin)}/dashboard?tab=plan&paid=${plan}`,
+            cancel_url: `${returnBase(req.headers.origin)}/dashboard?tab=plan`,
         });
         if (!session.url) throw new Error('no checkout url');
         return res.status(200).json({ ok: true, url: session.url });
@@ -1402,7 +1421,7 @@ async function stripePortal(req: Req, res: Res) {
         if (!customer) return res.status(404).json({ ok: false, error: 'no_billing_account' });
         const session = await stripe<{ url?: string }>(sk, 'POST', '/billing_portal/sessions', {
             customer,
-            return_url: `${SITE}/dashboard?tab=plan`,
+            return_url: `${returnBase(req.headers.origin)}/dashboard?tab=plan`,
             configuration: process.env.STRIPE_PORTAL_CONFIG || undefined,
         });
         if (!session.url) throw new Error('no portal url');
