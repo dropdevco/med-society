@@ -1110,12 +1110,13 @@ interface StripeSub {
     cancel_at_period_end?: boolean;
     /** Newer API versions record a scheduled cancel here (a date) instead of cancel_at_period_end. */
     cancel_at?: number | null;
+    ended_at?: number | null;
     current_period_end?: number;
     metadata?: Record<string, string>;
     items?: { data: { current_period_end?: number; price?: StripePrice }[] };
     latest_invoice?: StripeInvoice | string | null;
 }
-interface StripeCharge { id: string; amount?: number; amount_refunded?: number; currency?: string; invoice?: string | null }
+interface StripeCharge { id: string; amount?: number; amount_refunded?: number; currency?: string; invoice?: string | null; payment_intent?: string | null }
 export interface StripeEvent {
     id: string;
     type: string;
@@ -1192,7 +1193,11 @@ export async function stripeToApply(sk: StripeCfg, evt: StripeEvent): Promise<St
             return paymentFrom(inv, await stripe<StripeSub>(sk, 'GET', `/subscriptions/${subId}`));
         }
         case 'customer.subscription.updated': {
-            const sub = obj as unknown as StripeSub;
+            // Events are neither ordered nor promptly retried: act on the subscription as it is
+            // now, not on the snapshot, so a late "cancel" can never undo a newer "don't cancel".
+            const snap = obj as unknown as StripeSub;
+            if (!fromSubscription(snap)) return null;
+            const sub = await stripe<StripeSub>(sk, 'GET', `/subscriptions/${snap.id}`);
             const base = fromSubscription(sub);
             if (!base || sub.status === 'canceled') return null;
             const prev = evt.data.previous_attributes ?? {};
@@ -1214,8 +1219,17 @@ export async function stripeToApply(sk: StripeCfg, evt: StripeEvent): Promise<St
         }
         case 'charge.refunded': {
             const ch = obj as unknown as StripeCharge;
-            if (!ch.invoice || !ch.amount || (ch.amount_refunded ?? 0) < ch.amount) return null; // partial refunds are not the plan's end
-            const subId = invoiceSubscriptionId(await stripe<StripeInvoice>(sk, 'GET', `/invoices/${ch.invoice}`));
+            if (!ch.amount || (ch.amount_refunded ?? 0) < ch.amount) return null; // partial refunds are not the plan's end
+            // Older API versions put the invoice on the charge; newer ones link it through an invoice payment.
+            let invoiceId = ch.invoice ?? '';
+            if (!invoiceId && ch.payment_intent) {
+                const ip = await stripe<{ data: { invoice?: string | null }[] }>(sk, 'GET', '/invoice_payments', {
+                    payment: { type: 'payment_intent', payment_intent: ch.payment_intent }, limit: 1,
+                });
+                invoiceId = ip.data[0]?.invoice ?? '';
+            }
+            if (!invoiceId) return null;
+            const subId = invoiceSubscriptionId(await stripe<StripeInvoice>(sk, 'GET', `/invoices/${invoiceId}`));
             return subId ? { ...none, key, kind: 'refund_seen', subscriptionId: subId, amount: ch.amount / 100, currency: String(ch.currency ?? '').toUpperCase() } : null;
         }
         default:
@@ -1327,8 +1341,9 @@ async function sessionUser(cfg: Cfg, header: string | string[] | undefined): Pro
     }
 }
 
+/** Billing is the owner's: staff (front desk) cannot buy, switch, cancel or see invoices on the owner's card. */
 async function ownsListing(cfg: Cfg, userId: string, providerId: string): Promise<boolean> {
-    const r = await supa(cfg, 'GET', `provider_owners?select=role&provider_id=eq.${providerId}&user_id=eq.${userId}&limit=1`);
+    const r = await supa(cfg, 'GET', `provider_owners?select=role&provider_id=eq.${providerId}&user_id=eq.${userId}&role=eq.owner&limit=1`);
     return r.ok && Array.isArray(r.json) && r.json.length > 0;
 }
 
@@ -1337,6 +1352,22 @@ interface SubRow { plan: string; status: string; paid_through: string | null; st
 async function listingSubs(cfg: Cfg, providerId: string): Promise<SubRow[]> {
     const r = await supa(cfg, 'GET', `provider_subscriptions?select=plan,status,paid_through,stripe_customer_id,stripe_subscription_id&provider_id=eq.${providerId}&order=updated_at.desc`);
     return r.ok && Array.isArray(r.json) ? (r.json as SubRow[]) : [];
+}
+
+/**
+ * A customer id stored for a listing can belong to the other Stripe mode (previews
+ * share the production database) or have been deleted. Only a customer the current
+ * key can see counts.
+ */
+async function liveCustomer(sk: StripeCfg, id: string | null | undefined): Promise<string> {
+    if (!id) return '';
+    try {
+        const c = await stripe<{ id: string; deleted?: boolean }>(sk, 'GET', `/customers/${id}`);
+        return c.deleted ? '' : c.id;
+    } catch (e) {
+        if (/ 404:/.test(String(e))) return '';
+        throw e;
+    }
 }
 
 async function ownerRequest(req: Req, res: Res): Promise<{ cfg: Cfg; sk: StripeCfg; user: { id: string; email: string }; body: Record<string, unknown> } | null> {
@@ -1397,10 +1428,18 @@ async function stripeCheckout(req: Req, res: Res) {
         if (!price) return res.status(500).json({ ok: false, error: 'price_missing' });
 
         // One Stripe customer per listing: reuse it, else look one up, else create it.
-        let customer = subs.find((s) => s.stripe_customer_id)?.stripe_customer_id ?? '';
+        let customer = await liveCustomer(sk, subs.find((s) => s.stripe_customer_id)?.stripe_customer_id);
         if (!customer) {
             const found = await stripe<{ data: { id: string }[] }>(sk, 'GET', '/customers/search', { query: `metadata['provider_id']:'${providerId}'`, limit: 1 });
             customer = found.data[0]?.id ?? '';
+        }
+        // Stripe is the truth on whether this customer still has a subscription: ours can show a
+        // plan as lapsed while Stripe is still retrying its last charge. A second one would double-bill.
+        if (customer) {
+            const open = await stripe<{ data: { status: string }[] }>(sk, 'GET', '/subscriptions', { customer, status: 'all', limit: 20 });
+            if (open.data.some((x) => !['canceled', 'incomplete', 'incomplete_expired'].includes(x.status))) {
+                return res.status(409).json({ ok: false, error: 'already_subscribed' });
+            }
         }
         if (!customer) {
             const name = await supa(cfg, 'GET', `providers?select=name&id=eq.${providerId}&limit=1`);
@@ -1435,7 +1474,7 @@ async function stripePortal(req: Req, res: Res) {
     if (!ctx) return;
     const { cfg, sk, body } = ctx;
     try {
-        const customer = (await listingSubs(cfg, String(body.provider_id))).find((s) => s.stripe_customer_id)?.stripe_customer_id;
+        const customer = await liveCustomer(sk, (await listingSubs(cfg, String(body.provider_id))).find((s) => s.stripe_customer_id)?.stripe_customer_id);
         if (!customer) return res.status(404).json({ ok: false, error: 'no_billing_account' });
         const session = await stripe<{ url?: string }>(sk, 'POST', '/billing_portal/sessions', {
             customer,
@@ -1475,9 +1514,11 @@ export async function pollStripe(cfg: Cfg, sk: StripeCfg): Promise<PollSummary> 
     }
 
     const events: StripeApply[] = [];
+    const longAgo = Date.now() / 1000 - CHANGE_WINDOW_DAYS * 86_400;
     for (const sub of subs) {
         const base = fromSubscription(sub);
         if (!base || !base.providerId) continue; // not made through our checkout
+        if (sub.status === 'canceled' && (sub.ended_at ?? 0) < longAgo) continue; // settled long ago: keeps the daily run short
         const inv = typeof sub.latest_invoice === 'object' && sub.latest_invoice ? sub.latest_invoice : null;
         if (inv && inv.status === 'paid') {
             const p = paymentFrom(inv, sub);
@@ -1487,6 +1528,9 @@ export async function pollStripe(cfg: Cfg, sk: StripeCfg): Promise<PollSummary> 
         const blank = { email: '', amount: null, currency: '' };
         if (sub.status === 'canceled') events.push({ ...base, ...blank, key: `stripe:rec:ended:${sub.id}`, kind: 'canceled', periodEnd: null });
         else if (scheduledEnd(sub)) events.push({ ...base, ...blank, key: `stripe:rec:canceled:${sub.id}:${end}`, kind: 'canceled', periodEnd: isoFromUnix(scheduledEnd(sub)) });
+        // Not set to end: puts back a plan our records show as cancelled (a missed "don't cancel").
+        // A no-op ('noted') for a plan that is already active.
+        else if (sub.status === 'active' || sub.status === 'past_due') events.push({ ...base, ...blank, key: `stripe:rec:resumed:${sub.id}:${end}`, kind: 'resumed' });
     }
 
     s.seen = events.length;

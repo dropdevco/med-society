@@ -766,6 +766,7 @@
     "manageHelp": "Switch between plans, update your card, see your invoices or cancel, all on Stripe's secure billing page. Upgrades are charged for the days that remain; a downgrade or a cancellation takes effect at the end of the month you have paid for.",
     "portalFailed": "Could not open your billing page. Please try again.",
     "alreadySubscribed": "This listing already has a paid plan. Use Manage plan to change it.",
+    "ownerOnlyBilling": "Only the listing's owner can buy or change its plan.",
     "plan": {
       "listing": "Listing in the directory and on the map",
       "manage": "Edit your own profile, photos and hours",

@@ -142,7 +142,16 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     const blocked = busy !== null || !statusLoaded;
     // A plan that is being paid for: it is managed, not bought again.
     const paying = status.find((s) => s.access && (s.status === 'active' || s.status === 'canceled'));
-    const stripeManaged = Boolean(paying?.stripe);
+    // Any Stripe history opens the portal, even after our records let the plan lapse: Stripe may
+    // still be retrying the last charge, and the card is fixed there, not with a new subscription.
+    const stripeManaged = status.some((s) => s.stripe);
+
+    const billingErrorText = (e: unknown, fallback: string) => {
+        const code = e instanceof BillingError ? e.code : '';
+        if (code === 'already_subscribed') return t('account.alreadySubscribed');
+        if (code === 'not_your_listing') return t('account.ownerOnlyBilling');
+        return fallback;
+    };
 
     const subscribe = async (plan: PlanKey) => {
         setBusy(plan);
@@ -153,7 +162,7 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
             window.location.assign(url);
         } catch (e) {
             track('checkout_failed', { plan, provider_id: clinic.id });
-            setError(e instanceof BillingError && e.code === 'already_subscribed' ? t('account.alreadySubscribed') : t('account.checkoutFailed'));
+            setError(billingErrorText(e, t('account.checkoutFailed')));
             setBusy(null);
         }
     };
@@ -164,8 +173,8 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
         track('plan_portal_opened', { provider_id: clinic.id, current_tier: clinic.tier });
         try {
             window.location.assign(await openPortal(clinic.id));
-        } catch {
-            setError(t('account.portalFailed'));
+        } catch (e) {
+            setError(billingErrorText(e, t('account.portalFailed')));
             setBusy(null);
         }
     };

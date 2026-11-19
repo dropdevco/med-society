@@ -46,6 +46,9 @@ let stripeSubs: Record<string, unknown> = {};
 let stripeInvoices: Record<string, unknown> = {};
 let stripeSubList: unknown[] = [];
 let stripeCustomerSearch: unknown[] = [];
+let stripeCustomers: Record<string, unknown> = { cus_old: { id: 'cus_old' }, cus_1: { id: 'cus_1' } };
+let stripeCustomerSubs: unknown[] = [];
+let stripeInvoicePayments: unknown[] = [];
 let stripePriceMissing = false;
 let ownerRows: unknown[] = [{ role: 'owner' }];
 let subRows: unknown[] = [];
@@ -59,7 +62,10 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = url.replace('https://api.stripe.com/v1', '').split('?')[0];
         const hit = (m: Record<string, unknown>, id: string) => (m[id] ? json(200, m[id]) : json(404, { error: { message: 'No such object' } }));
         if (path.startsWith('/events/')) return hit(stripeEvents, path.slice(8));
+        if (path === '/subscriptions' && url.includes('customer=')) return json(200, { data: stripeCustomerSubs, has_more: false });
         if (path === '/subscriptions') return json(200, { data: stripeSubList, has_more: false });
+        if (path === '/invoice_payments') return json(200, { data: stripeInvoicePayments });
+        if (path.startsWith('/customers/') && path !== '/customers/search') return hit(stripeCustomers, path.slice(11));
         if (path.startsWith('/subscriptions/')) return hit(stripeSubs, path.slice(15));
         if (path.startsWith('/invoices/')) return hit(stripeInvoices, path.slice(10));
         if (path === '/prices') return json(200, { data: stripePriceMissing ? [] : [{ id: `price_for_${decodeURIComponent(url).match(/lookup_keys\[0\]=([a-z_]+)/)?.[1]}` }] });
@@ -120,6 +126,9 @@ function reset() {
     stripeInvoices = {};
     stripeSubList = [];
     stripeCustomerSearch = [];
+    stripeCustomers = { cus_old: { id: 'cus_old' }, cus_1: { id: 'cus_1' } };
+    stripeCustomerSubs = [];
+    stripeInvoicePayments = [];
     stripePriceMissing = false;
     ownerRows = [{ role: 'owner' }];
     subRows = [];
@@ -490,18 +499,27 @@ async function main() {
     ap = await stripeToApply(sk, evt('invoice.paid', { id: 'in_5', subscription: 'sub_1' }));
     check('stripe: the period end is also read from the subscription item', ap?.periodEnd === new Date(1_900_000_000_000).toISOString(), ap);
 
-    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: true })));
+    // The code re-reads the subscription; `upd` makes Stripe's current state equal to the snapshot.
+    const upd = (cur: ReturnType<typeof sub>, prev?: Record<string, unknown>, snap?: ReturnType<typeof sub>) => {
+        stripeSubs = { [cur.id]: cur };
+        return stripeToApply(sk, evt('customer.subscription.updated', snap ?? cur, prev ? { previous_attributes: prev } : {}));
+    };
+    ap = await upd(sub({ cancel_at_period_end: true }));
     check('stripe: cancel at period end → canceled, keeping the period end', ap?.kind === 'canceled' && ap.periodEnd !== null && ap.plan === 'promoted', ap);
-    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: false }), { previous_attributes: { cancel_at_period_end: true } }));
+    ap = await upd(sub({ cancel_at_period_end: false }), { cancel_at_period_end: true });
     check('stripe: undoing a cancel → resumed', ap?.kind === 'resumed', ap);
-    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: false, cancel_at: 1_800_000_000 }), { previous_attributes: { cancel_at: null } }));
+    ap = await upd(sub({ cancel_at_period_end: false, cancel_at: 1_800_000_000 }), { cancel_at: null });
     check('stripe: a portal cancel recorded as cancel_at (newer API) → canceled, ending at that date', ap?.kind === 'canceled' && ap.periodEnd === new Date(1_800_000_000_000).toISOString(), ap);
-    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at: null }), { previous_attributes: { cancel_at: 1_800_000_000 } }));
+    ap = await upd(sub({ cancel_at: null }), { cancel_at: 1_800_000_000 });
     check('stripe: undoing a cancel_at → resumed', ap?.kind === 'resumed', ap);
-    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub(), { previous_attributes: { items: {} } }));
+    ap = await upd(sub(), { items: {} });
     check('stripe: a plain price change is not applied until its invoice is paid', ap === null);
-    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ status: 'canceled', cancel_at_period_end: true })));
+    ap = await upd(sub({ status: 'canceled', cancel_at_period_end: true }));
     check('stripe: an already-ended subscription update is left to the deleted event', ap === null);
+    ap = await upd(sub({ cancel_at: null }), { cancel_at: null }, sub({ cancel_at: 1_800_000_000 }));
+    check('stripe: a late "cancel" event after the owner undid it changes nothing (the current state wins)', ap === null, ap);
+    ap = await upd(sub({ cancel_at: 1_800_000_000 }), { cancel_at: 1_800_000_000 }, sub({ cancel_at: null }));
+    check('stripe: a late "undo" event after the owner cancelled again keeps it cancelled', ap?.kind === 'canceled', ap);
     ap = await stripeToApply(sk, evt('customer.subscription.deleted', sub({ status: 'canceled' })));
     check('stripe: a deleted subscription → canceled with the paid time kept (no period end)', ap?.kind === 'canceled' && ap.periodEnd === null, ap);
     ap = await stripeToApply(sk, evt('invoice.payment_failed', { id: 'in_6', subscription: 'sub_1' }));
@@ -510,6 +528,10 @@ async function main() {
     stripeInvoices = { in_7: { id: 'in_7', subscription: 'sub_1' } };
     ap = await stripeToApply(sk, evt('charge.refunded', { id: 'ch_1', amount: 4900, amount_refunded: 4900, currency: 'usd', invoice: 'in_7' }));
     check('stripe: a full refund is flagged through its invoice\'s subscription', ap?.kind === 'refund_seen' && ap.subscriptionId === 'sub_1' && ap.amount === 49, ap);
+    stripeInvoicePayments = [{ invoice: 'in_7' }];
+    ap = await stripeToApply(sk, evt('charge.refunded', { id: 'ch_3', amount: 4900, amount_refunded: 4900, currency: 'usd', payment_intent: 'pi_1' }));
+    check('stripe: a full refund is found through its invoice payment when the charge has no invoice (newer API)',
+        ap?.kind === 'refund_seen' && ap.subscriptionId === 'sub_1', ap);
     ap = await stripeToApply(sk, evt('charge.refunded', { id: 'ch_2', amount: 4900, amount_refunded: 1000, invoice: 'in_7' }));
     check('stripe: a partial refund is not the plan\'s end', ap === null);
     check('stripe: other event types are ignored', (await stripeToApply(sk, evt('customer.created', { id: 'cus_1' }))) === null);
@@ -594,6 +616,30 @@ async function main() {
         r.code === 200 && (calls.find((c) => c.url.includes('/checkout/sessions'))?.body as string).includes('customer=cus_old') && !calls.some((c) => c.url.endsWith('/customers') && c.method === 'POST'), r);
 
     reset();
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: only an owner of the listing counts (staff cannot buy on the owner\'s behalf)',
+        calls.some((c) => c.url.includes('/rest/v1/provider_owners') && c.url.includes('role=eq.owner')), calls.map((c) => c.url));
+
+    reset();
+    subRows = [{ plan: 'promoted', status: 'lapsed', paid_through: '2026-01-01T00:00:00Z', stripe_customer_id: 'cus_test_only', stripe_subscription_id: 'sub_t' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: a stored customer this Stripe key cannot see (test id in live, or deleted) is not reused',
+        r.code === 200 && (calls.find((c) => c.url.includes('/checkout/sessions'))?.body as string).includes('customer=cus_new'), r);
+
+    reset();
+    subRows = [{ plan: 'promoted', status: 'lapsed', paid_through: '2026-01-01T00:00:00Z', stripe_customer_id: 'cus_old', stripe_subscription_id: 'sub_old' }];
+    stripeCustomerSubs = [{ id: 'sub_old', status: 'past_due' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: lapsed in our records but still billing in Stripe (past_due) → 409, no second subscription',
+        r.code === 409 && r.body.error === 'already_subscribed' && !calls.some((c) => c.url.includes('/checkout/sessions')), r);
+
+    reset();
+    subRows = [{ plan: 'promoted', status: 'lapsed', paid_through: '2026-01-01T00:00:00Z', stripe_customer_id: 'cus_old', stripe_subscription_id: 'sub_old' }];
+    stripeCustomerSubs = [{ id: 'sub_old', status: 'canceled' }, { id: 'sub_x', status: 'incomplete_expired' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: only ended subscriptions in Stripe → a new checkout is allowed', r.code === 200, r);
+
+    reset();
     stripeCustomerSearch = [{ id: 'cus_found' }];
     r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
     check('checkout: a customer already created for this listing is found, not duplicated',
@@ -636,6 +682,10 @@ async function main() {
     reset();
     r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
     check('portal: a listing with no Stripe customer yet → 404', r.code === 404 && r.body.error === 'no_billing_account', r);
+    subRows = [{ plan: 'promoted', status: 'lapsed', paid_through: '2026-01-01T00:00:00Z', stripe_customer_id: 'cus_test_only', stripe_subscription_id: 'sub_t' }];
+    calls = [];
+    r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
+    check('portal: a stored customer this key cannot see → 404, no portal for a dead id', r.code === 404 && !calls.some((c) => c.url.includes('/billing_portal/')), r);
     ownerRows = [];
     subRows = [{ plan: 'promoted', status: 'active', paid_through: '2999-01-01T00:00:00Z', stripe_customer_id: 'cus_other', stripe_subscription_id: 'sub_o' }];
     r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
@@ -646,15 +696,18 @@ async function main() {
     stripeSubList = [
         { ...sub(), latest_invoice: { id: 'in_10', status: 'paid', customer_email: 'o@c.com', amount_paid: 4900, currency: 'usd' } },
         { ...sub({ id: 'sub_2', cancel_at_period_end: true }), latest_invoice: { id: 'in_11', status: 'paid', amount_paid: 4900, currency: 'usd' } },
-        { ...sub({ id: 'sub_3', status: 'canceled' }), latest_invoice: { id: 'in_12', status: 'open' } },
+        { ...sub({ id: 'sub_3', status: 'canceled', ended_at: Math.floor(Date.now() / 1000) - 86_400 }), latest_invoice: { id: 'in_12', status: 'open' } },
+        { ...sub({ id: 'sub_6', status: 'canceled', ended_at: Math.floor(Date.now() / 1000) - 400 * 86_400 }), latest_invoice: { id: 'in_16', status: 'paid' } },
         { ...sub({ id: 'sub_5', cancel_at: 1_800_000_000 }), latest_invoice: { id: 'in_14', status: 'paid' } },
         { ...sub({ id: 'sub_4', metadata: {} }), latest_invoice: { id: 'in_13', status: 'paid' } },
     ];
     r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
     const keys = calls.filter((c) => c.url.includes('/rpc/apply_stripe_event')).map((c) => (c.body as Record<string, unknown>).p_event_key);
-    check('sync: the daily run applies paid invoices, scheduled cancels and ended subscriptions, and skips ones not made through our checkout',
+    check('sync: the daily run applies paid invoices, scheduled cancels, ended subscriptions and missed un-cancels, and skips ones not made through our checkout or settled long ago',
         keys.includes('stripe:invoice:in_10') && keys.includes('stripe:invoice:in_11') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_2'))
-        && keys.includes('stripe:rec:ended:sub_3') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_5')) && !keys.some((k) => String(k).includes('sub_4') || String(k).includes('in_13') || String(k).includes('in_12')), { keys, r });
+        && keys.includes('stripe:rec:ended:sub_3') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_5'))
+        && keys.some((k) => String(k).startsWith('stripe:rec:resumed:sub_1')) && !keys.some((k) => String(k).startsWith('stripe:rec:resumed:sub_2'))
+        && !keys.some((k) => String(k).includes('sub_6') || String(k).includes('in_16')) && !keys.some((k) => String(k).includes('sub_4') || String(k).includes('in_13') || String(k).includes('in_12')), { keys, r });
 
     reset();
     delete process.env.STRIPE_SECRET_KEY;
