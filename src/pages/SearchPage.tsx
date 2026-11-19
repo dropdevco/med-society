@@ -16,6 +16,9 @@ import { SmartSearchBar } from '../components/search/SmartSearchBar';
 import { SearchModeToggle, type SearchMode } from '../components/search/SearchModeToggle';
 import { ProviderCard } from '../components/provider/ProviderCard';
 import { Discover } from '../components/discover/Discover';
+import { VerticalTabs, type Vertical } from '../components/search/VerticalTabs';
+import { HotelSearchBox } from '../components/hotels/HotelSearchBox';
+import { HotelRow } from '../components/hotels/HotelRow';
 import { LogoMark } from '../components/brand/Logo';
 import { IconSearch, IconMapPin, IconList, IconSliders } from '../components/icons/Icons';
 import { trackProviderClick, trackImpressions } from '../utils/analytics';
@@ -225,6 +228,22 @@ export function SearchPage() {
     const [barMode, setBarMode] = useState<SearchMode>(filters.smart ? 'smart' : 'regular');
     /** Set when the toggle, not a page load, chose the mode: only then is focus moved. */
     const [barToggled, setBarToggled] = useState(false);
+    /**
+     * The homepage tab: care (doctors and clinics) or hotels. `?tab=hotels`
+     * opens on hotels, so the tab can be linked to. After that it is page
+     * state: filter changes rewrite the URL without it, and that is fine.
+     */
+    const [vertical, setVertical] = useState<Vertical>(
+        () => (new URLSearchParams(location.search).get('tab') === 'hotels' ? 'hotels' : 'care'),
+    );
+    const switchVertical = useCallback((v: Vertical) => {
+        setVertical(v);
+        const p = new URLSearchParams(window.location.search);
+        if (v === 'hotels') p.set('tab', 'hotels'); else p.delete('tab');
+        const qs = p.toString();
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+        track('home_tab_selected', { tab: v });
+    }, []);
     const [seenSmart, setSeenSmart] = useState(filters.smart);
     if (filters.smart !== seenSmart) {
         setSeenSmart(filters.smart);
@@ -803,16 +822,24 @@ export function SearchPage() {
                             results toolbar uses. The segmented box stays mounted
                             while hidden so a half-chosen WHERE survives a flip
                             to Smart and back. */}
-                        <div className="ms-hero-mode">
-                            <SearchModeToggle
-                                mode={barMode}
-                                onChange={(mode) => { setBarMode(mode); setBarToggled(true); }}
-                            />
+                        <VerticalTabs value={vertical} onChange={switchVertical} panelId="home-search-panel" />
+                        <div id="home-search-panel" role="tabpanel" aria-labelledby={`vertical-tab-${vertical}`} className="ms-vertical-panel">
+                            {/* The doctors' box stays mounted under the Hotels tab, like
+                                the regular box under Smart, so nothing typed is lost. */}
+                            <div hidden={vertical !== 'care'} className="ms-vertical-care">
+                                <div className="ms-hero-mode">
+                                    <SearchModeToggle
+                                        mode={barMode}
+                                        onChange={(mode) => { setBarMode(mode); setBarToggled(true); }}
+                                    />
+                                </div>
+                                <div hidden={barMode !== 'regular'}>{hero}</div>
+                                {barMode === 'smart' && (
+                                    <SmartSearchBar autoFocus={barToggled} onSubmit={runSmartSearch} />
+                                )}
+                            </div>
+                            {vertical === 'hotels' && <HotelSearchBox region={filters.region} />}
                         </div>
-                        <div hidden={barMode !== 'regular'}>{hero}</div>
-                        {barMode === 'smart' && (
-                            <SmartSearchBar autoFocus={barToggled} onSubmit={runSmartSearch} />
-                        )}
                     </section>
 
                     <div className="ms-cats-band">
@@ -832,6 +859,7 @@ export function SearchPage() {
                             loading={loading}
                             onSelect={handleSelect}
                             onSeeAll={runSearch}
+                            afterFirst={<HotelRow region={filters.region} />}
                         />
                     </div>
                 </>

@@ -3,15 +3,16 @@ import type { Hotel, NearbyHotel } from '../types/hotel';
 import type { RegionId } from '../utils/region';
 
 /**
- * Reads of public.hotels (migration 0054). Row-level security decides what a
- * caller sees: visitors get published hotels, admins get every row.
+ * Reads of public.hotels (migrations 0054 and 0056). Row-level security
+ * decides what a caller sees: visitors get published hotels, admins get every
+ * row. The column list needs 0056 applied (google_place_id, review_count).
  */
 
 const COLUMNS =
     'id, name, description, address, city, country, lat, lng, region, phone, website, booking_url, '
-    + 'price_band, rating, amenities, photo_url, status, source, created_at, updated_at';
+    + 'price_band, rating, review_count, google_place_id, amenities, photo_url, status, source, created_at, updated_at';
 
-/** Published hotels in a region, best rated first. */
+/** Published hotels in a region, best rated first, the most reviewed first among equals. */
 export async function listHotels(region: RegionId): Promise<Hotel[]> {
     if (!supabase) return [];
     const { data, error } = await supabase
@@ -20,6 +21,7 @@ export async function listHotels(region: RegionId): Promise<Hotel[]> {
         .eq('region', region)
         .eq('status', 'live')
         .order('rating', { ascending: false, nullsFirst: false })
+        .order('review_count', { ascending: false, nullsFirst: false })
         .order('name');
     if (error) throw error;
     return (data as unknown as Hotel[] | null) ?? [];
@@ -42,7 +44,8 @@ export async function listAllHotels(): Promise<Hotel[]> {
     return (data as unknown as Hotel[] | null) ?? [];
 }
 
-export type HotelInput = Omit<Hotel, 'id' | 'region' | 'created_at' | 'updated_at' | 'source'>;
+/** What the admin form writes. The Google fields belong to scripts/hotels/find.ts and are never sent from here. */
+export type HotelInput = Omit<Hotel, 'id' | 'region' | 'created_at' | 'updated_at' | 'source' | 'review_count' | 'google_place_id'>;
 
 /** Insert (no id) or update (id) a hotel. The database refuses anyone who is not an admin. */
 export async function saveHotel(input: HotelInput, id?: string): Promise<Hotel> {

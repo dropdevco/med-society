@@ -50,7 +50,8 @@
  * principle probe this endpoint with arbitrary Google placeIds and use it as
  * a free image proxy. When Supabase credentials are available, we check (in
  * parallel with the Google call) that the placeId belongs to a provider row
- * we actually know about, and 404 otherwise. If that check itself fails or
+ * or a published hotel (public.hotels, migration 0056) we actually know
+ * about, and 404 otherwise. If that check itself fails or
  * the env isn't configured, we don't block on it — the abuse surface is
  * small enough (a rate-limited photo redirect) not to be worth failing open
  * on for local dev or a misconfigured deploy.
@@ -104,8 +105,8 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 /**
- * Best-effort check that `placeId` belongs to a provider we already know
- * about. Returns `true` when the check can't be performed (missing env, or
+ * Best-effort check that `placeId` belongs to a provider or a published hotel
+ * we already know about. Returns `true` when the check can't be performed (missing env, or
  * the check itself errored) so this never blocks a legitimate request when
  * Supabase is unreachable — it only actively rejects a confirmed miss.
  */
@@ -114,21 +115,31 @@ async function isKnownPlaceId(placeId: string): Promise<boolean> {
     const anonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
     if (!supabaseUrl || !anonKey) return true;
 
-    try {
-        const endpoint =
-            `${supabaseUrl.replace(/\/$/, '')}/rest/v1/providers` +
-            `?select=id&googlePlaceId=eq.${encodeURIComponent(placeId)}&limit=1`;
-        const res = await fetchWithTimeout(
-            endpoint,
-            { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` } },
-            UPSTREAM_TIMEOUT_MS,
-        );
-        if (!res.ok) return true; // don't block on an unrelated Supabase hiccup
-        const rows = (await res.json()) as unknown;
-        return Array.isArray(rows) && rows.length > 0;
-    } catch {
-        return true;
-    }
+    // A provider's place, or a published hotel's (migration 0056; anon only
+    // sees live hotels, so a hidden hotel's photo is refused too).
+    const base = supabaseUrl.replace(/\/$/, '');
+    const id = encodeURIComponent(placeId);
+    const lookups = [
+        `${base}/rest/v1/providers?select=id&googlePlaceId=eq.${id}&limit=1`,
+        `${base}/rest/v1/hotels?select=id&google_place_id=eq.${id}&limit=1`,
+    ];
+    const found = await Promise.all(lookups.map(async (endpoint) => {
+        try {
+            const res = await fetchWithTimeout(
+                endpoint,
+                { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` } },
+                UPSTREAM_TIMEOUT_MS,
+            );
+            if (!res.ok) return null; // can't tell: an unrelated Supabase hiccup, or 0056 not applied yet
+            const rows = (await res.json()) as unknown;
+            return Array.isArray(rows) && rows.length > 0;
+        } catch {
+            return null;
+        }
+    }));
+    if (found.includes(true)) return true;
+    // Only a confirmed miss in both tables is refused; any lookup that failed lets it through.
+    return found.includes(null);
 }
 
 interface PlaceDetailsPhoto {

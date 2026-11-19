@@ -2215,12 +2215,12 @@ async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc
     const region: RegionId = isRegionId(regionRaw) ? regionRaw : 'sandiego-tijuana';
     const city = REGIONS[region].mx.city;
     const canonical = `${SITE}/hotels?region=${region}`;
-    const { data } = await sb(`hotels?select=id,name,description,address,city,lat,lng,website,booking_url,price_band,rating,amenities`
-        + `&status=eq.live&region=eq.${region}&order=rating.desc.nullslast,name&limit=200`);
+    const { data } = await sb(`hotels?select=id,name,description,address,city,lat,lng,website,booking_url,price_band,rating,review_count,amenities`
+        + `&status=eq.live&region=eq.${region}&order=rating.desc.nullslast,review_count.desc.nullslast,name&limit=200`);
     const rows = (Array.isArray(data) ? data : []) as {
         id: string; name: string; description: { en?: string; es?: string } | null; address: string | null; city: string;
         lat: number; lng: number; website: string | null; booking_url: string | null;
-        price_band: number | null; rating: number | null; amenities: string[] | null;
+        price_band: number | null; rating: number | null; review_count: number | null; amenities: string[] | null;
     }[];
     const link = (h: (typeof rows)[number]) => {
         const href = h.booking_url ?? h.website;
@@ -2239,7 +2239,8 @@ async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc
                 const href = link(h);
                 const desc = (lang === 'es' ? h.description?.es : h.description?.en) ?? h.description?.en ?? h.description?.es;
                 const facts = [
-                    h.rating != null ? `rated ${Number(h.rating).toFixed(1)}` : '',
+                    // Google's rating, said as such. Not in the JSON-LD: ratings from another site are not ours to mark up.
+                    h.rating != null ? `rated ${Number(h.rating).toFixed(1)}${h.review_count ? ` from ${h.review_count.toLocaleString('en-US')} Google reviews` : ' on Google'}` : '',
                     h.price_band ? PRICE_BANDS[h.price_band] ?? '' : '',
                     (h.amenities ?? []).map((a) => HOTEL_AMENITY_NAMES[a]).filter(Boolean).join(', '),
                     h.address ?? '',

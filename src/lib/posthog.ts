@@ -106,6 +106,7 @@ export type AppEvent =
     | 'feedback_opened'
     | 'feedback_submitted'
     | 'feedback_failed'
+    | 'home_tab_selected'
     | 'hotel_impression'
     | 'hotel_outbound_click'
     | `bh_${string}`;

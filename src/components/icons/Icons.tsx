@@ -349,6 +349,16 @@ export function IconClinic(p: IconProps) {
     );
 }
 
+/** A bed, for hotels and places to stay. */
+export function IconBed(p: IconProps) {
+    return (
+        <Svg {...p}>
+            <path d="M3.4 18.6V6.4M3.4 14.2h17.2v4.4M20.6 14.2v-2.4a2.6 2.6 0 0 0-2.6-2.6h-7v5" />
+            <circle cx="7.2" cy="11.2" r="1.8" />
+        </Svg>
+    );
+}
+
 /* ══ Specialties ══════════════════════════════════════════════ */
 
 export function IconTooth(p: IconProps) {
