@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Static entry for acerbac.medsociety.one (middleware.ts rewrites that host here).
+  Same React bundle as index.html; what differs is the head a crawler or a link
+  preview reads WITHOUT running JavaScript: title, description, canonical, share
+  card and structured data. Keep the copy in step with src/components/acerbac/content.ts.
+-->
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/medsociety-mark.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10261f" />
+    <title>ACERBAC · Asociación de Centros de Recuperación de Baja California</title>
+    <meta name="description" content="ACERBAC reúne a los centros de recuperación postoperatoria de Baja California. Conoce los centros certificados en Tijuana, qué preguntar antes de reservar y cómo afiliar tu centro." />
+    <link rel="canonical" href="https://acerbac.medsociety.one/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ACERBAC" />
+    <meta property="og:locale" content="es_MX" />
+    <meta property="og:url" content="https://acerbac.medsociety.one/" />
+    <meta property="og:title" content="ACERBAC · Centros de recuperación de Baja California" />
+    <meta property="og:description" content="Centros certificados de recuperación postoperatoria en Tijuana, guía para pacientes y afiliación para centros." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="ACERBAC · Centros de recuperación de Baja California" />
+    <meta name="twitter:description" content="Centros certificados de recuperación postoperatoria en Tijuana, guía para pacientes y afiliación para centros." />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://acerbac.medsociety.one/#website",
+            "url": "https://acerbac.medsociety.one/",
+            "name": "ACERBAC",
+            "inLanguage": ["es", "en"],
+            "publisher": { "@id": "https://acerbac.medsociety.one/#org" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://acerbac.medsociety.one/#org",
+            "name": "Asociación de Centros de Recuperación de Baja California",
+            "alternateName": "ACERBAC",
+            "url": "https://acerbac.medsociety.one/",
+            "description": "Asociación de centros de recuperación postoperatoria de Baja California.",
+            "areaServed": { "@type": "AdministrativeArea", "name": "Baja California, México" },
+            "address": { "@type": "PostalAddress", "addressLocality": "Tijuana", "addressRegion": "Baja California", "addressCountry": "MX" },
+            "member": [
+              { "@type": "Organization", "name": "Alice" },
+              { "@type": "Organization", "name": "Zen & Healthy Recovery" },
+              { "@type": "Organization", "name": "Baja Premium Care" },
+              { "@type": "Organization", "name": "Bella Recovery House" },
+              { "@type": "Organization", "name": "Better Than Ever" }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>ACERBAC, la Asociación de Centros de Recuperación de Baja California, necesita JavaScript para mostrar esta página. Centros certificados: Alice, Zen &amp; Healthy Recovery, Baja Premium Care, Bella Recovery House y Better Than Ever (Tijuana).</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
