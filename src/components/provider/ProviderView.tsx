@@ -17,6 +17,7 @@ import { ContactCard, DetailRow } from './ContactCard';
 import { ClinicMain } from './ClinicView';
 import { clinicFocus } from '../../utils/clinicFocus';
 import { PractisesAt } from './PractisesAt';
+import { StayNearby } from '../hotels/StayNearby';
 import { DoctorAnswers } from '../forum/ForumPromos';
 import { FORUMS_LISTED } from '../../lib/forumRoutes';
 import { useOwnerPhotos } from '../../hooks/useOwnerPhotos';
@@ -49,11 +50,10 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
     const { t, i18n } = useTranslation();
     const ownerPhotos = useOwnerPhotos(provider.id);
     const { reviews, loading: reviewsLoading } = useGoogleReviews(provider.googlePlaceId);
-    // The reviews we hold ourselves (Doctoralia's). Only listings that came from
-    // Doctoralia have any, so a Google-only clinic fetches nothing.
-    const { reviews: storedReviews, loading: storedLoading } = useStoredReviews(
-        provider.doctoraliaId ? provider.id : undefined,
-    );
+    // The reviews we hold ourselves. Always asked for: the server links them to
+    // the listing itself, and gating on `doctoraliaId` hid them on listings
+    // that have reviews but no such id.
+    const { reviews: storedReviews, loading: storedLoading } = useStoredReviews(provider.id);
     const { url: portrait } = usePortraitPhoto(provider);
     // Doctors at this clinic, or clinics this doctor practises at.
     const { team, loading: teamLoading } = useProviderTeam(provider.id);
@@ -116,20 +116,8 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
     // Latest first, whatever the rating: a sample picked by stars would flatter the clinic.
     const reviewBlock = (
         <div data-section="reviews" style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem' }}>
-            <ReviewCarousel
-                reviews={storedReviews}
-                loading={storedLoading}
-                note={
-                    provider.reviewCount > storedReviews.length
-                        ? t('reviews.sourceDoctoraliaOf', {
-                            shown: storedReviews.length,
-                            // Same formatting as the stats box above it.
-                            total: provider.reviewCount.toLocaleString(),
-                        })
-                        : t('reviews.sourceDoctoralia')
-                }
-            />
-            <ReviewCarousel reviews={reviews} loading={reviewsLoading} note={t('reviews.sourceGoogle')} />
+            <ReviewCarousel reviews={storedReviews} loading={storedLoading} />
+            <ReviewCarousel reviews={reviews} loading={reviewsLoading} />
         </div>
     );
 
@@ -237,6 +225,8 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                         {reviewBlock}
                     </>
                 )}
+
+                <StayNearby provider={provider} />
 
                 {FORUMS_LISTED && <DoctorAnswers providerId={provider.id} />}
 

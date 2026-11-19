@@ -19,7 +19,7 @@ export function RouteMeta() {
     useEffect(() => {
         // The home page's search is the same document at many addresses; only the
         // region, the one thing that changes which directory it is, is canonical.
-        const region = pathname === '/' ? new URLSearchParams(search).get('region') : null;
+        const region = pathname === '/' || pathname === '/hotels' ? new URLSearchParams(search).get('region') : null;
         const canonical = `${SITE_ORIGIN}${pathname === '/' ? '/' : pathname.replace(/\/$/, '')}${region ? `?region=${encodeURIComponent(region)}` : ''}`;
         const undo = [upsertLink('canonical', canonical), upsertMeta('property', 'og:url', canonical)];
         if (PRIVATE.test(pathname)) undo.push(upsertMeta('name', 'robots', 'noindex, nofollow'));
