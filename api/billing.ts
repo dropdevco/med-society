@@ -1437,7 +1437,9 @@ async function stripeCheckout(req: Req, res: Res) {
         // plan as lapsed while Stripe is still retrying its last charge. A second one would double-bill.
         if (customer) {
             const open = await stripe<{ data: { status: string }[] }>(sk, 'GET', '/subscriptions', { customer, status: 'all', limit: 20 });
-            if (open.data.some((x) => !['canceled', 'incomplete', 'incomplete_expired'].includes(x.status))) {
+            // Only a subscription that still bills or retries blocks a new one. `unpaid` and `paused`
+            // do not charge again, and must not lock the owner out of subscribing for good.
+            if (open.data.some((x) => ['active', 'trialing', 'past_due'].includes(x.status))) {
                 return res.status(409).json({ ok: false, error: 'already_subscribed' });
             }
         }
@@ -1513,6 +1515,17 @@ export async function pollStripe(cfg: Cfg, sk: StripeCfg): Promise<PollSummary> 
         return s;
     }
 
+    // What our records say about each Stripe subscription, so a missed cancel or
+    // "don't cancel" is only re-sent when the two disagree. The key carries the row's
+    // last change, so the same correction can happen again after a later change.
+    const ours = new Map<string, { status: string; updated_at: string }>();
+    const rows = await supa(cfg, 'GET', 'provider_subscriptions?select=stripe_subscription_id,status,updated_at&stripe_subscription_id=not.is.null&status=in.(active,canceled)');
+    if (rows.ok && Array.isArray(rows.json)) {
+        for (const r of rows.json as { stripe_subscription_id: string; status: string; updated_at: string }[]) ours.set(r.stripe_subscription_id, r);
+    } else {
+        console.error('billing: stripe poll could not read our subscriptions', rows.status);
+    }
+
     const events: StripeApply[] = [];
     const longAgo = Date.now() / 1000 - CHANGE_WINDOW_DAYS * 86_400;
     for (const sub of subs) {
@@ -1524,13 +1537,16 @@ export async function pollStripe(cfg: Cfg, sk: StripeCfg): Promise<PollSummary> 
             const p = paymentFrom(inv, sub);
             if (p) events.push(p);
         }
-        const end = base.periodEnd ?? 'none';
         const blank = { email: '', amount: null, currency: '' };
+        const row = ours.get(sub.id);
+        const stamp = row?.updated_at ?? '';
         if (sub.status === 'canceled') events.push({ ...base, ...blank, key: `stripe:rec:ended:${sub.id}`, kind: 'canceled', periodEnd: null });
-        else if (scheduledEnd(sub)) events.push({ ...base, ...blank, key: `stripe:rec:canceled:${sub.id}:${end}`, kind: 'canceled', periodEnd: isoFromUnix(scheduledEnd(sub)) });
-        // Not set to end: puts back a plan our records show as cancelled (a missed "don't cancel").
-        // A no-op ('noted') for a plan that is already active.
-        else if (sub.status === 'active' || sub.status === 'past_due') events.push({ ...base, ...blank, key: `stripe:rec:resumed:${sub.id}:${end}`, kind: 'resumed' });
+        // Set to end in Stripe, still active in our records: a missed cancel.
+        else if (scheduledEnd(sub) && row?.status === 'active') events.push({ ...base, ...blank, key: `stripe:rec:canceled:${sub.id}:${stamp}`, kind: 'canceled', periodEnd: isoFromUnix(scheduledEnd(sub)) });
+        // Not set to end in Stripe, cancelled in our records: a missed "don't cancel".
+        else if (!scheduledEnd(sub) && (sub.status === 'active' || sub.status === 'past_due') && row?.status === 'canceled') {
+            events.push({ ...base, ...blank, key: `stripe:rec:resumed:${sub.id}:${stamp}`, kind: 'resumed' });
+        }
     }
 
     s.seen = events.length;

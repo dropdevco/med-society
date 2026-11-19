@@ -640,6 +640,12 @@ async function main() {
     check('checkout: only ended subscriptions in Stripe → a new checkout is allowed', r.code === 200, r);
 
     reset();
+    subRows = [{ plan: 'promoted', status: 'lapsed', paid_through: '2026-01-01T00:00:00Z', stripe_customer_id: 'cus_old', stripe_subscription_id: 'sub_old' }];
+    stripeCustomerSubs = [{ id: 'sub_old', status: 'unpaid' }, { id: 'sub_p', status: 'paused' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: an unpaid or paused subscription (no longer charging) does not lock the owner out of subscribing', r.code === 200, r);
+
+    reset();
     stripeCustomerSearch = [{ id: 'cus_found' }];
     r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
     check('checkout: a customer already created for this listing is found, not duplicated',
@@ -700,13 +706,27 @@ async function main() {
         { ...sub({ id: 'sub_6', status: 'canceled', ended_at: Math.floor(Date.now() / 1000) - 400 * 86_400 }), latest_invoice: { id: 'in_16', status: 'paid' } },
         { ...sub({ id: 'sub_5', cancel_at: 1_800_000_000 }), latest_invoice: { id: 'in_14', status: 'paid' } },
         { ...sub({ id: 'sub_4', metadata: {} }), latest_invoice: { id: 'in_13', status: 'paid' } },
+        { ...sub({ id: 'sub_7' }), latest_invoice: { id: 'in_17', status: 'paid' } },
+        { ...sub({ id: 'sub_8', cancel_at: 1_800_000_000 }), latest_invoice: { id: 'in_18', status: 'paid' } },
+    ];
+    // Our records: sub_1 cancelled (Stripe: not set to end → missed undo), sub_2/sub_5 active (Stripe: set to
+    // end → missed cancel), sub_7 active in both, sub_8 cancelled in both.
+    subRows = [
+        { stripe_subscription_id: 'sub_1', status: 'canceled', updated_at: '2026-11-01T10:00:00Z' },
+        { stripe_subscription_id: 'sub_2', status: 'active', updated_at: '2026-11-02T10:00:00Z' },
+        { stripe_subscription_id: 'sub_5', status: 'active', updated_at: '2026-11-03T10:00:00Z' },
+        { stripe_subscription_id: 'sub_7', status: 'active', updated_at: '2026-11-04T10:00:00Z' },
+        { stripe_subscription_id: 'sub_8', status: 'canceled', updated_at: '2026-11-05T10:00:00Z' },
     ];
     r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
     const keys = calls.filter((c) => c.url.includes('/rpc/apply_stripe_event')).map((c) => (c.body as Record<string, unknown>).p_event_key);
-    check('sync: the daily run applies paid invoices, scheduled cancels, ended subscriptions and missed un-cancels, and skips ones not made through our checkout or settled long ago',
+    check('sync: the daily run applies paid invoices and ended subscriptions, re-sends a cancel or un-cancel only where Stripe and our records disagree (keyed on our last change), and skips ones not made through our checkout or settled long ago',
         keys.includes('stripe:invoice:in_10') && keys.includes('stripe:invoice:in_11') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_2'))
         && keys.includes('stripe:rec:ended:sub_3') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_5'))
-        && keys.some((k) => String(k).startsWith('stripe:rec:resumed:sub_1')) && !keys.some((k) => String(k).startsWith('stripe:rec:resumed:sub_2'))
+        && keys.includes('stripe:rec:resumed:sub_1:2026-11-01T10:00:00Z') && keys.includes('stripe:rec:canceled:sub_2:2026-11-02T10:00:00Z')
+        && !keys.some((k) => String(k).startsWith('stripe:rec:resumed:sub_2'))
+        && !keys.some((k) => String(k).startsWith('stripe:rec:resumed:sub_7') || String(k).startsWith('stripe:rec:canceled:sub_7'))
+        && !keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_8') || String(k).startsWith('stripe:rec:resumed:sub_8'))
         && !keys.some((k) => String(k).includes('sub_6') || String(k).includes('in_16')) && !keys.some((k) => String(k).includes('sub_4') || String(k).includes('in_13') || String(k).includes('in_12')), { keys, r });
 
     reset();

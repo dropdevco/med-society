@@ -311,7 +311,7 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
                     <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', lineHeight: 1.55 }}>
                         {t('account.securePay', { email })}
                     </p>
-                    {error && <p role="alert" style={{ color: 'var(--red)', fontSize: '0.85rem' }}>{error}</p>}
+                    {error && !stripeManaged && <p role="alert" style={{ color: 'var(--red)', fontSize: '0.85rem' }}>{error}</p>}
                 </div>
             )}
 
@@ -340,7 +340,7 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
                 </div>
             )}
 
-            {rank > 0 && !stripeManaged && (
+            {rank > 0 && !paying?.stripe && (
                 <p style={{ fontSize: '0.82rem', color: 'var(--gray-500)', lineHeight: 1.55 }}>
                     {t('account.cancelHelp')}{' '}
                     <Link to="/contact" style={{ textDecoration: 'underline' }}>{t('contact.title')}</Link>
