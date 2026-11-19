@@ -37,8 +37,9 @@ What exists today:
   clinician. Linking never lets a clinic edit a doctor's listing, and a doctor invited to own theirs still goes
   through claim review. See [docs/clinics.md](docs/clinics.md) and ADR 0013. **Database side of 0020b is in
   production; 0049 and the UI are on `feat/clinic-pages`, not applied or deployed.**
-- **Paid plans.** Promoted (US$49) and Featured (US$99) sold through GHL payment links, turned into a listing
-  tier by `api/billing.ts` and migration `0029`. Still in GHL **test mode**.
+- **Paid plans.** Promoted (US$49 / MX$899) and Featured (US$99 / MX$1,799) sold through Stripe Checkout and
+  managed in the Stripe customer portal, turned into a listing tier by `api/billing.ts` (migrations `0029`,
+  `0053`). GHL stays the CRM. Setup and go-live steps: `docs/stripe-billing.md`.
 - **Patient messages.** A signed-in patient sends one-way questions to a clinic (`api/inquiry.ts`). There is
   no conversation, inbox or reply yet. 0 messages sent in production so far.
 - **Forums.** "Ask a Doctor" (patients) and "Med Society" (clinicians only), deployed but unlisted.
@@ -114,7 +115,7 @@ src/
   components/admin/          admin tabs (Billing, Feedback, Directory, Forms, Clinic lookup)
   components/feedback/       the Feedback widget
   hooks/useProviders.ts      loads one region, owns filters as URL params, search index and facets
-  lib/                       supabase, auth, billing (payment links), inquiries, forum, providerRead,
+  lib/                       supabase, auth, billing (Stripe checkout/portal), inquiries, forum, providerRead,
                              adminApi, posthog, clientErrors, webmcp
   utils/                     region, search, filters, facets, rating, images, searchTerms (analytics
                              dictionary), structuredData, profileCompleteness
@@ -222,8 +223,8 @@ npx tsx scripts/images-selftest.ts
 - **Read leads:** `npx tsx --env-file=.env.local scripts/list-leads.ts [status]`.
 - **Survey numbers:** `npx tsx --env-file=.env.local scripts/form-stats.ts [daily|sources|audience|visitors|events]`,
   or the `form_*` views in the Supabase SQL editor.
-- **Billing:** the admin Billing tab shows plans, unmatched payments and test-mode rehearsal. Setup of the two
-  GHL workflows is in `docs/ghl-billing-workflows.md`.
+- **Billing:** the admin Billing tab shows plans and unmatched payments. Stripe setup, webhook and go-live order
+  are in `docs/stripe-billing.md`; the old GHL payment workflows in `docs/ghl-billing-workflows.md`.
 - **Probe a deploy safely:** POST `{}` to `/api/inquiry`; the new code answers 401, old code 400 `bad_name`.
   Never POST a valid body to production: it stores a real message and e-mails the team.
 
