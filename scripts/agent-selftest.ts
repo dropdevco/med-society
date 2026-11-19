@@ -14,7 +14,8 @@
  *   npx tsx scripts/agent-selftest.ts
  */
 import handler, { __test } from '../api/agent';
-import { buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
+import { applyFilters, defaultFilters } from '../src/utils/filters';
+import { badgeMatches as siteBadgeMatches, buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
 import { ratingOf as siteRatingOf, shrunkScore as siteShrunk } from '../src/utils/rating';
 import { providerJsonLd as siteJsonLd } from '../src/utils/structuredData';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
@@ -82,7 +83,12 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
             const m = /offset=(\d+)/.exec(url);
             return json(rows.slice(Number(m?.[1] ?? 0)).map((r) => ({ id: r.id })), rows.length);
         }
-        return json(rows, rows.length);
+        // Honour the keyset bounds the way Postgres would, so a slice reads only its own rows.
+        const gt = /id=gt\.([0-9a-f-]+)/.exec(url)?.[1];
+        const lt = /id=lt\.([0-9a-f-]+)/.exec(url)?.[1];
+        const lim = Number(/limit=(\d+)/.exec(url)?.[1] ?? 1e9);
+        const kept = rows.filter((r) => (!gt || r.id > gt) && (!lt || r.id < lt)).sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, lim);
+        return json(kept, rows.length);
     }
     if (url.includes('/rest/v1/providers?')) {
         // The table grant hides contact columns from the anon key; a regression
@@ -162,6 +168,28 @@ for (const q of queries) {
 }
 check('tokenize / synonym expansion / scoring match src/utils/search.ts', parityOk, parityDetail);
 
+// Ranking: paid placement, then doctors holding a badge from the organization the query names, then the rest.
+{
+    const angeles = { org: 'hospital-angeles', name: 'Hospital Ángeles', kind: 'hospital', label: 'Tijuana', logo: null, url: null, confirmed_at: '2026-11-17', valid_from: null, valid_to: null };
+    const rows = [
+        { ...base, id: U(40), name: 'Hospital Ángeles Tijuana', kind: 'clinic', specialty: ['urgent_care'], rating: 4.9, reviewCount: 900 },
+        { ...base, id: U(41), name: 'Dra. Paz Ibarra', specialty: ['cardiology'], rating: 4, reviewCount: 3, badges: [angeles] },
+        { ...base, id: U(42), name: 'Dr. Paga Mucho', specialty: ['cardiology'], tier: 'featured', promoted: true, verified: true, address: 'Hospital Ángeles, Tijuana' },
+        { ...base, id: U(43), name: 'Clinica Angeles del Mar', kind: 'clinic', specialty: ['dentist'], badges: [angeles] },
+    ];
+    const ps = rows.map(asProvider);
+    const index = buildSearchIndex(ps, labelOf);
+    const docs = new Map(rows.map((r) => [r.id, __test.buildDoc(__test.toRow(r)!)]));
+    const site = (q: string) => applyFilters(ps, { ...defaultFilters, region: 'sandiego-tijuana' }, { index, terms: siteTokenize(q), centre: null, prior: 4.5 }).map((p) => p.id);
+    check('"hospital angeles": paying doctor, then the badged doctor, then the hospital and clinics',
+        JSON.stringify(site('hospital angeles')) === JSON.stringify([U(42), U(41), U(40), U(43)]), site('hospital angeles'));
+    check('a badge name alone makes a doctor findable ("angeles" finds Dra. Ibarra)', site('angeles').includes(U(41)));
+    check('a generic word alone ("hospital") does not lift badged doctors over the hospital', site('hospital')[1] === U(40), site('hospital'));
+    check('clinics never take the badge tier, even holding the badge', !siteBadgeMatches(index.get(U(43))!, ['angeles']));
+    const pairs = ['hospital angeles', 'angeles', 'hospital', 'angeles tijuana', 'cardio'].flatMap((q) => ps.map((p) => [siteBadgeMatches(index.get(p.id)!, siteTokenize(q)), __test.badgeMatches(docs.get(p.id)!, __test.tokenize(q)), siteScoreDoc(index.get(p.id)!, siteTokenize(q)), __test.scoreDoc(docs.get(p.id)!, __test.tokenize(q))]));
+    check('badge matching and badge-name scoring match src/utils/search.ts', pairs.every(([a, b, c, d]) => a === b && Math.abs((c as number) - (d as number)) < 1e-9));
+}
+
 const rated = providers.map((p) => [siteRatingOf(p), __test.ratingOf(p), siteShrunk(p, 4.7), __test.shrunkScore(p, 4.7)]);
 check('ratingOf / shrunkScore match src/utils/rating.ts', rated.every(([a, b, c, d]) => a === b && Math.abs((c as number) - (d as number)) < 1e-12));
 check('an unrated provider (rating 0) is null, not 0', __test.ratingOf({ rating: 0, reviewCount: 0 }) === null && __test.ratingOf({ rating: 5, reviewCount: 0 }) === null);
@@ -233,6 +261,8 @@ check('priced_only + max_price_mxn', (await rest('providers&max_price_mxn=900').
 check('licensed_only', (await rest('providers&licensed_only=true').then((x) => x.json().pagination.total)) === 1);
 check('country=US', (await rest('providers&country=US').then((x) => x.json().data[0].id)) === U(6));
 check('paging: offset/next_offset', (await rest('providers&region=sandiego-tijuana&limit=2').then((x) => x.json().pagination.next_offset)) === 2);
+// Offset paging made the last page read ~9,000 rows; nine in parallel passed the 3 s anon limit (18 Nov 2026).
+check('directory loads by id (keyset), never by offset', calls.some((c) => c.includes('provider_list?select=*')) && calls.filter((c) => c.includes('provider_list?select=*')).every((c) => !c.includes('offset=') && /order=id&limit=500$/.test(c)));
 const near = (await rest('providers&near_postal=22000&radius_km=3&sort=distance')).json();
 check('near_postal centres on providers holding that code and reports distance', near.pagination.total === 5 && typeof near.data[0].distance_km === 'number');
 check('unknown postal code is a clear 400', (await rest('providers&near_postal=99999')).status === 400);
