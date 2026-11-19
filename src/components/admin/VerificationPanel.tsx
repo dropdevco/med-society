@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { confirmExactMatches, decideFacility, decideMatch, fetchFacilityQueue, fetchMatchCompare, fetchMatchQueue, fetchNearBar, fetchSources, type AiScore, type FacilityItem, type FacilityQueue, type MatchCompare, type MatchItem, type MatchQueue, type NearBarItem, type SourceOverview } from '../../lib/adminApi';
+import { confirmExactMatches, decideFacility, decideMatch, fetchFacilityQueue, fetchMatchCompare, fetchMatchQueue, fetchNearBar, fetchSources, NEAR_BAR_LIMIT, type AiScore, type FacilityItem, type FacilityQueue, type MatchCompare, type MatchItem, type MatchQueue, type NearBarItem, type SourceOverview } from '../../lib/adminApi';
 import { compareRows, defaultCandidate } from './compare';
 import { Card, Kpi } from './charts';
 import { fmt } from './format';
@@ -124,7 +124,7 @@ export function VerificationPanel() {
             </Card>
 
             {nearBar !== undefined && (
-                <Card title="Near the bar" hint={nearBar ? `${fmt(nearBar.length)} scored 70–89 or a cédula conflict · last 14 days` : 'loading'}>
+                <Card title="Near the bar" hint={nearBar ? `${fmt(nearBar.length)}${nearBar.length >= NEAR_BAR_LIMIT ? "+ (showing the first " + fmt(NEAR_BAR_LIMIT) + ")" : ""} scored 70–89 or a cédula conflict · last 14 days` : 'loading'}>
                     <p className="adm-missing">The scorer links at 80 and above. These are the closest calls either side of it, and every cédula conflict; a daily e-mail lists new ones. Linked ones are on the site now: if one is wrong, tell whoever runs the scorer (scorer_split / scorer_undo_run).</p>
                     {nearBarError && <p className="adm-err" role="alert">{nearBarError}</p>}
                     {nearBar?.length === 0 && !nearBarError && <p className="adm-empty">Nothing near the bar.</p>}

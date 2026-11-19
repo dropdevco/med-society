@@ -279,7 +279,7 @@ export function renderReviewDigest(all: NearBarItem[], site: string, band: { low
 /** Sends the daily alert. Nothing near the bar, nothing sent. */
 export async function reviewAlert(cfg: Cfg, now = new Date()): Promise<{ items: number; sent: number; failed: number }> {
     const since = new Date(now.getTime() - 24 * 3600_000).toISOString();
-    const items = stillOpen(await rpc<NearBarItem[]>(cfg, 'review_near_bar', { p_since: since, p_low: cfg.band.low, p_high: cfg.band.high }) ?? []);
+    const items = stillOpen(await rpc<NearBarItem[]>(cfg, 'review_near_bar', { p_since: since, p_low: cfg.band.low, p_high: cfg.band.high, p_limit: 500 }) ?? []);
     if (!items.length) return { items: 0, sent: 0, failed: 0 };
     if (!cfg.review.length) throw new Error('REVIEW_ALERT_TO is not set');
     const { subject, html } = renderReviewDigest(items, cfg.site, cfg.band);

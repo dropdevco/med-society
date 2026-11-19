@@ -180,7 +180,9 @@ export interface NearBarItem {
     status: 'probable' | 'confirmed'; tier: number; name: string; label: string | null; region: string | null; candidate: string | null; linked: boolean;
 }
 export const fetchNearBar = (sinceDays = 14) =>
-    rpc<NearBarItem[]>('review_near_bar', { p_since: new Date(Date.now() - sinceDays * 86_400_000).toISOString() });
+    rpc<NearBarItem[]>('review_near_bar', { p_since: new Date(Date.now() - sinceDays * 86_400_000).toISOString(), p_limit: NEAR_BAR_LIMIT });
+/** The function's own ceiling; a list this long is cut, and the panel says so. */
+export const NEAR_BAR_LIMIT = 500;
 export const fetchFacilityQueue = () => rpc<FacilityQueue>('admin_facility_queue', { p_limit: 200, p_offset: 0 });
 export const decideFacility = (source: string, external: string, decision: 'confirm' | 'reject', provider?: string) =>
     rpc<void>('admin_facility_decide', { p_source: source, p_external: external, p_decision: decision, p_provider: provider ?? null });
