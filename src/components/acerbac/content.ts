@@ -125,7 +125,7 @@ export const AC: Record<AcLang, AcContent> = {
             steps: [
                 { h: 'Acércate', p: 'Los centros sin certificación pueden acercarse a ACERBAC para recibir capacitación y acompañamiento.' },
                 { h: 'Capacítate', p: 'TODO(acerbac): contenido, duración y costo de la capacitación.' },
-                { h: 'Certifica', p: 'TODO(acerbac): confirmar quién certifica (COEPRIS estatal o COFEPRIS federal), qué criterios se revisan y vigencia del sello.' },
+                { h: 'Certifica', p: 'TODO(acerbac): qué criterios se revisan y vigencia del sello.' },
             ],
             note: 'Los criterios los publica ACERBAC; esta página no los inventa.',
             soon: 'Detalles próximamente.',
@@ -218,7 +218,7 @@ export const AC: Record<AcLang, AcContent> = {
             steps: [
                 { h: 'Reach out', p: 'Centers without certification can contact ACERBAC for training and guidance.' },
                 { h: 'Train', p: 'TODO(acerbac): training content, length and cost.' },
-                { h: 'Certify', p: 'TODO(acerbac): confirm who certifies (state COEPRIS or federal COFEPRIS), which criteria are reviewed and how long the seal lasts.' },
+                { h: 'Certify', p: 'TODO(acerbac): which criteria are reviewed and how long the seal lasts.' },
             ],
             note: 'ACERBAC publishes the criteria; this page does not make them up.',
             soon: 'Details coming soon.',
