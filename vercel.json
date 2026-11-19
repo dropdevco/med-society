@@ -75,6 +75,16 @@
       ]
     },
     {
+      "source": "/hotels",
+      "destination": "/api/agent?route=page&kind=hotels",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
       "source": "/contact",
       "destination": "/api/agent?route=page&kind=contact",
       "missing": [
