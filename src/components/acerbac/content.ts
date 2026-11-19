@@ -16,7 +16,8 @@ export interface AcContent {
     find: { h: string; p: string; cta: string; note: string };
     centers: { h: string; p: string; listing: string; noListing: string; source: string; todo: string };
     guide: { h: string; p: string; items: { h: string; p: string }[] };
-    certify: { h: string; p: string; steps: { h: string; p: string }[]; note: string };
+    /** `soon` replaces a step whose text is still a TODO on the deployed page. */
+    certify: { h: string; p: string; steps: { h: string; p: string }[]; note: string; soon: string };
     join: { h: string; p: string; perks: string[]; cta: string };
     about: { h: string; p: string; allies: string; allyList: string[]; board: string };
     report: { h: string; p: string; cta: string };
@@ -105,6 +106,7 @@ export const AC: Record<AcLang, AcContent> = {
                 { h: 'Certifica', p: 'TODO(acerbac): confirmar quién certifica (COEPRIS estatal o COFEPRIS federal), qué criterios se revisan y vigencia del sello.' },
             ],
             note: 'Los criterios los publica ACERBAC; esta página no los inventa.',
+            soon: 'Detalles próximamente.',
         },
         join: {
             h: 'Afilia tu centro',
@@ -192,6 +194,7 @@ export const AC: Record<AcLang, AcContent> = {
                 { h: 'Certify', p: 'TODO(acerbac): confirm who certifies (state COEPRIS or federal COFEPRIS), which criteria are reviewed and how long the seal lasts.' },
             ],
             note: 'ACERBAC publishes the criteria; this page does not make them up.',
+            soon: 'Details coming soon.',
         },
         join: {
             h: 'Join as a center',

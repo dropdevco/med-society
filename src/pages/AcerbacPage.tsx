@@ -21,7 +21,13 @@ function initialLang(): AcLang {
 const monogram = (name: string) =>
     name.replace(/&/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
-const todo = (s: string) => (s.includes('TODO(acerbac)') ? <p className="ac-todo">{s}</p> : null);
+/**
+ * TODO(acerbac) notes show only in development (`npm run dev`), so whoever
+ * edits the copy sees what is still missing; the deployed page never does.
+ */
+const SHOW_TODOS = import.meta.env.DEV;
+const isTodo = (s: string) => s.includes('TODO(acerbac)');
+const todo = (s: string) => (SHOW_TODOS && isTodo(s) ? <p className="ac-todo">{s}</p> : null);
 
 /**
  * /acerbac — site for the Asociación de Centros de Recuperación de Baja
@@ -188,7 +194,7 @@ export function AcerbacPage() {
                                         <div className="ac-core">
                                             <span className="ac-num">{i + 1}</span>
                                             <h3>{s.h}</h3>
-                                            {s.p.includes('TODO(acerbac)') ? todo(s.p) : <p>{s.p}</p>}
+                                            {!isTodo(s.p) ? <p>{s.p}</p> : SHOW_TODOS ? todo(s.p) : <p>{c.certify.soon}</p>}
                                         </div>
                                     </div>
                                 ))}
@@ -257,7 +263,7 @@ export function AcerbacPage() {
             <footer className="ac-foot">
                 <div className="ac-wrap">
                     <div>{c.foot.legal} · {c.foot.privacy}</div>
-                    <div className="ac-todo">{c.foot.draft}</div>
+                    {SHOW_TODOS && <div className="ac-todo">{c.foot.draft}</div>}
                 </div>
             </footer>
 
