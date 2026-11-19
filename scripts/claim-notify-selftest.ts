@@ -71,6 +71,8 @@ check('review: cédula conflicts come first, then linked, then waiting',
 check('review: links to Verification', digest.html.includes('https://medsociety.one/admin?tab=verification'));
 check('review: names are escaped', !digest.html.includes('<b>Ejemplo</b>') && digest.html.includes('&lt;b&gt;'));
 check('review: says the band it used', digest.html.includes('70-89'));
+const decided = renderReviewDigest([near({ external_id: 'a' }), near({ external_id: 'd', name: 'Decidido Por Persona', linked: false, status: 'confirmed', score: 75 })], 'https://medsociety.one', { low: 70, high: 89 });
+check('review: a record a person already confirmed is left out', !decided.html.includes('Decidido Por Persona') && decided.subject.includes('1 AI match '), decided.subject);
 check('review: band parses, and a bad one falls back to 70-89',
     JSON.stringify(parseBand('75-85')) === '{"low":75,"high":85}' && JSON.stringify(parseBand('90-10')) === '{"low":70,"high":89}' && JSON.stringify(parseBand(undefined)) === '{"low":70,"high":89}');
 
@@ -162,6 +164,10 @@ console.log('handler');
     r = await call('GET', { authorization: 'Bearer cron-secret' }, { job: 'review' });
     const nothing = calls.filter((c) => c.url.endsWith('/conversations/messages')).length;
     check('review: nothing near the bar sends nothing', r.code === 200 && (r.body as { items: number }).items === 0 && nothing === 0, r);
+    calls = [];
+    nearBar = [near({ linked: false, status: 'confirmed' })];
+    r = await call('GET', { authorization: 'Bearer cron-secret' }, { job: 'review' });
+    check('review: only already-decided records sends nothing', r.code === 200 && (r.body as { items: number }).items === 0 && !calls.some((c) => c.url.endsWith('/conversations/messages')), r);
     calls = [];
     nearBar = [near({}), near({ external_id: 'b', score: 75, linked: false })];
     r = await call('GET', { authorization: 'Bearer cron-secret' }, { job: 'review' });

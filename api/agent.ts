@@ -690,17 +690,24 @@ interface Snapshot {
     postal: Map<string, { lat: number; lng: number }>;
 }
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 500;
 
 /**
  * The whole lean directory of one region, paged by id like src/hooks/useProviders.ts:
  * each page starts after the last id, so no request reads rows it skips (offset paging
- * hit the anon role's 3 s statement timeout when the database was slow). One stream:
- * this runs server-side and the snapshot is cached. A page that times out is asked again, twice.
+ * hit the anon role's 3 s statement timeout when the database was slow). Four id slices
+ * (by first hex digit) read at once, each in 500-row pages one after another, so a slow
+ * day stays well inside the function's time limit. A page that times out is asked again, twice.
  */
+const SLICES: Array<[string | null, string | null]> = [
+    [null, '40000000-0000-0000-0000-000000000000'],
+    ['3fffffff-ffff-ffff-ffff-ffffffffffff', '80000000-0000-0000-0000-000000000000'],
+    ['7fffffff-ffff-ffff-ffff-ffffffffffff', 'c0000000-0000-0000-0000-000000000000'],
+    ['bfffffff-ffff-ffff-ffff-ffffffffffff', null],
+];
 async function loadRegion(region: RegionId): Promise<Snapshot> {
-    const page = async (after: string | null): Promise<Array<{ id?: unknown }>> => {
-        const path = `provider_list?select=*&region=eq.${region}${after ? `&id=gt.${after}` : ''}&order=id&limit=${PAGE_SIZE}`;
+    const page = async (after: string | null, before: string | null): Promise<Array<{ id?: unknown }>> => {
+        const path = `provider_list?select=*&region=eq.${region}${after ? `&id=gt.${after}` : ''}${before ? `&id=lt.${before}` : ''}&order=id&limit=${PAGE_SIZE}`;
         for (let attempt = 0; ; attempt++) {
             try {
                 return (await sb(path)).data as Array<{ id?: unknown }>;
@@ -711,13 +718,18 @@ async function loadRegion(region: RegionId): Promise<Snapshot> {
             }
         }
     };
-    const raw: unknown[] = [];
-    for (let after: string | null = null; ;) {
-        const next = await page(after);
-        raw.push(...next);
-        if (next.length < PAGE_SIZE) break;
-        after = String(next[next.length - 1].id);
-    }
+    const slices = await Promise.all(SLICES.map(async ([from, before]) => {
+        const out: Array<{ id?: unknown }> = [];
+        for (let after = from; ;) {
+            const next = await page(after, before);
+            out.push(...next);
+            if (next.length < PAGE_SIZE) return out;
+            after = String(next[next.length - 1].id);
+        }
+    }));
+    // In id order, each row once.
+    const seen = new Set<string>();
+    const raw = slices.flat().filter((r) => { const id = String(r.id); if (seen.has(id)) return false; seen.add(id); return true; });
 
     const rows = raw.map(toRow).filter((r): r is Row => r !== null);
     const docs = new Map<string, SearchDoc>();

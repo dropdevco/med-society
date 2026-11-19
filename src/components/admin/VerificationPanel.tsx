@@ -5,6 +5,8 @@ import { Card, Kpi } from './charts';
 import { fmt } from './format';
 
 const PAGE = 50;
+/** What PostgREST says when a function is not there yet (migration 0052 unapplied). */
+const MISSING_FN = /function .* does not exist|PGRST202|Could not find the function/i;
 const percent = (n: number | null) => (n == null ? '—' : `${Math.round(n * 100)}%`);
 
 /**
@@ -18,6 +20,7 @@ export function VerificationPanel() {
     const [facilities, setFacilities] = useState<FacilityQueue | null>(null);
     /** null until loaded; undefined when migration 0052 is not applied yet. */
     const [nearBar, setNearBar] = useState<NearBarItem[] | null | undefined>(null);
+    const [nearBarError, setNearBarError] = useState<string | null>(null);
     const [source, setSource] = useState<string | null>(null);
     const [offset, setOffset] = useState(0);
     const [busy, setBusy] = useState<string | null>(null);
@@ -31,7 +34,10 @@ export function VerificationPanel() {
             setFacilities(f);
             setError(null);
             // Its own request: the queue must still load before 0052 is applied.
-            fetchNearBar().then(setNearBar, () => setNearBar(undefined));
+            // Hidden only when 0052 is missing; any other failure is shown on the card.
+            fetchNearBar().then((n) => { setNearBar(n); setNearBarError(null); }, (e: Error) => {
+                if (MISSING_FN.test(e.message)) setNearBar(undefined); else { setNearBar([]); setNearBarError(e.message); }
+            });
         } catch (e) {
             setError((e as Error).message);
         }
@@ -120,7 +126,8 @@ export function VerificationPanel() {
             {nearBar !== undefined && (
                 <Card title="Near the bar" hint={nearBar ? `${fmt(nearBar.length)} scored 70–89 or a cédula conflict · last 14 days` : 'loading'}>
                     <p className="adm-missing">The scorer links at 80 and above. These are the closest calls either side of it, and every cédula conflict; a daily e-mail lists new ones. Linked ones are on the site now: if one is wrong, tell whoever runs the scorer (scorer_split / scorer_undo_run).</p>
-                    {nearBar?.length === 0 && <p className="adm-empty">Nothing near the bar.</p>}
+                    {nearBarError && <p className="adm-err" role="alert">{nearBarError}</p>}
+                    {nearBar?.length === 0 && !nearBarError && <p className="adm-empty">Nothing near the bar.</p>}
                     {nearBar?.map((n) => <NearBar key={`${n.source_slug}:${n.external_id}`} n={n} />)}
                 </Card>
             )}
@@ -224,7 +231,7 @@ function SideBySide({ source, external }: { source: string; external: string }) 
         return () => { live = false; };
     }, [source, external]);
 
-    if (err) return <p className="adm-err" role="alert">{/function .* does not exist|PGRST202|Could not find the function/i.test(err) ? 'Needs migration 0052 (supabase/migrations/0052_review_compare.sql).' : err}</p>;
+    if (err) return <p className="adm-err" role="alert">{MISSING_FN.test(err) ? 'Needs migration 0052 (supabase/migrations/0052_review_compare.sql).' : err}</p>;
     if (c === undefined) return <p className="adm-empty">Loading comparison…</p>;
     if (!c || !c.candidates.length) return <p className="adm-empty">No candidate doctor to compare with.</p>;
     const cand = c.candidates.find((x) => x.doctor_id === pick) ?? defaultCandidate(c)!;

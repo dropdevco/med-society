@@ -80,7 +80,9 @@ async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]
             // seconds, and one page failing twice blanked the whole region
             // ("0 providers") on 17 Nov 2026 while the same read took 0.6 s a
             // minute later.
-            if (res.error.code !== STATEMENT_TIMEOUT || attempt >= 2) throw res.error;
+            // A gateway error (502/504) in the same slow spell is worth the same retry.
+            const transient = res.error.code === STATEMENT_TIMEOUT || res.status >= 500;
+            if (!transient || attempt >= 2) throw res.error;
             await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
         }
     };
