@@ -56,3 +56,10 @@ UnoTV); the June 2025 member list (Diario Tijuana). Counts differ by outlet, so 
 ## Not built yet
 Membership form storing to Supabase, report form (currently `mailto:`), privacy notice,
 listings for Alice and Baja Premium Care.
+
+## Indexing, listings, photos and contact (second pass)
+
+- **Indexing.** `acerbac.medsociety.one` is indexable. `middleware.ts` rewrites every page path on that host to the static `acerbac.html`, so crawlers read the title, description, canonical and JSON-LD without running JavaScript; `/robots.txt` and `/sitemap.xml` on that host are served from `public/acerbac-robots.txt` and `public/acerbac-sitemap.xml`. The path version (`/acerbac` on the main host) stays `noindex` with a canonical pointing at the subdomain. Only Spanish is indexed: the EN toggle is client state. Keep the copy in `acerbac.html` in step with `content.ts`.
+- **Centers outside MedSociety.** Baja Premium Care was added through the normal route (`recovery-allowlist.ts` → `promote-google.ts --target=tijuana-recovery`) and sits as a `pending` listing (`32e72bbb-46ae-463f-bfff-3296bbf4f109`). A person approves it with `update providers set status='live' where id='32e72bbb-…'`; then set its `providerId` in `content.ts`. The weekly source run matches it to its COEPRIS and Baja Health Cluster records. **Alice** is not in the Google staging table, so it has no listing yet: it needs a Google Places sweep that finds it, then the same route.
+- **Photos.** Fetched from Google Places by `placeId` when a card scrolls into view, shown with Google's attribution, never stored (`useGooglePhotos`). No place_id or no photo: the card shows a monogram. We have no permission to copy photos from the centers' own sites or socials. If the Maps key is referrer-restricted, add `acerbac.medsociety.one` to its allowed referrers.
+- **Contact.** ACERBAC publishes no contact we could find (its own site is down). `AC_EMAIL` in `content.ts` is a placeholder that reaches the MedSociety team; `AC_WHATSAPP` and `AC_PHONE` are empty and hidden until set. The (664) 250 0609/0610 numbers that turn up in searches belong to the news agency AFN, not ACERBAC.

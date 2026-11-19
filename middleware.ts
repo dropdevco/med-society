@@ -10,7 +10,11 @@
  *
  * APP_SITES are subdomains served by the React app itself (src/utils/hostSite.ts
  * picks the page from the host). They are checked before doctor sites, so a
- * doctor_sites row with the same subdomain can never take one over.
+ * doctor_sites row with the same subdomain can never take one over. Each has its
+ * own static files in public/ and its own HTML entry at the repo root:
+ *   /<sub>.html          page entry, with the head crawlers read (title, canonical, JSON-LD)
+ *   /<sub>-robots.txt    served as /robots.txt on that host
+ *   /<sub>-sitemap.xml   served as /sitemap.xml on that host
  */
 import { rewrite } from '@vercel/functions';
 
@@ -35,11 +39,13 @@ export default function middleware(request: Request): Response | undefined {
     const url = new URL(request.url);
 
     if (APP_SITES.has(sub)) {
-        // Any page path gets the app shell; the app reads the host. Going
-        // straight to the file also skips vercel.json's crawler prerender of
-        // "/", which would otherwise show bots the MedSociety home page.
+        if (url.pathname === '/robots.txt') return rewrite(new URL(`/${sub}-robots.txt`, url));
+        if (url.pathname === '/sitemap.xml') return rewrite(new URL(`/${sub}-sitemap.xml`, url));
         if (isFile(url.pathname)) return undefined;
-        return rewrite(new URL('/index.html', url));
+        // Any page path gets the site's own HTML entry; the app reads the host.
+        // Going straight to the file also skips vercel.json's crawler prerender of
+        // "/", which would otherwise show bots the MedSociety home page.
+        return rewrite(new URL(`/${sub}.html`, url));
     }
 
     const target = new URL('/api/agent', url);

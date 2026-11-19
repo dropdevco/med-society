@@ -103,6 +103,12 @@ export default defineConfig(({ mode }) => ({
             process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now()),
         ),
     },
+    build: {
+        rollupOptions: {
+            // acerbac.html is the static entry for acerbac.medsociety.one (see middleware.ts).
+            input: { main: 'index.html', acerbac: 'acerbac.html' },
+        },
+    },
     server: {
         host: true,
         port: 5174,

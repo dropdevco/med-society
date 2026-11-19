@@ -10,22 +10,34 @@ export type AcLang = 'es' | 'en';
 
 export interface AcContent {
     docTitle: string;
-    nav: { find: string; guide: string; certify: string; join: string; about: string; contact: string };
-    hero: { eyebrow: string; h1: string; lead: string; ctaFind: string; ctaJoin: string; cardH: string; cardItems: string[] };
+    nav: { find: string; guide: string; certify: string; join: string; about: string; contact: string; menu: string; cta: string };
+    hero: {
+        h1: string; lead: string; ctaFind: string; ctaJoin: string;
+        checkH: string; checkLabel: string; checkPlaceholder: string;
+        checkYes: string; checkNo: string; checkHint: string;
+    };
     trust: { n: string; label: string }[];
     find: { h: string; p: string; cta: string; note: string };
-    centers: { h: string; p: string; listing: string; noListing: string; source: string; todo: string };
+    centers: { h: string; p: string; listing: string; noListing: string; source: string; todo: string; photoBy: string };
     guide: { h: string; p: string; items: { h: string; p: string }[] };
-    certify: { h: string; p: string; steps: { h: string; p: string }[]; note: string };
+    /** `soon` replaces a step whose text is still a TODO on the deployed page. */
+    certify: { h: string; p: string; steps: { h: string; p: string }[]; note: string; soon: string };
     join: { h: string; p: string; perks: string[]; cta: string };
     about: { h: string; p: string; allies: string; allyList: string[]; board: string };
     report: { h: string; p: string; cta: string };
-    contact: { h: string; p: string; whatsapp: string; email: string };
+    contact: { h: string; p: string; whatsapp: string; email: string; phone: string };
     foot: { legal: string; privacy: string; draft: string };
 }
 
-export const AC_EMAIL = 'info@dropdev.co'; // TODO(acerbac): replace with the association's contact address
-export const AC_WHATSAPP = ''; // TODO(acerbac): E.164 number, digits only
+/**
+ * How to reach the association. ACERBAC publishes no contact anywhere we could
+ * find (its own site is down), so the address below is a placeholder that reaches
+ * the MedSociety team, who pass messages on. Anything left empty is hidden on the
+ * page. TODO(acerbac): replace with the association's own details.
+ */
+export const AC_EMAIL: string = 'info@dropdev.co';
+export const AC_WHATSAPP: string = ''; // E.164, digits only (e.g. 5216640000000)
+export const AC_PHONE: string = ''; // display form, e.g. +52 664 000 0000
 
 /**
  * Centers the association itself named as certified, as reported by Diario
@@ -34,37 +46,47 @@ export const AC_WHATSAPP = ''; // TODO(acerbac): E.164 number, digits only
  * California"). Zen & Healthy Recovery also states ACERBAC membership on its
  * Baja Health Cluster listing. TODO(acerbac): confirm the current list.
  *
- * `providerId` links the card to the MedSociety listing (providers.id, matched
- * by name in Tijuana). `photo` stays null until the center or ACERBAC sends a
- * picture we may publish: never copy one from a center's own site or socials.
+ * `providerId` links the card to the MedSociety listing (providers.id). Photos
+ * come only from Google Places by `placeId`: never copy one from a center's own
+ * site or socials.
  */
 export interface AcCenter {
     name: string;
+    /** providers.id of a LIVE listing; null until one exists or is approved. */
     providerId: string | null;
-    photo: string | null;
+    /**
+     * Google place_id. Photos are fetched from Google Places when the card scrolls
+     * into view, shown with Google's attribution and never stored (see
+     * useGooglePhotos). null: no Google place known, the card shows a monogram.
+     */
+    placeId: string | null;
 }
 
 export const AC_CENTERS: AcCenter[] = [
-    { name: 'Alice', providerId: null, photo: null },
-    { name: 'Zen & Healthy Recovery', providerId: '7d5158a7-125e-4ad1-b991-2becc1f91dc0', photo: null },
-    { name: 'Baja Premium Care', providerId: null, photo: null },
-    { name: 'Bella Recovery House', providerId: '5056bb8d-1288-4fa1-b9fc-1eb9f230c718', photo: null },
-    { name: 'Better Than Ever', providerId: '6f1f2c83-ca5c-418e-88f9-0e42ef7fb808', photo: null },
+    { name: 'Alice', providerId: null, placeId: null },
+    { name: 'Zen & Healthy Recovery', providerId: '7d5158a7-125e-4ad1-b991-2becc1f91dc0', placeId: 'ChIJHSzXvV1J2YARZI0Q214gikY' },
+    // Imported as a pending listing (32e72bbb-…); link it here once a person approves it.
+    { name: 'Baja Premium Care', providerId: null, placeId: 'ChIJPVkuCdVJ2YAR3SiOEsd22OY' },
+    { name: 'Bella Recovery House', providerId: '5056bb8d-1288-4fa1-b9fc-1eb9f230c718', placeId: 'ChIJBctCOOc32YARwRKB51EGcTs' },
+    { name: 'Better Than Ever', providerId: '6f1f2c83-ca5c-418e-88f9-0e42ef7fb808', placeId: 'ChIJ19bJrWZJ2YARL4pQm98DBCM' },
 ];
 
 export const AC: Record<AcLang, AcContent> = {
     es: {
         docTitle: 'ACERBAC · Asociación de Centros de Recuperación de Baja California',
-        nav: { find: 'Centros', guide: 'Guía', certify: 'Certificación', join: 'Afíliate', about: 'Nosotros', contact: 'Contacto' },
+        nav: { find: 'Centros', guide: 'Guía', certify: 'Certificación', join: 'Afíliate', about: 'Nosotros', contact: 'Contacto', menu: 'Menú', cta: 'Contáctanos' },
         hero: {
-            eyebrow: 'Tijuana · Baja California',
             h1: 'Recupérate con seguridad después de tu cirugía.',
             lead:
                 'ACERBAC reúne a los centros de recuperación de Baja California y trabaja para que cada paciente elija un lugar con estándares claros, personal capacitado y respaldo verificable.',
             ctaFind: 'Encuentra un centro',
             ctaJoin: 'Afilia tu centro',
-            cardH: 'Antes de reservar, pregunta',
-            cardItems: ['¿Tiene licencia y certificación vigentes?', '¿Hay enfermería las 24 horas?', '¿Qué hospital atiende una emergencia?'],
+            checkH: 'Comprueba un centro antes de reservar',
+            checkLabel: 'Nombre del centro',
+            checkPlaceholder: 'Escribe el nombre de un centro',
+            checkYes: 'Está en la lista de centros certificados que ACERBAC ha presentado.',
+            checkNo: 'No aparece en la lista de centros certificados. Pídele su licencia y certificación, o pregunta a ACERBAC.',
+            checkHint: 'Centros certificados:',
         },
         trust: [
             { n: '2026–2028', label: 'Mesa directiva presidida por Marla Luna' },
@@ -82,6 +104,7 @@ export const AC: Record<AcLang, AcContent> = {
             p: 'Los centros que la asociación ha presentado como certificados.',
             listing: 'Ver ficha',
             noListing: 'Ficha próximamente',
+            photoBy: 'Foto: Google',
             source: 'Fuente: la asociación, citada por Diario Tijuana el 25 de junio de 2025.',
             todo: 'TODO(acerbac): confirmar la lista vigente y enviar una foto de cada centro con su permiso.',
         },
@@ -105,6 +128,7 @@ export const AC: Record<AcLang, AcContent> = {
                 { h: 'Certifica', p: 'TODO(acerbac): confirmar quién certifica (COEPRIS estatal o COFEPRIS federal), qué criterios se revisan y vigencia del sello.' },
             ],
             note: 'Los criterios los publica ACERBAC; esta página no los inventa.',
+            soon: 'Detalles próximamente.',
         },
         join: {
             h: 'Afilia tu centro',
@@ -133,6 +157,7 @@ export const AC: Record<AcLang, AcContent> = {
             p: 'Escríbenos y te respondemos.',
             whatsapp: 'WhatsApp',
             email: 'Correo',
+            phone: 'Teléfono',
         },
         foot: {
             legal: 'Asociación de Centros de Recuperación de Baja California',
@@ -142,16 +167,19 @@ export const AC: Record<AcLang, AcContent> = {
     },
     en: {
         docTitle: 'ACERBAC · Baja California Recovery Centers Association',
-        nav: { find: 'Centers', guide: 'Guide', certify: 'Certification', join: 'Join', about: 'About', contact: 'Contact' },
+        nav: { find: 'Centers', guide: 'Guide', certify: 'Certification', join: 'Join', about: 'About', contact: 'Contact', menu: 'Menu', cta: 'Contact us' },
         hero: {
-            eyebrow: 'Tijuana · Baja California',
             h1: 'Recover safely after your surgery.',
             lead:
                 'ACERBAC brings together Baja California’s recovery centers and works so every patient can choose a place with clear standards, trained staff and verifiable backing.',
             ctaFind: 'Find a center',
             ctaJoin: 'Join as a center',
-            cardH: 'Before you book, ask',
-            cardItems: ['Are the license and certification current?', 'Is there nursing around the clock?', 'Which hospital handles an emergency?'],
+            checkH: 'Check a center before you book',
+            checkLabel: 'Center name',
+            checkPlaceholder: 'Type a center’s name',
+            checkYes: 'It is on the list of certified centers ACERBAC has presented.',
+            checkNo: 'It is not on the list of certified centers. Ask for its license and certification, or ask ACERBAC.',
+            checkHint: 'Certified centers:',
         },
         trust: [
             { n: '2026–2028', label: 'Board led by president Marla Luna' },
@@ -169,6 +197,7 @@ export const AC: Record<AcLang, AcContent> = {
             p: 'The centers the association has presented as certified.',
             listing: 'View listing',
             noListing: 'Listing coming soon',
+            photoBy: 'Photo: Google',
             source: 'Source: the association, quoted by Diario Tijuana on 25 June 2025.',
             todo: 'TODO(acerbac): confirm the current list and send a photo of each center with its permission.',
         },
@@ -192,6 +221,7 @@ export const AC: Record<AcLang, AcContent> = {
                 { h: 'Certify', p: 'TODO(acerbac): confirm who certifies (state COEPRIS or federal COFEPRIS), which criteria are reviewed and how long the seal lasts.' },
             ],
             note: 'ACERBAC publishes the criteria; this page does not make them up.',
+            soon: 'Details coming soon.',
         },
         join: {
             h: 'Join as a center',
@@ -220,6 +250,7 @@ export const AC: Record<AcLang, AcContent> = {
             p: 'Write to us and we will reply.',
             whatsapp: 'WhatsApp',
             email: 'Email',
+            phone: 'Phone',
         },
         foot: {
             legal: 'Baja California Recovery Centers Association',
