@@ -36,9 +36,9 @@ site or socials (copyright, and ADR 0002 for outside sources).
 
 ## Who certifies
 The 2025 article says the association is "respaldada por COEPRIS" (Baja California's state
-health-risk commission). Sources found so far say COEPRIS (state), not COFEPRIS (federal), and
-"backed by", not "certifies each center". The page says that; the certify step carries a TODO
-to confirm which authority certifies.
+health-risk commission). Confirmed by the project owner (2026-11-19): COEPRIS, not COFEPRIS. The
+page says the association is "backed by" COEPRIS; the certify step still carries a TODO for the
+criteria and validity of the seal, which only ACERBAC can supply.
 
 ## Source of the copy
 Public press only, 2025–2026: board 2026–2028 led by Marla Luna (AFN Tijuana); framework
@@ -49,7 +49,7 @@ UnoTV); the June 2025 member list (Diario Tijuana). Counts differ by outlet, so 
 ## Open questions for ACERBAC
 - Brand, logo, socials, own domain; contact e-mail and WhatsApp (`AC_EMAIL`, `AC_WHATSAPP`).
 - The current certified list, a photo of each center with permission.
-- Who certifies (COEPRIS or COFEPRIS), the criteria, fee and validity of the seal.
+- The criteria, fee and validity of the seal.
 - Membership requirements and fee.
 - Whether "Certified" can be shown as a badge. It must not reuse "Verified" (ADR 0005 is open).
 
