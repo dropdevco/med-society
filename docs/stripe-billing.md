@@ -67,6 +67,11 @@ set-up email), fed by the site after every change.
    - Business information: name **MedSociety**, real terms and privacy URLs,
      redirect link left blank (the site sets it per session).
 3. **Branding**: logo, icon and colour (shown on Checkout, the portal and receipts).
+   **Failed payments** (Settings → Billing → Subscriptions and emails → Manage
+   failed payments): keep Smart Retries on, and set *if all retries for a payment
+   fail* to **cancel the subscription**. A subscription left `unpaid` or
+   `past_due` for good keeps the clinic in "Manage plan" with an open invoice
+   instead of a clean end.
 4. **Webhook** (Workbench → Webhooks → Add destination): events from *your
    account*, payload *snapshot*, events `invoice.paid`, `invoice.payment_failed`,
    `customer.subscription.updated`, `customer.subscription.deleted`,
@@ -78,7 +83,7 @@ set-up email), fed by the site after every change.
 
    | Name | Production | Preview |
    |---|---|---|
-   | `STRIPE_SECRET_KEY` | `sk_live_…` | `sk_test_…` |
+   | `STRIPE_SECRET_KEY` | restricted live key `rk_live_…` | sandbox key `sk_test_…` |
    | `STRIPE_PORTAL_CONFIG` | optional `bpc_…` | optional |
    | `SUPABASE_SERVICE_ROLE_KEY` | already set | needed to test previews |
    | `GHL_PIT_MEDSOCIETY`, `GHL_LOCATION_MEDSOCIETY` | already set | optional (CRM mirror on previews) |
@@ -87,17 +92,29 @@ set-up email), fed by the site after every change.
    Without `STRIPE_SECRET_KEY` the Stripe routes answer `not_configured` and log
    it, and the daily cron skips Stripe.
 
+   The live key is a **restricted key** created with *Full access — except
+   sensitive operations* (no payouts, transfers, issuing or Connect). The code
+   uses: Events, Subscriptions, Invoices, Invoice payments and Prices (read);
+   Customers incl. search, Checkout Sessions and Customer portal sessions
+   (write). A narrower custom key must keep all of these; test it on a preview
+   first.
+
 Previews share the production database. Test purchases on a preview change real
 listings: use a test listing and end the plan afterwards.
 
 ## Going live (order matters)
+
+Status (Nov 19, 2026): steps 1–3 are done (live products, portal, branding,
+webhook `medsociety-production`, restricted live key on Production, sandbox ids
+cleared). If anyone tests on a preview before the merge, clear the sandbox ids
+again (step 3).
 
 1. Live mode: steps 1–4 above.
 2. Vercel Production: `STRIPE_SECRET_KEY` = the live key.
 3. Clear the test-mode ids that preview tests left on real listings, so "Manage
    plan" is not offered for a sandbox customer (Supabase SQL editor):
    `update provider_subscriptions set stripe_customer_id = null, stripe_subscription_id = null, stripe_price_id = null where stripe_customer_id is not null and status not in ('active', 'canceled');`
-   Check first that no live (`sk_live_`) purchase has happened yet.
+   Check first that no live purchase has happened yet.
 4. Merge the pull request. From the next deploy, Subscribe opens Stripe.
 5. Check: buy Promoted on a test listing with a real card, see the plan switch
    on, cancel in the portal, refund in Stripe, **End plan now** in /admin.
@@ -131,6 +148,11 @@ by self-tests only: downgrade at renewal, failed renewal, refund
   the comp into a paid plan, so it ends when the subscription does.
 - The daily cross-check can announce a cancel the webhook already announced.
 - The webhook endpoint is public by design; each call costs one Stripe API read.
+- A Checkout Session left open in another tab is not checked when a second one
+  starts; paying both would create two subscriptions (cancel one in Stripe).
+- Not yet seen live: a full refund resolved through `/v1/invoice_payments` with
+  the restricted key. If that call is refused, the refund webhook answers 502 and
+  Stripe retries; the refund still shows in Stripe, only the /admin flag is missing.
 
 ## Still to do
 
