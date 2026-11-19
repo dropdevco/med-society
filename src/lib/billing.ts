@@ -5,26 +5,6 @@ export type Market = 'us' | 'mx';
 
 export const PLAN_MARKET_KEY = 'ms_plan_market';
 
-/**
- * The four GoHighLevel payment links, one per plan and market. Clinics can
- * choose USD (`us`) or MXN (`mx`) when buying a plan.
- *
- * Changing a price means a new link: replace the URL here, nothing else moves.
- * The server does not care which link was used (api/billing.ts reads the plan
- * and market the GHL workflow reports), so keep this table and the workflows in
- * step.
- */
-export const PAYMENT_LINKS: Record<PlanKey, Record<Market, string>> = {
-    promoted: {
-        us: 'https://links.mylayerone.com/payment-link/6acdc4e3c0e70c7fefb74389',
-        mx: 'https://links.mylayerone.com/payment-link/6acdecaf075ea22a20cde1be',
-    },
-    featured: {
-        us: 'https://links.mylayerone.com/payment-link/6acdec8b075ea22a20cde1bd',
-        mx: 'https://links.mylayerone.com/payment-link/6acdec54075ea22a20cde1bc',
-    },
-};
-
 export const marketForLanguage = (lang: string): Market => (lang.toLowerCase().startsWith('es') ? 'mx' : 'us');
 
 /**
@@ -52,33 +32,43 @@ export function saveChosenMarket(market: Market): void {
     }
 }
 
-/**
- * The payment page, pre-filled with the signed-in email (GHL payment links take
- * `email`, `firstName`, `lastName`, `phone`) so the payment arrives under the
- * address we can match to the account. `redirectUrl` brings them back to the
- * Plan tab, which waits for the plan to switch on.
- */
-export function checkoutUrl(plan: PlanKey, market: Market, email: string, origin = window.location.origin): string {
-    const u = new URL(PAYMENT_LINKS[plan][market]);
-    if (email) u.searchParams.set('email', email);
-    u.searchParams.set('redirectIn', '4');
-    u.searchParams.set('redirectUrl', `${origin}/dashboard?tab=plan&paid=${plan}`);
-    return u.toString();
+/** A failed call to our billing endpoints; `code` is the server's error name. */
+export class BillingError extends Error {
+    code: string;
+    constructor(code: string) {
+        super(code);
+        this.code = code;
+    }
+}
+
+/** Calls a signed-in billing endpoint and returns the Stripe page to send the owner to. */
+async function openStripe(job: 'stripe-checkout' | 'stripe-portal', body: Record<string, string>): Promise<string> {
+    if (!supabase) throw new BillingError('offline');
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new BillingError('unauthorized');
+    const r = await fetch(`/api/billing?job=${job}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const json = (await r.json().catch(() => null)) as { url?: string; error?: string } | null;
+    if (!r.ok || !json?.url) throw new BillingError(json?.error ?? 'failed');
+    return json.url;
 }
 
 /**
- * Records "this account is paying for this listing" and returns the payment page.
- * The intent is what ties an otherwise anonymous payment to a listing, so it is
- * recorded first; if that call fails the payment can still be matched by the
- * account email, so it does not block the purchase.
+ * Stripe Checkout for this listing, plan and market. The server confirms the
+ * signed-in account owns the listing and ties the payment to it, so nothing is
+ * matched by email. The plan switches on when Stripe tells the server the
+ * invoice is paid; the Plan tab only waits for that.
  */
-export async function startCheckout(providerId: string, plan: PlanKey, market: Market, email: string): Promise<string> {
-    if (supabase) {
-        const { error } = await supabase.rpc('start_plan_checkout', { p_provider: providerId, p_plan: plan, p_market: market });
-        if (error) console.error('start_plan_checkout failed:', error.message);
-    }
-    return checkoutUrl(plan, market, email);
-}
+export const startCheckout = (providerId: string, plan: PlanKey, market: Market): Promise<string> =>
+    openStripe('stripe-checkout', { provider_id: providerId, plan, market });
+
+/** Stripe's customer portal for this listing: switch plan, update the card, cancel. */
+export const openPortal = (providerId: string): Promise<string> =>
+    openStripe('stripe-portal', { provider_id: providerId });
 
 export interface PlanStatusRow {
     plan: PlanKey;
@@ -86,6 +76,8 @@ export interface PlanStatusRow {
     paid_through: string | null;
     market: Market | null;
     access: boolean;
+    /** True when this plan is paid through Stripe, so the customer portal can manage it. */
+    stripe?: boolean;
 }
 
 /** This listing's subscriptions, owners only (enforced in the database). */

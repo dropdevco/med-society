@@ -8,7 +8,7 @@
  *
  *   npx tsx scripts/billing-selftest.ts
  */
-import handler, { ensureSite, eventsFromGhl, siteSubdomain, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, tagsFor, toE164 } from '../api/billing';
+import handler, { ensureSite, eventsFromGhl, formEncode, planFromLookupKey, siteSubdomain, inferPlan, isSyncPing, normEmail, parseEvent, secretMatches, stripeToApply, tagsFor, toE164 } from '../api/billing';
 
 process.env.VITE_SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
@@ -19,6 +19,7 @@ process.env.CRON_SECRET = 'cron-secret';
 process.env.RESEND_API_KEY = 'resend-key';
 process.env.LEAD_NOTIFY_FROM = 'MedSociety <hi@example.com>';
 process.env.LEAD_NOTIFY_TO = 'team@example.com';
+process.env.STRIPE_SECRET_KEY = 'sk_test_abc123';
 
 let failures = 0;
 const check = (label: string, ok: boolean, detail?: unknown) => {
@@ -38,12 +39,43 @@ let ghlReadFails = false;
 let siteRows: { provider_id: string; subdomain: string }[] = [];
 let vercelAdd = 200;
 let vercelGet = 200;
+const USER_ID = '00000000-0000-4000-8000-00000000000a';
+const PROVIDER_ID = '10000000-0000-4000-8000-00000000000a';
+let stripeEvents: Record<string, unknown> = {};
+let stripeSubs: Record<string, unknown> = {};
+let stripeInvoices: Record<string, unknown> = {};
+let stripeSubList: unknown[] = [];
+let stripeCustomerSearch: unknown[] = [];
+let stripePriceMissing = false;
+let ownerRows: unknown[] = [{ role: 'owner' }];
+let subRows: unknown[] = [];
 
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    const body = init?.body ? JSON.parse(String(init.body)) : null;
+    const body = init?.body ? (() => { try { return JSON.parse(String(init.body)); } catch { return String(init.body); } })() : null;
     calls.push({ url, method: init?.method ?? 'GET', body });
     const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status });
+    if (url.includes('api.stripe.com')) {
+        const path = url.replace('https://api.stripe.com/v1', '').split('?')[0];
+        const hit = (m: Record<string, unknown>, id: string) => (m[id] ? json(200, m[id]) : json(404, { error: { message: 'No such object' } }));
+        if (path.startsWith('/events/')) return hit(stripeEvents, path.slice(8));
+        if (path === '/subscriptions') return json(200, { data: stripeSubList, has_more: false });
+        if (path.startsWith('/subscriptions/')) return hit(stripeSubs, path.slice(15));
+        if (path.startsWith('/invoices/')) return hit(stripeInvoices, path.slice(10));
+        if (path === '/prices') return json(200, { data: stripePriceMissing ? [] : [{ id: `price_for_${decodeURIComponent(url).match(/lookup_keys\[0\]=([a-z_]+)/)?.[1]}` }] });
+        if (path === '/customers/search') return json(200, { data: stripeCustomerSearch });
+        if (path === '/customers') return json(200, { id: 'cus_new' });
+        if (path === '/checkout/sessions') return json(200, { url: 'https://checkout.stripe.com/c/pay/cs_test_1' });
+        if (path === '/billing_portal/sessions') return json(200, { url: 'https://billing.stripe.com/p/session/x' });
+        return json(404, {});
+    }
+    if (url.includes('/auth/v1/user')) {
+        return new Headers(init?.headers).get('Authorization') === 'Bearer good-token' ? json(200, { id: USER_ID, email: 'owner@clinic.com' }) : json(401, {});
+    }
+    if (url.includes('/rest/v1/provider_owners')) return json(200, ownerRows);
+    if (url.includes('/rest/v1/provider_subscriptions')) return json(200, subRows);
+    if (url.includes('/rest/v1/providers?')) return json(200, [{ name: 'Clinica Uno' }]);
+    if (url.includes('/rpc/apply_stripe_event')) return json(200, applyReply);
     if (url.includes('/rest/v1/doctor_sites')) {
         if (init?.method === 'POST') {
             const b = body as { provider_id: string; subdomain: string };
@@ -83,6 +115,15 @@ function reset() {
     siteRows = [];
     vercelAdd = 200;
     vercelGet = 200;
+    stripeEvents = {};
+    stripeSubs = {};
+    stripeInvoices = {};
+    stripeSubList = [];
+    stripeCustomerSearch = [];
+    stripePriceMissing = false;
+    ownerRows = [{ role: 'owner' }];
+    subRows = [];
+    process.env.STRIPE_SECRET_KEY = 'sk_test_abc123';
     delete process.env.BILLING_ACCEPT_TEST_MODE;
 }
 
@@ -409,6 +450,207 @@ async function main() {
     check('site: SITE_AUTOCREATE=0 switches it off', o === null && calls.length === 0);
     delete process.env.SITE_AUTOCREATE;
     delete process.env.VERCEL_TOKEN;
+
+
+    {
+    // ── Stripe ──────────────────────────────────────────────────────────────
+    check('stripe: price keys map to plan and market',
+        planFromLookupKey('featured_mx_monthly')?.plan === 'featured' && planFromLookupKey('featured_mx_monthly')?.market === 'mx'
+        && planFromLookupKey('promoted_us_monthly')?.market === 'us' && planFromLookupKey('basic_us_monthly') === null && planFromLookupKey(null) === null);
+    check('stripe: form encoding nests objects and lists',
+        formEncode({ mode: 'subscription', line_items: [{ price: 'p', quantity: 1 }], subscription_data: { metadata: { a: 'b' } }, skip: undefined })
+        === 'mode=subscription&line_items%5B0%5D%5Bprice%5D=p&line_items%5B0%5D%5Bquantity%5D=1&subscription_data%5Bmetadata%5D%5Ba%5D=b');
+
+    const sub = (over: Record<string, unknown> = {}) => ({
+        id: 'sub_1', status: 'active', customer: 'cus_1', cancel_at_period_end: false, current_period_end: 1_800_000_000,
+        metadata: { provider_id: PROVIDER_ID, plan: 'promoted', market: 'us' },
+        items: { data: [{ price: { id: 'price_p', lookup_key: 'promoted_us_monthly' } }] }, ...over,
+    });
+    const evt = (type: string, object: unknown, extra: Record<string, unknown> = {}) =>
+        ({ id: 'evt_test_1', type, livemode: false, data: { object, ...extra } });
+    const sk = { key: 'sk_test_abc123', live: false };
+
+    reset();
+    stripeSubs = { sub_1: sub() };
+    let ap = await stripeToApply(sk, evt('invoice.paid', { id: 'in_1', subscription: 'sub_1', customer_email: 'Owner@Clinic.com', amount_paid: 4900, currency: 'usd' }));
+    check('stripe: a paid invoice becomes a payment with the plan from the subscription, the listing from its metadata and Stripe\'s period end',
+        ap?.kind === 'payment' && ap.plan === 'promoted' && ap.market === 'us' && ap.providerId === PROVIDER_ID && ap.key === 'stripe:invoice:in_1'
+        && ap.amount === 49 && ap.currency === 'USD' && ap.email === 'owner@clinic.com' && ap.periodEnd === new Date(1_800_000_000_000).toISOString(), ap);
+
+    stripeSubs = { sub_1: sub({ items: { data: [{ price: { id: 'price_f', lookup_key: 'featured_us_monthly' } }] } }) };
+    ap = await stripeToApply(sk, evt('invoice.paid', { id: 'in_2', parent: { subscription_details: { subscription: 'sub_1' } }, amount_paid: 2500, currency: 'usd' }));
+    check('stripe: after an upgrade the plan is the subscription\'s CURRENT price, and the newer invoice shape is read', ap?.plan === 'featured' && ap.amount === 25, ap);
+
+    stripeSubs = { sub_1: sub({ items: { data: [{ price: { id: 'x', lookup_key: 'something_else' } }] } }) };
+    ap = await stripeToApply(sk, evt('invoice.paid', { id: 'in_3', subscription: 'sub_1' }));
+    check('stripe: a price that is not one of ours is ignored', ap === null);
+    check('stripe: an invoice with no subscription is ignored', (await stripeToApply(sk, evt('invoice.paid', { id: 'in_4' }))) === null);
+
+    stripeSubs = { sub_1: sub({ items: { data: [{ current_period_end: 1_900_000_000, price: { id: 'price_p', lookup_key: 'promoted_us_monthly' } }] }, current_period_end: undefined }) };
+    ap = await stripeToApply(sk, evt('invoice.paid', { id: 'in_5', subscription: 'sub_1' }));
+    check('stripe: the period end is also read from the subscription item', ap?.periodEnd === new Date(1_900_000_000_000).toISOString(), ap);
+
+    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: true })));
+    check('stripe: cancel at period end → canceled, keeping the period end', ap?.kind === 'canceled' && ap.periodEnd !== null && ap.plan === 'promoted', ap);
+    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ cancel_at_period_end: false }), { previous_attributes: { cancel_at_period_end: true } }));
+    check('stripe: undoing a cancel → resumed', ap?.kind === 'resumed', ap);
+    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub(), { previous_attributes: { items: {} } }));
+    check('stripe: a plain price change is not applied until its invoice is paid', ap === null);
+    ap = await stripeToApply(sk, evt('customer.subscription.updated', sub({ status: 'canceled', cancel_at_period_end: true })));
+    check('stripe: an already-ended subscription update is left to the deleted event', ap === null);
+    ap = await stripeToApply(sk, evt('customer.subscription.deleted', sub({ status: 'canceled' })));
+    check('stripe: a deleted subscription → canceled with the paid time kept (no period end)', ap?.kind === 'canceled' && ap.periodEnd === null, ap);
+    ap = await stripeToApply(sk, evt('invoice.payment_failed', { id: 'in_6', subscription: 'sub_1' }));
+    check('stripe: a failed renewal → failed, found through the subscription id', ap?.kind === 'failed' && ap.subscriptionId === 'sub_1' && ap.providerId === null, ap);
+
+    stripeInvoices = { in_7: { id: 'in_7', subscription: 'sub_1' } };
+    ap = await stripeToApply(sk, evt('charge.refunded', { id: 'ch_1', amount: 4900, amount_refunded: 4900, currency: 'usd', invoice: 'in_7' }));
+    check('stripe: a full refund is flagged through its invoice\'s subscription', ap?.kind === 'refund_seen' && ap.subscriptionId === 'sub_1' && ap.amount === 49, ap);
+    ap = await stripeToApply(sk, evt('charge.refunded', { id: 'ch_2', amount: 4900, amount_refunded: 1000, invoice: 'in_7' }));
+    check('stripe: a partial refund is not the plan\'s end', ap === null);
+    check('stripe: other event types are ignored', (await stripeToApply(sk, evt('customer.created', { id: 'cus_1' }))) === null);
+
+    // webhook
+    reset();
+    stripeSubs = { sub_1: sub() };
+    stripeEvents = { evt_test_1: evt('invoice.paid', { id: 'in_1', subscription: 'sub_1', amount_paid: 4900, currency: 'usd' }) };
+    pendingRows = [{ id: 'sub-1', provider_id: 'p-1', provider_name: 'Clinica Uno', plan: 'promoted', market: 'us', status: 'active', paid_through: '2027-01-15T00:00:00Z', payer_email: 'o@c.com', payer_phone: null, ghl_contact_id: 'cg', active_plans: ['promoted'] }];
+    let r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_test_1' } });
+    const applied = calls.find((c) => c.url.includes('/rpc/apply_stripe_event'))?.body as Record<string, unknown> | undefined;
+    check('webhook: fetches the event from Stripe, applies it with the listing and period end, then mirrors into GHL',
+        r.code === 200 && r.body.outcome === 'applied' && calls.some((c) => c.url.includes('/v1/events/evt_test_1'))
+        && applied?.p_provider === PROVIDER_ID && applied?.p_plan === 'promoted' && applied?.p_event_key === 'stripe:invoice:in_1'
+        && calls.some((c) => c.url.includes('/contacts/cg/tags')) && calls.some((c) => c.url.includes('/rpc/billing_mark_synced')), { r, applied });
+
+    reset();
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_does_not_exist' } });
+    check('webhook: an event id Stripe does not know is rejected and nothing is applied', r.code === 401 && !calls.some((c) => c.url.includes('/rpc/')), r);
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'not-an-event' } });
+    check('webhook: a body without an event id is rejected', r.code === 400);
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: {} });
+    check('webhook: an empty body is rejected', r.code === 400);
+
+    reset();
+    stripeEvents = { evt_live_1: { ...(evt('invoice.paid', { id: 'in_9', subscription: 'sub_1' }) as object), id: 'evt_live_1', livemode: true } };
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_live_1' } });
+    check('webhook: a live-mode event is ignored by a test key', r.code === 200 && r.body.ignored === 'other_mode' && !calls.some((c) => c.url.includes('/rpc/')), r);
+
+    reset();
+    stripeEvents = { evt_test_2: evt('customer.created', { id: 'cus_1' }) };
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_test_2' } });
+    check('webhook: an event type we do not use is acknowledged and not applied', r.code === 200 && r.body.ignored === 'customer.created' && !calls.some((c) => c.url.includes('/rpc/')), r);
+
+    reset();
+    stripeSubs = { sub_1: sub() };
+    stripeEvents = { evt_test_1: evt('invoice.paid', { id: 'in_1', subscription: 'sub_1', amount_paid: 4900, currency: 'usd' }) };
+    applyReply = { outcome: 'duplicate' };
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_test_1' } });
+    check('webhook: a duplicate is acknowledged with no mirroring', r.code === 200 && r.body.outcome === 'duplicate' && !calls.some((c) => c.url.includes('/contacts/')), r);
+
+    reset();
+    stripeSubs = { sub_1: sub() };
+    stripeEvents = { evt_test_1: evt('invoice.paid', { id: 'in_1', subscription: 'sub_1', amount_paid: 4900, currency: 'usd', customer_email: 'x@y.com' }) };
+    applyReply = { outcome: 'unmatched', detail: 'no listing' };
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_test_1' } });
+    check('webhook: an unmatched payment alerts the team', r.code === 200 && calls.some((c) => c.url.includes('api.resend.com')), r);
+    stripeEvents = { evt_test_3: evt('invoice.payment_failed', { id: 'in_6', subscription: 'sub_1' }) };
+    calls = [];
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_test_3' } });
+    check('webhook: an unmatched failure or cancel does not alert (only payments do)', r.code === 200 && !calls.some((c) => c.url.includes('api.resend.com')), r);
+
+    reset();
+    delete process.env.STRIPE_SECRET_KEY;
+    r = await run({ url: '/api/billing?job=stripe', headers: {}, body: { id: 'evt_test_1' } });
+    check('webhook: no Stripe key configured → 500', r.code === 500);
+    process.env.STRIPE_SECRET_KEY = 'sk_test_abc123';
+
+    // checkout
+    const auth = { authorization: 'Bearer good-token' };
+    const checkoutBody = { provider_id: PROVIDER_ID, plan: 'featured', market: 'mx' };
+    reset();
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    const session = calls.find((c) => c.url.includes('/checkout/sessions'))?.body as string | undefined;
+    const customerCall = calls.find((c) => c.url.endsWith('/customers') && c.method === 'POST')?.body as string | undefined;
+    check('checkout: an owner gets a Checkout URL for the plan price, with the listing in the metadata, a new customer and the plan-tab return',
+        r.code === 200 && r.body.url === 'https://checkout.stripe.com/c/pay/cs_test_1'
+        && !!session && session.includes('line_items%5B0%5D%5Bprice%5D=price_for_featured_mx_monthly') && session.includes(`client_reference_id=${PROVIDER_ID}`)
+        && session.includes('subscription_data%5Bmetadata%5D%5Bprovider_id%5D=' + PROVIDER_ID) && session.includes('customer=cus_new')
+        && session.includes(encodeURIComponent('/dashboard?tab=plan&paid=featured')) && !!customerCall && customerCall.includes('email=owner%40clinic.com'), { r, session });
+
+    reset();
+    subRows = [{ plan: 'promoted', status: 'lapsed', paid_through: '2026-01-01T00:00:00Z', stripe_customer_id: 'cus_old', stripe_subscription_id: 'sub_old' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: the listing\'s existing Stripe customer is reused, no second customer is created',
+        r.code === 200 && (calls.find((c) => c.url.includes('/checkout/sessions'))?.body as string).includes('customer=cus_old') && !calls.some((c) => c.url.endsWith('/customers') && c.method === 'POST'), r);
+
+    reset();
+    stripeCustomerSearch = [{ id: 'cus_found' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: a customer already created for this listing is found, not duplicated',
+        r.code === 200 && (calls.find((c) => c.url.includes('/checkout/sessions'))?.body as string).includes('customer=cus_found') && !calls.some((c) => c.url.endsWith('/customers') && c.method === 'POST'), r);
+
+    reset();
+    subRows = [{ plan: 'promoted', status: 'active', paid_through: '2999-01-01T00:00:00Z', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_1' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: a listing that already pays is told to use the portal (no second subscription)', r.code === 409 && r.body.error === 'already_subscribed' && !calls.some((c) => c.url.includes('/checkout/sessions')), r);
+
+    reset();
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: {}, body: checkoutBody });
+    check('checkout: no session → 401, Stripe never called', r.code === 401 && !calls.some((c) => c.url.includes('api.stripe.com')), r);
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: { authorization: 'Bearer bad' }, body: checkoutBody });
+    check('checkout: an invalid session → 401', r.code === 401);
+    ownerRows = [];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: someone who does not own the listing → 403, Stripe never called', r.code === 403 && !calls.some((c) => c.url.includes('api.stripe.com')), r);
+    ownerRows = [{ role: 'owner' }];
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: { ...checkoutBody, plan: 'basic' } });
+    check('checkout: only the two paid plans can be bought', r.code === 400 && r.body.error === 'bad_plan', r);
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: { ...checkoutBody, provider_id: 'nope' } });
+    check('checkout: a malformed listing id → 400', r.code === 400 && r.body.error === 'bad_provider', r);
+    stripePriceMissing = true;
+    r = await run({ url: '/api/billing?job=stripe-checkout', headers: auth, body: checkoutBody });
+    check('checkout: a missing Stripe price is reported, not guessed', r.code === 500 && r.body.error === 'price_missing', r);
+
+    // portal
+    reset();
+    subRows = [{ plan: 'promoted', status: 'active', paid_through: '2999-01-01T00:00:00Z', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_1' }];
+    r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
+    const portal = calls.find((c) => c.url.includes('/billing_portal/sessions'))?.body as string | undefined;
+    check('portal: an owner gets the portal for the listing\'s own customer, returning to the Plan tab',
+        r.code === 200 && r.body.url === 'https://billing.stripe.com/p/session/x' && !!portal && portal.includes('customer=cus_1') && portal.includes(encodeURIComponent('/dashboard?tab=plan')), { r, portal });
+    process.env.STRIPE_PORTAL_CONFIG = 'bpc_123';
+    calls = [];
+    await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
+    check('portal: a configured portal configuration is passed on', (calls.find((c) => c.url.includes('/billing_portal/sessions'))?.body as string).includes('configuration=bpc_123'));
+    delete process.env.STRIPE_PORTAL_CONFIG;
+    reset();
+    r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
+    check('portal: a listing with no Stripe customer yet → 404', r.code === 404 && r.body.error === 'no_billing_account', r);
+    ownerRows = [];
+    subRows = [{ plan: 'promoted', status: 'active', paid_through: '2999-01-01T00:00:00Z', stripe_customer_id: 'cus_other', stripe_subscription_id: 'sub_o' }];
+    r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
+    check('portal: not the owner → 403, never another clinic\'s portal', r.code === 403 && !calls.some((c) => c.url.includes('/billing_portal/')), r);
+
+    // daily cross-check
+    reset();
+    stripeSubList = [
+        { ...sub(), latest_invoice: { id: 'in_10', status: 'paid', customer_email: 'o@c.com', amount_paid: 4900, currency: 'usd' } },
+        { ...sub({ id: 'sub_2', cancel_at_period_end: true }), latest_invoice: { id: 'in_11', status: 'paid', amount_paid: 4900, currency: 'usd' } },
+        { ...sub({ id: 'sub_3', status: 'canceled' }), latest_invoice: { id: 'in_12', status: 'open' } },
+        { ...sub({ id: 'sub_4', metadata: {} }), latest_invoice: { id: 'in_13', status: 'paid' } },
+    ];
+    r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    const keys = calls.filter((c) => c.url.includes('/rpc/apply_stripe_event')).map((c) => (c.body as Record<string, unknown>).p_event_key);
+    check('sync: the daily run applies paid invoices, scheduled cancels and ended subscriptions, and skips ones not made through our checkout',
+        keys.includes('stripe:invoice:in_10') && keys.includes('stripe:invoice:in_11') && keys.some((k) => String(k).startsWith('stripe:rec:canceled:sub_2'))
+        && keys.includes('stripe:rec:ended:sub_3') && !keys.some((k) => String(k).includes('sub_4') || String(k).includes('in_13') || String(k).includes('in_12')), { keys, r });
+
+    reset();
+    delete process.env.STRIPE_SECRET_KEY;
+    r = await run({ method: 'GET', url: '/api/billing?job=sync', headers: { authorization: 'Bearer cron-secret' } });
+    check('sync: without a Stripe key the daily run still works (GHL only)', r.code === 200 && !calls.some((c) => c.url.includes('api.stripe.com')), r);
+    process.env.STRIPE_SECRET_KEY = 'sk_test_abc123';
+    }
 
     console.log(failures ? `\n${failures} failing` : '\nall checks passed');
     process.exit(failures ? 1 : 0);

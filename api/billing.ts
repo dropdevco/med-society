@@ -1,6 +1,13 @@
 /**
- * Paid plans: GoHighLevel payment → listing tier → GHL contact tags, and back out
- * again when the payments stop.
+ * Paid plans: payment → listing tier → GHL contact tags, and back out again when
+ * the payments stop. Payments move from GoHighLevel payment links to Stripe (see
+ * the Stripe section further down: checkout, customer portal and webhook); the
+ * GHL path below stays until that cutover and GHL remains the CRM either way.
+ *
+ *   POST /api/billing?job=stripe-checkout   an owner starts a Stripe Checkout.
+ *   POST /api/billing?job=stripe-portal     an owner opens the Stripe portal.
+ *   POST /api/billing?job=stripe            Stripe webhook (authenticated by
+ *                                           fetching the event from Stripe).
  *
  *   POST /api/billing                  a GHL workflow reports a payment, cancel,
  *                                      failed charge or refund. Needs the shared
@@ -63,6 +70,9 @@
  *   RESEND_API_KEY, LEAD_NOTIFY_TO, LEAD_NOTIFY_FROM  already set; used for the
  *                            "payment I could not match" alert
  *   PUBLIC_SITE_URL          optional, defaults to https://medsociety.one
+ *   STRIPE_SECRET_KEY        sk_test_… (Preview) or sk_live_… (Production); without
+ *                            it the Stripe routes answer 500 and the cron skips Stripe
+ *   STRIPE_PORTAL_CONFIG     optional bpc_… to choose a portal configuration
  *
  * GHL API version for contacts and tags: 2021-07-28.
  */
@@ -709,7 +719,7 @@ interface PollSummary {
     unmatched: number;
     error: string | null;
     /** Subscriptions this run changed, so the caller can announce and mirror them. */
-    changed: { subscriptionId: string; kind: Kind }[];
+    changed: { subscriptionId: string; kind: Kind | StripeKind }[];
 }
 
 const emptySummary = (): PollSummary => ({ seen: 0, applied: 0, already: 0, unmatched: 0, error: null, changed: [] });
@@ -821,8 +831,8 @@ async function announce(row: PendingRow, what: 'activated' | 'cancelled' | 'refu
     ]);
 }
 
-const WHAT: Record<Kind, 'activated' | 'cancelled' | 'refunded' | 'lapsed'> = {
-    payment: 'activated', canceled: 'cancelled', refunded: 'refunded', failed: 'lapsed', refund_seen: 'refunded',
+const WHAT: Record<Kind | StripeKind, 'activated' | 'cancelled' | 'refunded' | 'lapsed'> = {
+    payment: 'activated', canceled: 'cancelled', refunded: 'refunded', failed: 'lapsed', refund_seen: 'refunded', resumed: 'activated',
 };
 
 /**
@@ -961,6 +971,9 @@ async function sync(req: Req, res: Res) {
         // 1. Anything GHL has that the webhook did not deliver. 2. Let unpaid plans run out.
         // 3. Push every state change into GHL. In that order, so step 3 sees steps 1 and 2.
         const poll = await pollGhl(cfg);
+        const sk = stripeSettings();
+        const stripePoll = sk ? await pollStripe(cfg, sk) : null;
+        if (stripePoll) poll.changed.push(...stripePoll.changed);
         const lapsed = await rpc<{ provider_id: string; plan: string }[] | null>(cfg, 'billing_expire', {});
         const pending = (await rpc<PendingRow[] | null>(cfg, 'billing_pending_ghl', { lim: 100 })) ?? [];
         // Announce only what changed in THIS run, not rows that are merely waiting on a GHL retry.
@@ -984,17 +997,477 @@ async function sync(req: Req, res: Res) {
                 `See ${SITE}/admin → Billing for the error on each.`,
             ]);
         }
+        if (stripePoll?.error) {
+            await alertTeam('MedSociety could not read subscriptions from Stripe', [
+                stripePoll.error,
+                'The webhook still works; only the daily cross-check is down.',
+            ]);
+        }
         if (poll.error) {
             await alertTeam('MedSociety could not read payments from GHL', [
                 poll.error,
                 'The webhook still works; only the daily cross-check is down.',
             ]);
         }
-        return res.status(200).json({ ok: true, poll, lapsed: lapsed?.length ?? 0, ghl_synced: ok, ghl_failed: failed });
+        return res.status(200).json({ ok: true, poll, stripe: stripePoll, lapsed: lapsed?.length ?? 0, ghl_synced: ok, ghl_failed: failed });
     } catch (e) {
         console.error('billing: sync job failed', String(e).slice(0, 300));
         return res.status(500).json({ ok: false, error: 'sync_failed' });
     }
+}
+
+// ── Stripe ───────────────────────────────────────────────────────────────────
+//
+// Payments are taken by Stripe: Checkout to buy, the customer portal to switch
+// plan, update the card or cancel. One Stripe customer per listing. The plan and
+// market come from the subscription's current price, identified by its Stripe
+// `lookup_key` (promoted_us_monthly, promoted_mx_monthly, featured_us_monthly,
+// featured_mx_monthly), so changing an amount never needs a code change. The
+// listing travels with the checkout in the subscription's metadata, so a payment
+// is never matched by guessing an email.
+//
+//   POST /api/billing?job=stripe-checkout   signed-in owner → Checkout URL
+//   POST /api/billing?job=stripe-portal     signed-in owner → customer portal URL
+//   POST /api/billing?job=stripe            Stripe webhook (see below)
+//
+// Webhook authenticity: the endpoint only reads the event's id from the request
+// and then fetches that event from Stripe with the secret key. What Stripe
+// returns is what we act on, so nothing in the request can forge a payment. (This
+// is why no signing secret or raw request body is needed.) Events from the other
+// mode (test vs live) than the key in use are ignored.
+//
+// Env: STRIPE_SECRET_KEY (sk_test_… on Preview, sk_live_… on Production),
+//      optional STRIPE_PORTAL_CONFIG (bpc_…) to pick a portal configuration.
+
+export type StripeKind = 'payment' | 'canceled' | 'resumed' | 'failed' | 'refund_seen';
+
+const STRIPE_API = 'https://api.stripe.com/v1';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LOOKUP_KEY = /^(promoted|featured)_(us|mx)_monthly$/;
+
+export const priceLookupKey = (plan: Plan, market: Market) => `${plan}_${market}_monthly`;
+
+export function planFromLookupKey(key: string | null | undefined): { plan: Plan; market: Market } | null {
+    const m = LOOKUP_KEY.exec(key ?? '');
+    return m ? { plan: m[1] as Plan, market: m[2] as Market } : null;
+}
+
+export interface StripeCfg {
+    key: string;
+    /** True for a live-mode key. Events from the other mode are ignored. */
+    live: boolean;
+}
+
+export function stripeSettings(): StripeCfg | null {
+    const key = (process.env.STRIPE_SECRET_KEY ?? '').trim();
+    if (!/^(sk|rk)_(live|test)_[A-Za-z0-9]+$/.test(key)) return null;
+    return { key, live: /^(sk|rk)_live_/.test(key) };
+}
+
+/** Stripe's form encoding: nested objects as a[b], lists as a[0]. */
+export function formEncode(obj: Record<string, unknown>): string {
+    const out: string[] = [];
+    const walk = (prefix: string, v: unknown) => {
+        if (v === undefined || v === null) return;
+        if (Array.isArray(v)) v.forEach((x, i) => walk(`${prefix}[${i}]`, x));
+        else if (typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(`${prefix}[${k}]`, x);
+        else out.push(`${encodeURIComponent(prefix)}=${encodeURIComponent(String(v))}`);
+    };
+    for (const [k, v] of Object.entries(obj)) walk(k, v);
+    return out.join('&');
+}
+
+async function stripe<T>(sk: StripeCfg, method: 'GET' | 'POST', path: string, params?: Record<string, unknown>): Promise<T> {
+    const qs = params ? formEncode(params) : '';
+    const r = await fetch(`${STRIPE_API}${path}${method === 'GET' && qs ? `?${qs}` : ''}`, {
+        method,
+        headers: {
+            Authorization: `Bearer ${sk.key}`,
+            ...(method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+        },
+        body: method === 'POST' ? qs : undefined,
+        signal: AbortSignal.timeout(15_000),
+    });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`stripe ${method} ${path} ${r.status}: ${text.slice(0, 300)}`);
+    return JSON.parse(text) as T;
+}
+
+interface StripePrice { id: string; lookup_key?: string | null }
+interface StripeInvoice {
+    id: string;
+    status?: string;
+    customer_email?: string | null;
+    amount_paid?: number;
+    currency?: string;
+    subscription?: string | null;
+    parent?: { subscription_details?: { subscription?: string | null } } | null;
+}
+interface StripeSub {
+    id: string;
+    status: string;
+    customer: string | { id: string };
+    cancel_at_period_end?: boolean;
+    current_period_end?: number;
+    metadata?: Record<string, string>;
+    items?: { data: { current_period_end?: number; price?: StripePrice }[] };
+    latest_invoice?: StripeInvoice | string | null;
+}
+interface StripeCharge { id: string; amount?: number; amount_refunded?: number; currency?: string; invoice?: string | null }
+export interface StripeEvent {
+    id: string;
+    type: string;
+    livemode: boolean;
+    data: { object: Record<string, unknown>; previous_attributes?: Record<string, unknown> };
+}
+
+/** The API moved the subscription id and period end between versions; read both places. */
+const invoiceSubscriptionId = (inv: StripeInvoice) => inv.subscription || inv.parent?.subscription_details?.subscription || '';
+const subPeriodEnd = (s: StripeSub) => s.current_period_end ?? s.items?.data?.[0]?.current_period_end ?? null;
+const isoFromUnix = (n: number | null) => (n ? new Date(n * 1000).toISOString() : null);
+const customerId = (s: StripeSub) => (typeof s.customer === 'string' ? s.customer : s.customer?.id ?? '');
+
+export interface StripeApply {
+    key: string;
+    kind: StripeKind;
+    providerId: string | null;
+    plan: Plan | null;
+    market: Market | null;
+    email: string;
+    customerId: string;
+    subscriptionId: string;
+    priceId: string;
+    amount: number | null;
+    currency: string;
+    periodEnd: string | null;
+}
+
+/** What a subscription says about itself: its listing, plan, market and period. Null when it is not one of our plans. */
+function fromSubscription(sub: StripeSub): Omit<StripeApply, 'key' | 'kind' | 'email' | 'amount' | 'currency'> | null {
+    const price = sub.items?.data?.[0]?.price;
+    const m = planFromLookupKey(price?.lookup_key);
+    if (!price || !m) return null;
+    const pid = sub.metadata?.provider_id ?? '';
+    return {
+        providerId: UUID_RE.test(pid) ? pid : null,
+        plan: m.plan, market: m.market,
+        customerId: customerId(sub), subscriptionId: sub.id, priceId: price.id,
+        periodEnd: isoFromUnix(subPeriodEnd(sub)),
+    };
+}
+
+function paymentFrom(inv: StripeInvoice, sub: StripeSub): StripeApply | null {
+    const base = fromSubscription(sub);
+    if (!base) return null;
+    return {
+        ...base,
+        key: `stripe:invoice:${inv.id}`,
+        kind: 'payment',
+        email: normEmail(inv.customer_email),
+        amount: typeof inv.amount_paid === 'number' ? inv.amount_paid / 100 : null,
+        currency: String(inv.currency ?? '').toUpperCase().slice(0, 3),
+    };
+}
+
+/**
+ * Turns one Stripe event into the call for the database, or null when it is not
+ * about one of our plans. The plan always comes from the subscription's current
+ * price, never from an invoice line (a prorated upgrade invoice carries both).
+ */
+export async function stripeToApply(sk: StripeCfg, evt: StripeEvent): Promise<StripeApply | null> {
+    const key = `stripe:evt:${evt.id}`;
+    const obj = evt.data.object;
+    const none = { providerId: null, plan: null, market: null, customerId: '', priceId: '', periodEnd: null, email: '', amount: null, currency: '' };
+
+    switch (evt.type) {
+        case 'invoice.paid': {
+            const inv = obj as unknown as StripeInvoice;
+            const subId = invoiceSubscriptionId(inv);
+            if (!subId) return null;
+            return paymentFrom(inv, await stripe<StripeSub>(sk, 'GET', `/subscriptions/${subId}`));
+        }
+        case 'customer.subscription.updated': {
+            const sub = obj as unknown as StripeSub;
+            const base = fromSubscription(sub);
+            if (!base || sub.status === 'canceled') return null;
+            const was = evt.data.previous_attributes?.cancel_at_period_end;
+            if (sub.cancel_at_period_end === true) return { ...base, key, kind: 'canceled', email: '', amount: null, currency: '' };
+            if (was === true && sub.cancel_at_period_end === false) return { ...base, key, kind: 'resumed', email: '', amount: null, currency: '' };
+            return null; // a price change is applied when its invoice is paid
+        }
+        case 'customer.subscription.deleted': {
+            const sub = obj as unknown as StripeSub;
+            const base = fromSubscription(sub);
+            // The paid time stays (null period end): a cancel keeps what was paid for.
+            return base ? { ...base, key, kind: 'canceled', periodEnd: null, email: '', amount: null, currency: '' } : null;
+        }
+        case 'invoice.payment_failed': {
+            const subId = invoiceSubscriptionId(obj as unknown as StripeInvoice);
+            return subId ? { ...none, key, kind: 'failed', subscriptionId: subId } : null;
+        }
+        case 'charge.refunded': {
+            const ch = obj as unknown as StripeCharge;
+            if (!ch.invoice || !ch.amount || (ch.amount_refunded ?? 0) < ch.amount) return null; // partial refunds are not the plan's end
+            const subId = invoiceSubscriptionId(await stripe<StripeInvoice>(sk, 'GET', `/invoices/${ch.invoice}`));
+            return subId ? { ...none, key, kind: 'refund_seen', subscriptionId: subId, amount: ch.amount / 100, currency: String(ch.currency ?? '').toUpperCase() } : null;
+        }
+        default:
+            return null;
+    }
+}
+
+function applyStripe(cfg: Cfg, a: StripeApply): Promise<ApplyResult> {
+    return rpc<ApplyResult>(cfg, 'apply_stripe_event', {
+        p_event_key: a.key, p_kind: a.kind, p_provider: a.providerId, p_plan: a.plan, p_market: a.market,
+        p_email: a.email, p_customer_id: a.customerId, p_subscription_id: a.subscriptionId, p_price_id: a.priceId,
+        p_amount: a.amount, p_currency: a.currency, p_period_end: a.periodEnd,
+    });
+}
+
+async function stripeWebhook(req: Req, res: Res) {
+    const sk = stripeSettings();
+    const cfg = settings();
+    if (!sk || !cfg) return res.status(500).json({ ok: false, error: 'not_configured' });
+
+    const body = (await readBody(req)) as { id?: unknown } | null;
+    const id = typeof body?.id === 'string' && /^evt_[A-Za-z0-9_]{6,}$/.test(body.id) ? body.id : '';
+    if (!id) return res.status(400).json({ ok: false, error: 'bad_event' });
+
+    // Authenticate by asking Stripe for the event itself.
+    let evt: StripeEvent;
+    try {
+        evt = await stripe<StripeEvent>(sk, 'GET', `/events/${id}`);
+    } catch (e) {
+        const msg = String(e instanceof Error ? e.message : e);
+        if (/ 404:/.test(msg)) return res.status(401).json({ ok: false, error: 'unknown_event' });
+        console.error('billing: stripe event fetch failed', msg.slice(0, 200));
+        return res.status(502).json({ ok: false, error: 'stripe_unreachable' }); // Stripe retries
+    }
+    if (evt.livemode !== sk.live) return res.status(200).json({ ok: true, ignored: 'other_mode' });
+
+    let a: StripeApply | null;
+    try {
+        a = await stripeToApply(sk, evt);
+    } catch (e) {
+        console.error('billing: stripe event mapping failed', String(e).slice(0, 200));
+        return res.status(502).json({ ok: false, error: 'stripe_unreachable' });
+    }
+    if (!a) return res.status(200).json({ ok: true, ignored: evt.type });
+
+    let result: ApplyResult;
+    try {
+        result = await applyStripe(cfg, a);
+    } catch (e) {
+        console.error('billing: stripe apply failed', String(e).slice(0, 300));
+        await alertTeam('Stripe payment webhook failed', [String(e).slice(0, 300), `${evt.type} ${evt.id}`]);
+        return res.status(500).json({ ok: false, error: 'apply_failed' });
+    }
+    if (result.outcome === 'duplicate') return res.status(200).json({ ok: true, outcome: 'duplicate' });
+
+    await capture(`billing_${a.kind}`, `clinic:${result.provider_id ?? 'unmatched'}`, {
+        plan: a.plan, market: a.market, amount: a.amount, currency: a.currency, outcome: result.outcome,
+        tier: result.tier ?? null, provider_id: result.provider_id ?? null, processor: 'stripe',
+        $groups: result.provider_id ? { clinic: result.provider_id } : undefined,
+    });
+
+    // Mirror into GHL (tags, note, site set-up email). A failure leaves the row dirty for the daily run.
+    let synced: boolean | null = null;
+    if (result.subscription_id) {
+        try {
+            const pending = await rpc<PendingRow[]>(cfg, 'billing_pending_ghl', { lim: 50 });
+            const mine = pending.find((p) => p.id === result.subscription_id);
+            if (mine) {
+                synced = await syncRow(cfg, mine);
+                if (result.outcome === 'applied') await announce(mine, WHAT[a.kind]);
+            }
+        } catch (e) {
+            console.error('billing: pending fetch failed', String(e).slice(0, 200));
+        }
+    }
+
+    // Only a payment with nowhere to go needs a person; a stray cancel or refund is just logged.
+    if (result.outcome === 'unmatched' && a.kind === 'payment') {
+        await alertTeam('A Stripe payment needs a listing attached', [
+            `${a.plan ?? 'unknown plan'} (${a.market ?? 'unknown market'}) ${a.amount ?? ''} ${a.currency}: ${result.detail ?? result.outcome}`,
+            `Customer ${a.customerId} · subscription ${a.subscriptionId} · ${a.email || '(no email)'}`,
+            `Attach it in ${SITE}/admin → Billing.`,
+        ]);
+    }
+    return res.status(200).json({ ok: true, outcome: result.outcome, tier: result.tier ?? null, ghl_synced: synced });
+}
+
+// ── Checkout and portal (signed-in owners) ───────────────────────────────────
+
+async function sessionUser(cfg: Cfg, header: string | string[] | undefined): Promise<{ id: string; email: string } | null> {
+    const raw = Array.isArray(header) ? header[0] : header;
+    const m = /^Bearer\s+([A-Za-z0-9._~+/-]+=*)$/.exec((raw ?? '').trim());
+    if (!m) return null;
+    try {
+        const apikey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? cfg.supaKey;
+        const r = await fetch(`${cfg.supaUrl}/auth/v1/user`, { headers: { apikey, Authorization: `Bearer ${m[1]}` } });
+        if (!r.ok) return null;
+        const u = (await r.json()) as { id?: unknown; email?: unknown; is_anonymous?: unknown };
+        if (typeof u.id !== 'string' || !UUID_RE.test(u.id) || u.is_anonymous === true) return null;
+        return { id: u.id, email: typeof u.email === 'string' ? u.email : '' };
+    } catch {
+        return null;
+    }
+}
+
+async function ownsListing(cfg: Cfg, userId: string, providerId: string): Promise<boolean> {
+    const r = await supa(cfg, 'GET', `provider_owners?select=role&provider_id=eq.${providerId}&user_id=eq.${userId}&limit=1`);
+    return r.ok && Array.isArray(r.json) && r.json.length > 0;
+}
+
+interface SubRow { plan: string; status: string; paid_through: string | null; stripe_customer_id: string | null; stripe_subscription_id: string | null }
+
+async function listingSubs(cfg: Cfg, providerId: string): Promise<SubRow[]> {
+    const r = await supa(cfg, 'GET', `provider_subscriptions?select=plan,status,paid_through,stripe_customer_id,stripe_subscription_id&provider_id=eq.${providerId}&order=updated_at.desc`);
+    return r.ok && Array.isArray(r.json) ? (r.json as SubRow[]) : [];
+}
+
+async function ownerRequest(req: Req, res: Res): Promise<{ cfg: Cfg; sk: StripeCfg; user: { id: string; email: string }; body: Record<string, unknown> } | null> {
+    const sk = stripeSettings();
+    const cfg = settings();
+    if (!sk || !cfg) { res.status(500).json({ ok: false, error: 'not_configured' }); return null; }
+    const user = await sessionUser(cfg, req.headers.authorization);
+    if (!user) { res.status(401).json({ ok: false, error: 'unauthorized' }); return null; }
+    const body = ((await readBody(req)) ?? {}) as Record<string, unknown>;
+    const providerId = typeof body.provider_id === 'string' ? body.provider_id : '';
+    if (!UUID_RE.test(providerId)) { res.status(400).json({ ok: false, error: 'bad_provider' }); return null; }
+    if (!(await ownsListing(cfg, user.id, providerId))) { res.status(403).json({ ok: false, error: 'not_your_listing' }); return null; }
+    return { cfg, sk, user, body };
+}
+
+async function stripeCheckout(req: Req, res: Res) {
+    const ctx = await ownerRequest(req, res);
+    if (!ctx) return;
+    const { cfg, sk, user, body } = ctx;
+    const providerId = String(body.provider_id);
+    const plan = body.plan === 'promoted' || body.plan === 'featured' ? body.plan : null;
+    const market = body.market === 'us' || body.market === 'mx' ? body.market : null;
+    if (!plan || !market) return res.status(400).json({ ok: false, error: 'bad_plan' });
+
+    try {
+        const subs = await listingSubs(cfg, providerId);
+        // A listing that already pays changes plan in the portal; a second subscription would double-bill.
+        if (subs.some((s) => (s.status === 'active' || s.status === 'canceled') && s.paid_through && Date.parse(s.paid_through) > Date.now())) {
+            return res.status(409).json({ ok: false, error: 'already_subscribed' });
+        }
+
+        const prices = await stripe<{ data: StripePrice[] }>(sk, 'GET', '/prices', { 'lookup_keys': [priceLookupKey(plan, market)], active: true, limit: 1 });
+        const price = prices.data[0];
+        if (!price) return res.status(500).json({ ok: false, error: 'price_missing' });
+
+        // One Stripe customer per listing: reuse it, else look one up, else create it.
+        let customer = subs.find((s) => s.stripe_customer_id)?.stripe_customer_id ?? '';
+        if (!customer) {
+            const found = await stripe<{ data: { id: string }[] }>(sk, 'GET', '/customers/search', { query: `metadata['provider_id']:'${providerId}'`, limit: 1 });
+            customer = found.data[0]?.id ?? '';
+        }
+        if (!customer) {
+            const name = await supa(cfg, 'GET', `providers?select=name&id=eq.${providerId}&limit=1`);
+            const clinic = Array.isArray(name.json) ? (name.json as { name?: string }[])[0]?.name : undefined;
+            const made = await stripe<{ id: string }>(sk, 'POST', '/customers', {
+                email: user.email || undefined, name: clinic || undefined, metadata: { provider_id: providerId },
+            });
+            customer = made.id;
+        }
+
+        const meta = { provider_id: providerId, plan, market };
+        const session = await stripe<{ url?: string }>(sk, 'POST', '/checkout/sessions', {
+            mode: 'subscription',
+            customer,
+            client_reference_id: providerId,
+            line_items: [{ price: price.id, quantity: 1 }],
+            subscription_data: { metadata: meta },
+            metadata: meta,
+            success_url: `${SITE}/dashboard?tab=plan&paid=${plan}`,
+            cancel_url: `${SITE}/dashboard?tab=plan`,
+        });
+        if (!session.url) throw new Error('no checkout url');
+        return res.status(200).json({ ok: true, url: session.url });
+    } catch (e) {
+        console.error('billing: stripe checkout failed', String(e).slice(0, 300));
+        return res.status(502).json({ ok: false, error: 'stripe_failed' });
+    }
+}
+
+async function stripePortal(req: Req, res: Res) {
+    const ctx = await ownerRequest(req, res);
+    if (!ctx) return;
+    const { cfg, sk, body } = ctx;
+    try {
+        const customer = (await listingSubs(cfg, String(body.provider_id))).find((s) => s.stripe_customer_id)?.stripe_customer_id;
+        if (!customer) return res.status(404).json({ ok: false, error: 'no_billing_account' });
+        const session = await stripe<{ url?: string }>(sk, 'POST', '/billing_portal/sessions', {
+            customer,
+            return_url: `${SITE}/dashboard?tab=plan`,
+            configuration: process.env.STRIPE_PORTAL_CONFIG || undefined,
+        });
+        if (!session.url) throw new Error('no portal url');
+        return res.status(200).json({ ok: true, url: session.url });
+    } catch (e) {
+        console.error('billing: stripe portal failed', String(e).slice(0, 300));
+        return res.status(502).json({ ok: false, error: 'stripe_failed' });
+    }
+}
+
+// ── Daily cross-check against Stripe ─────────────────────────────────────────
+// Lists every subscription (up to 500) and feeds the facts through the same
+// database function. The payment key is the invoice id, the same one the webhook
+// uses, so anything already delivered is a no-op and anything missed is applied.
+
+export async function pollStripe(cfg: Cfg, sk: StripeCfg): Promise<PollSummary> {
+    const s = emptySummary();
+    const subs: StripeSub[] = [];
+    try {
+        let after = '';
+        for (let page = 0; page < 5; page++) {
+            const r = await stripe<{ data: StripeSub[]; has_more: boolean }>(sk, 'GET', '/subscriptions', {
+                status: 'all', limit: 100, expand: ['data.latest_invoice'], ...(after ? { starting_after: after } : {}),
+            });
+            subs.push(...r.data);
+            if (!r.has_more || r.data.length === 0) break;
+            after = r.data[r.data.length - 1].id;
+        }
+    } catch (e) {
+        s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
+        console.error('billing: stripe poll failed', s.error);
+        return s;
+    }
+
+    const events: StripeApply[] = [];
+    for (const sub of subs) {
+        const base = fromSubscription(sub);
+        if (!base || !base.providerId) continue; // not made through our checkout
+        const inv = typeof sub.latest_invoice === 'object' && sub.latest_invoice ? sub.latest_invoice : null;
+        if (inv && inv.status === 'paid') {
+            const p = paymentFrom(inv, sub);
+            if (p) events.push(p);
+        }
+        const end = base.periodEnd ?? 'none';
+        const blank = { email: '', amount: null, currency: '' };
+        if (sub.status === 'canceled') events.push({ ...base, ...blank, key: `stripe:rec:ended:${sub.id}`, kind: 'canceled', periodEnd: null });
+        else if (sub.cancel_at_period_end) events.push({ ...base, ...blank, key: `stripe:rec:canceled:${sub.id}:${end}`, kind: 'canceled' });
+    }
+
+    s.seen = events.length;
+    for (const a of events) {
+        try {
+            const r = await applyStripe(cfg, a);
+            if (r.outcome === 'duplicate') s.already++;
+            else if (r.outcome === 'unmatched') s.unmatched++;
+            else {
+                s.applied++;
+                if (r.outcome === 'applied' && r.subscription_id) s.changed.push({ subscriptionId: r.subscription_id, kind: a.kind });
+            }
+        } catch (e) {
+            s.error = String(e instanceof Error ? e.message : e).slice(0, 300);
+            console.error('billing: stripe poll apply failed', s.error);
+        }
+    }
+    return s;
 }
 
 /** The daily run makes a few dozen sequential calls; the 10 s default is too tight. */
@@ -1002,6 +1475,10 @@ export const config = { maxDuration: 60 };
 
 export default async function handler(req: Req, res: Res) {
     const url = new URL(req.url ?? '/', 'http://localhost');
+    const job = url.searchParams.get('job');
+    if (req.method === 'POST' && job === 'stripe') return stripeWebhook(req, res);
+    if (req.method === 'POST' && job === 'stripe-checkout') return stripeCheckout(req, res);
+    if (req.method === 'POST' && job === 'stripe-portal') return stripePortal(req, res);
     if (req.method === 'POST') return webhook(req, res, url);
     if (req.method === 'GET' && url.searchParams.get('job') === 'sync') return sync(req, res);
     res.setHeader('Allow', 'POST, GET');

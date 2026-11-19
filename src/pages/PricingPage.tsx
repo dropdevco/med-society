@@ -41,7 +41,7 @@ export function PricingPage() {
     const { t, i18n } = useTranslation();
     const [modalPlan, setModalPlan] = useState<string | null>(null);
 
-    // Clinics choose USD or MXN (see PAYMENT_LINKS in lib/billing.ts),
+    // Clinics choose USD or MXN (the four Stripe prices, see api/billing.ts),
     // defaulting to the site language. The price shown has to be the price
     // charged, so the page quotes the selected currency and shows the USD
     // figure as a note when MXN is selected.
