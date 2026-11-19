@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- 0052: the side-by-side compare and the near-the-bar list. Made-up doctors.
+-- 0055: the side-by-side compare and the near-the-bar list. Made-up doctors.
 \set RB '''01a00000-0000-7000-8000-0000000000c1'''
 \set RS '''01a00000-0000-7000-8000-0000000000c2'''
 \set RO '''01a00000-0000-7000-8000-0000000000c3'''

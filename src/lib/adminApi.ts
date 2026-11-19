@@ -157,7 +157,7 @@ export const fetchMatchQueue = (source: string | null, limit: number, offset: nu
 export const decideMatch = (source: string, external: string, decision: 'confirm' | 'reject', doctor?: string) =>
     rpc<void>('admin_match_decide', { p_source: source, p_external: external, p_decision: decision, p_doctor: doctor ?? null });
 export const confirmExactMatches = (source: string) => rpc<number>('admin_match_confirm_exact', { p_source: source });
-/** One record beside each candidate doctor (migration 0052). */
+/** One record beside each candidate doctor (migration 0055). */
 export interface CompareCandidate {
     doctor_id: string; display_name: string; similarity: number | null; linked: boolean;
     cedulas: { cedula: string; title: string | null; kind: string | null }[];
@@ -174,7 +174,7 @@ export interface MatchCompare {
 }
 export const fetchMatchCompare = (source: string, external: string) =>
     rpc<MatchCompare | null>('admin_match_compare', { p_source: source, p_external: external });
-/** A record the AI scored near the auto-link bar, or a cédula conflict (migration 0052). */
+/** A record the AI scored near the auto-link bar, or a cédula conflict (migration 0055). */
 export interface NearBarItem {
     source_slug: string; external_id: string; score: number; verdict: AiScore['verdict']; reason: string; scored_at: string; run: string;
     status: 'probable' | 'confirmed'; tier: number; name: string; label: string | null; region: string | null; candidate: string | null; linked: boolean;

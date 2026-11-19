@@ -5,7 +5,7 @@ import { Card, Kpi } from './charts';
 import { fmt } from './format';
 
 const PAGE = 50;
-/** What PostgREST says when a function is not there yet (migration 0052 unapplied). */
+/** What PostgREST says when a function is not there yet (migration 0055 unapplied). */
 const MISSING_FN = /function .* does not exist|PGRST202|Could not find the function/i;
 const percent = (n: number | null) => (n == null ? '—' : `${Math.round(n * 100)}%`);
 
@@ -18,7 +18,7 @@ export function VerificationPanel() {
     const [sources, setSources] = useState<SourceOverview[] | null>(null);
     const [queue, setQueue] = useState<MatchQueue | null>(null);
     const [facilities, setFacilities] = useState<FacilityQueue | null>(null);
-    /** null until loaded; undefined when migration 0052 is not applied yet. */
+    /** null until loaded; undefined when migration 0055 is not applied yet. */
     const [nearBar, setNearBar] = useState<NearBarItem[] | null | undefined>(null);
     const [nearBarError, setNearBarError] = useState<string | null>(null);
     const [source, setSource] = useState<string | null>(null);
@@ -33,8 +33,8 @@ export function VerificationPanel() {
             setQueue(q);
             setFacilities(f);
             setError(null);
-            // Its own request: the queue must still load before 0052 is applied.
-            // Hidden only when 0052 is missing; any other failure is shown on the card.
+            // Its own request: the queue must still load before 0055 is applied.
+            // Hidden only when 0055 is missing; any other failure is shown on the card.
             fetchNearBar().then((n) => { setNearBar(n); setNearBarError(null); }, (e: Error) => {
                 if (MISSING_FN.test(e.message)) setNearBar(undefined); else { setNearBar([]); setNearBarError(e.message); }
             });
@@ -219,7 +219,7 @@ function CompareToggle({ source, external }: { source: string; external: string 
 
 /**
  * The source record and one candidate doctor, field by field, with what
- * disagrees highlighted (migration 0052). Loads when opened.
+ * disagrees highlighted (migration 0055). Loads when opened.
  */
 function SideBySide({ source, external }: { source: string; external: string }) {
     const [c, setC] = useState<MatchCompare | null | undefined>(undefined);
@@ -231,7 +231,7 @@ function SideBySide({ source, external }: { source: string; external: string }) 
         return () => { live = false; };
     }, [source, external]);
 
-    if (err) return <p className="adm-err" role="alert">{MISSING_FN.test(err) ? 'Needs migration 0052 (supabase/migrations/0052_review_compare.sql).' : err}</p>;
+    if (err) return <p className="adm-err" role="alert">{MISSING_FN.test(err) ? 'Needs migration 0055 (supabase/migrations/0055_review_compare.sql).' : err}</p>;
     if (c === undefined) return <p className="adm-empty">Loading comparison…</p>;
     if (!c || !c.candidates.length) return <p className="adm-empty">No candidate doctor to compare with.</p>;
     const cand = c.candidates.find((x) => x.doctor_id === pick) ?? defaultCandidate(c)!;

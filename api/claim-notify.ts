@@ -24,7 +24,7 @@
  *         listing the records the AI match scorer judged in the last day near
  *         the 80 auto-link bar (REVIEW_ALERT_BAND, default 70-89, either side)
  *         and every cédula conflict it saw. Nothing to report, nothing sent.
- *         Reads review_near_bar (migration 0052); docs/adr/0014.
+ *         Reads review_near_bar (migration 0055); docs/adr/0014.
  *
  * ── Setup (Vercel → Settings → Environment Variables, server-side) ──────────
  *   VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   required
@@ -237,7 +237,7 @@ async function sendEmail(cfg: Cfg, to: string, name: string | null, subject: str
 
 // ── Scorer alert ────────────────────────────────────────────────────────────
 
-/** One row of review_near_bar (migration 0052). */
+/** One row of review_near_bar (migration 0055). */
 export interface NearBarItem {
     source_slug: string; external_id: string; score: number; verdict: 'approve' | 'reject' | 'needs_human'; reason: string;
     scored_at: string; status: string; tier: number; name: string; label: string | null; region: string | null;
