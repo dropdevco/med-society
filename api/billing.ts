@@ -1227,7 +1227,10 @@ function applyStripe(cfg: Cfg, a: StripeApply): Promise<ApplyResult> {
 async function stripeWebhook(req: Req, res: Res) {
     const sk = stripeSettings();
     const cfg = settings();
-    if (!sk || !cfg) return res.status(500).json({ ok: false, error: 'not_configured' });
+    if (!sk || !cfg) {
+        console.error('billing: stripe webhook not configured', { stripeKey: Boolean(sk), supabase: Boolean(cfg) });
+        return res.status(500).json({ ok: false, error: 'not_configured' });
+    }
 
     const body = (await readBody(req)) as { id?: unknown } | null;
     const id = typeof body?.id === 'string' && /^evt_[A-Za-z0-9_]{6,}$/.test(body.id) ? body.id : '';
@@ -1329,7 +1332,12 @@ async function listingSubs(cfg: Cfg, providerId: string): Promise<SubRow[]> {
 async function ownerRequest(req: Req, res: Res): Promise<{ cfg: Cfg; sk: StripeCfg; user: { id: string; email: string }; body: Record<string, unknown> } | null> {
     const sk = stripeSettings();
     const cfg = settings();
-    if (!sk || !cfg) { res.status(500).json({ ok: false, error: 'not_configured' }); return null; }
+    if (!sk || !cfg) {
+        // Names only, never values: which setting is missing on this deployment.
+        console.error('billing: stripe checkout/portal not configured', { stripeKey: Boolean(sk), supabase: Boolean(cfg) });
+        res.status(500).json({ ok: false, error: 'not_configured' });
+        return null;
+    }
     const user = await sessionUser(cfg, req.headers.authorization);
     if (!user) { res.status(401).json({ ok: false, error: 'unauthorized' }); return null; }
     const body = ((await readBody(req)) ?? {}) as Record<string, unknown>;
