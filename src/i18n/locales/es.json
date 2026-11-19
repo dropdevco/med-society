@@ -3,6 +3,7 @@
     "askDoctor": "Pregunta al Doctor",
     "medSociety": "Med Society",
     "findProviders": "Buscar médicos y clínicas",
+    "hotels": "Hoteles",
     "forProviders": "Para Clínicas",
     "toggleTheme": "Cambiar tema",
     "switchToSpanish": "Cambiar a Español",
@@ -893,10 +894,7 @@
   },
   "reviews": {
     "patient": "Paciente",
-    "translated": "Traducida",
-    "sourceDoctoralia": "De Doctoralia",
-    "sourceDoctoraliaOf": "De Doctoralia · las {{shown}} más recientes de {{total}}",
-    "sourceGoogle": "De Google · 4 estrellas o más"
+    "translated": "Traducida"
   },
   "inquiry": {
     "doctorLabel": "Médico (opcional)",
@@ -1395,5 +1393,40 @@
     "showAll": "Ver los {{count}}",
     "showFewer": "Ver menos",
     "practisesAt": "Atiende en"
+  },
+  "hotels": {
+    "stayNearby": "Hospédate cerca",
+    "seeAll": "Todos los hoteles en {{city}}",
+    "distanceFrom": "A {{distance}} de {{name}}",
+    "checkRates": "Ver precios",
+    "disclosure": "Hoteles elegidos por MedSociety para pacientes. Podemos recibir una comisión cuando reservas.",
+    "amenitiesLabel": "Servicios",
+    "pageTitle": "Hoteles cerca de las clínicas en {{city}}",
+    "pageSubtitle": "Dónde quedarte antes y después de tu tratamiento, elegidos para pacientes: cerca de las clínicas, tranquilos y fáciles de llegar desde la frontera.",
+    "regionLabel": "Ciudad",
+    "filtersLabel": "Filtrar hoteles",
+    "sortedNear": "Ordenados por distancia a {{name}}.",
+    "backToProvider": "Volver al perfil",
+    "loading": "Cargando hoteles…",
+    "error": "No se pudieron cargar los hoteles. Intenta de nuevo en un momento.",
+    "emptyRegion": "Todavía estamos eligiendo hoteles en {{city}}. Vuelve pronto.",
+    "emptyFiltered": "Ningún hotel coincide con estos filtros.",
+    "price": {
+      "1": "Económico",
+      "2": "Moderado",
+      "3": "Superior",
+      "4": "Lujo"
+    },
+    "amenity": {
+      "clinic_shuttle": "Traslado a la clínica",
+      "airport_shuttle": "Traslado al aeropuerto",
+      "border_shuttle": "Traslado a la frontera",
+      "accessible": "Accesible",
+      "kitchenette": "Cocineta",
+      "quiet_recovery": "Tranquilo para recuperarse",
+      "nurse_on_call": "Enfermera disponible",
+      "bilingual_staff": "Personal que habla inglés",
+      "parking": "Estacionamiento"
+    }
   }
 }

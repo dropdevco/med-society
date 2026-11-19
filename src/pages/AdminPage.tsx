@@ -12,6 +12,7 @@ import { BillingPanel } from '../components/admin/BillingPanel';
 import { FeedbackPanel } from '../components/admin/FeedbackPanel';
 import { VerificationPanel } from '../components/admin/VerificationPanel';
 import { ClaimsPanel } from '../components/admin/ClaimsPanel';
+import { HotelsPanel } from '../components/admin/HotelsPanel';
 import { SEGMENTS, SEGMENT_LABEL, regionName } from '../components/admin/labels';
 import '../components/admin/admin.css';
 
@@ -25,6 +26,7 @@ const TABS = [
     ['feedback', 'Feedback'],
     ['verification', 'Verification'],
     ['billing', 'Billing'],
+    ['hotels', 'Hotels'],
     ['clinic', 'Clinic lookup'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -108,7 +110,7 @@ export function AdminPage() {
             </nav>
 
             {error && <p className="adm-err" role="alert">Could not load data: {error}</p>}
-            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && tab !== 'verification' && tab !== 'claims' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
+            {!error && tab !== 'clinic' && tab !== 'billing' && tab !== 'feedback' && tab !== 'verification' && tab !== 'claims' && tab !== 'hotels' && (!forms || !site) && <p className="adm-empty">Loading data…</p>}
 
             {forms && site && tab === 'overview' && <Overview forms={forms} site={site} feedback={feedback} claimsPending={claimsPending} go={(t) => setParams({ tab: t }, { replace: true })} />}
             {forms && tab === 'traffic' && <TrafficPanel data={forms} />}
@@ -119,6 +121,7 @@ export function AdminPage() {
             {tab === 'claims' && <ClaimsPanel onChanged={loadClaims} />}
             {tab === 'verification' && <VerificationPanel />}
             {tab === 'billing' && <BillingPanel />}
+            {tab === 'hotels' && <HotelsPanel />}
             {tab === 'clinic' && <ClinicLookup />}
         </main>
     );

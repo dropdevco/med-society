@@ -1,0 +1,5 @@
+# ACERBAC (acerbac.medsociety.one): a public site. Search engines and AI agents are welcome.
+User-agent: *
+Allow: /
+
+Sitemap: https://acerbac.medsociety.one/sitemap.xml

@@ -12,12 +12,15 @@ import { InvitePage } from './pages/InvitePage';
 import { ProviderPage } from './pages/ProviderPage';
 import { BorderhealthPage } from './pages/BorderhealthPage';
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
+const HotelsPage = lazy(() => import('./pages/HotelsPage').then((m) => ({ default: m.HotelsPage })));
 import { ForumPage } from './pages/ForumPage';
 import { ForumThreadPage } from './pages/ForumThreadPage';
 import { FORUM_PATH } from './lib/forumRoutes';
 import { ProviderModal } from './components/provider/ProviderModal';
 import { AnalyticsBridge } from './components/AnalyticsBridge';
 import { RouteMeta } from './components/RouteMeta';
+import { AcerbacPage } from './pages/AcerbacPage';
+import { hostSite } from './utils/hostSite';
 import { AgentBridge } from './components/AgentBridge';
 import { FeedbackWidget } from './components/feedback/FeedbackWidget';
 import './index.css';
@@ -59,6 +62,8 @@ function AppRoutes() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/providers/:providerId" element={<ProviderPage />} />
+        {/* Curated hotels near the clinics (docs/hotels.md). */}
+        <Route path="/hotels" element={<Suspense fallback={null}><HotelsPage /></Suspense>} />
         {/* The two forums, deployed but unlisted: random paths, no links
             anywhere (see lib/forumRoutes.ts). Patients ask and clinicians
             answer; Med Society is clinicians only. */}
@@ -70,6 +75,8 @@ function AppRoutes() {
             Providers who finish it go straight into claiming or listing. */}
         <Route path="/borderhealth" element={<BorderhealthPage />} />
         <Route path="/research" element={<BorderhealthPage research />} />
+        {/* ACERBAC (Tijuana recovery-center association): own chrome, draft copy. */}
+        <Route path="/acerbac" element={<AcerbacPage />} />
         {/* Internal analytics. Admin-only, enforced in the database. */}
         <Route path="/admin" element={<Suspense fallback={null}><AdminPage /></Suspense>} />
         {/*
@@ -95,17 +102,33 @@ function AppRoutes() {
 /** /research is a co-branded study page: no MedSociety navigation on it. */
 function SiteNavbar() {
   const { pathname } = useLocation();
-  return pathname.startsWith('/research') ? null : <Navbar />;
+  return pathname.startsWith('/research') || pathname.startsWith('/acerbac') ? null : <Navbar />;
+}
+
+/** ACERBAC has its own chrome and a sticky mobile CTA the widget would cover. */
+function SiteFeedback() {
+  const { pathname } = useLocation();
+  return pathname.startsWith('/acerbac') ? null : <FeedbackWidget />;
 }
 
 /** Same hide rules as the nav; admin keeps a clean chrome without site chrome. */
 function SiteFooter() {
   const { pathname } = useLocation();
-  if (pathname.startsWith('/research') || pathname.startsWith('/admin')) return null;
+  if (pathname.startsWith('/research') || pathname.startsWith('/acerbac') || pathname.startsWith('/admin')) return null;
   return <Footer />;
 }
 
 export default function App() {
+  // acerbac.medsociety.one: the ACERBAC page on every path, without the
+  // directory's meta, agent bridge or chrome (see utils/hostSite.ts).
+  if (hostSite() === 'acerbac') {
+    return (
+      <BrowserRouter>
+        <AnalyticsBridge />
+        <AcerbacPage />
+      </BrowserRouter>
+    );
+  }
   return (
     <BrowserRouter>
       <AnalyticsBridge />
@@ -114,7 +137,7 @@ export default function App() {
       <SiteNavbar />
       <AppRoutes />
       <SiteFooter />
-      <FeedbackWidget />
+      <SiteFeedback />
     </BrowserRouter>
   );
 }

@@ -79,6 +79,7 @@ export function Navbar() {
             <div className="ms-nav-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <div className="ms-nav-links" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <NavLink to="/" label={t('nav.findProviders')} active={pathname === '/'} />
+                    <NavLink to="/hotels" label={t('nav.hotels')} active={pathname === '/hotels'} className="ms-nav-link-hotels" />
                     {/* Unlisted until the forums launch (lib/forumRoutes.ts). */}
                     {FORUMS_LISTED && (
                         <NavLink to={FORUM_PATH.patients} label={t('nav.askDoctor')} active={pathname.startsWith(FORUM_PATH.patients)} />
@@ -204,11 +205,11 @@ function LangOption({ label, active, title, onClick }: {
     );
 }
 
-function NavLink({ to, label, active }: { to: string; label: string; active: boolean }) {
+function NavLink({ to, label, active, className }: { to: string; label: string; active: boolean; className?: string }) {
     return (
         <Link
             to={to}
-            className="press ms-nav-link"
+            className={`press ms-nav-link${className ? ` ${className}` : ''}`}
             style={{
                 padding: '0.45rem 0.95rem',
                 borderRadius: 'var(--radius-pill)',

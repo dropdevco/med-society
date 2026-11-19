@@ -107,6 +107,8 @@ export type AppEvent =
     | 'feedback_opened'
     | 'feedback_submitted'
     | 'feedback_failed'
+    | 'hotel_impression'
+    | 'hotel_outbound_click'
     | `bh_${string}`;
 
 export function track(event: AppEvent, props?: Record<string, unknown>): void {

@@ -34,7 +34,7 @@ const cacheKey = (placeId: string, lang: string) => `${placeId}:${lang}`;
 
 /**
  * Fetches Google Place reviews for a given placeId using the Places Service.
- * Only returns reviews with rating >= 4 ("good reviews").
+ * Returns every review Google gives us, whatever the rating.
  * Automatically loads the Places library if not yet available.
  * Never invents reviews: with no place id, an API error, or no reviews on
  * Google, it returns an empty list and the page simply shows no review section.
@@ -107,10 +107,10 @@ export function useGoogleReviews(placeId?: string) {
                             apiStatus === google.maps.places.PlacesServiceStatus.OK &&
                             place?.reviews?.length
                         ) {
-                            // Only keep "good" reviews (4+ stars), sort best first
+                            // Every review Google returns is shown, whatever the
+                            // rating: a clinic with a rating must show the reviews
+                            // behind it, and a 3-star-only listing showed none.
                             const good = place.reviews
-                                .filter((r) => (r.rating ?? 0) >= 4)
-                                .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
                                 .map((r) => ({
                                     author_name: r.author_name ?? 'Anonymous',
                                     rating: r.rating ?? 5,
