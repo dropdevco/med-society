@@ -889,10 +889,7 @@
   },
   "reviews": {
     "patient": "Patient",
-    "translated": "Translated",
-    "sourceDoctoralia": "From Doctoralia",
-    "sourceDoctoraliaOf": "From Doctoralia · latest {{shown}} of {{total}}",
-    "sourceGoogle": "From Google · 4 stars and up"
+    "translated": "Translated"
   },
   "inquiry": {
     "doctorLabel": "Doctor (optional)",
