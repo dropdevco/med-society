@@ -6,15 +6,9 @@ import { IconStar, IconChevronLeft, IconChevronRight } from '../icons/Icons';
 interface ReviewCarouselProps {
     reviews: ReviewItem[];
     loading: boolean;
-    /**
-     * Where these reviews come from, said under the heading ("From Doctoralia ·
-     * latest 10 of 2,820"). A listing can carry two carousels — Google's and
-     * Doctoralia's — and the reader should never have to guess which is which.
-     */
-    note?: string;
 }
 
-export function ReviewCarousel({ reviews, loading, note }: ReviewCarouselProps) {
+export function ReviewCarousel({ reviews, loading }: ReviewCarouselProps) {
     const { t } = useTranslation();
     const scrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -60,10 +54,7 @@ export function ReviewCarousel({ reviews, loading, note }: ReviewCarouselProps) 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
-                    <SectionHeading>{t('drawer.topReviews')}</SectionHeading>
-                    {note && <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{note}</span>}
-                </div>
+                <SectionHeading>{t('drawer.topReviews')}</SectionHeading>
 
                 {reviews.length > 1 && (
                     <div style={{ display: 'flex', gap: '0.3rem' }}>
