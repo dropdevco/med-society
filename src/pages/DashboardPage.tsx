@@ -334,6 +334,7 @@ export function DashboardPage() {
                     onRefresh={reload}
                     highlight={planParam('buy')}
                     returnedFrom={planParam('paid')}
+                    fromPortal={params.get('portal') === '1'}
                 />
             )}
 

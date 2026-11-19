@@ -1429,7 +1429,7 @@ async function stripePortal(req: Req, res: Res) {
         if (!customer) return res.status(404).json({ ok: false, error: 'no_billing_account' });
         const session = await stripe<{ url?: string }>(sk, 'POST', '/billing_portal/sessions', {
             customer,
-            return_url: `${returnBase(req.headers.origin)}/dashboard?tab=plan`,
+            return_url: `${returnBase(req.headers.origin)}/dashboard?tab=plan&portal=1`,
             configuration: process.env.STRIPE_PORTAL_CONFIG || undefined,
         });
         if (!session.url) throw new Error('no portal url');

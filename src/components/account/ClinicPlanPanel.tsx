@@ -44,6 +44,9 @@ const PRICE: Record<Market, Record<PlanKey, string>> = {
 /** After a payment: check every 4 s for up to ~2 min for the plan to switch on. */
 const POLL_MS = 4000;
 const POLL_MAX = 30;
+/** After the portal: re-read every 3 s for 30 s. */
+const PORTAL_POLL_MS = 3000;
+const PORTAL_POLLS = 10;
 
 interface Props {
     clinic: Provider;
@@ -55,9 +58,11 @@ interface Props {
     highlight?: PlanKey | null;
     /** Set when returning from the payment page. */
     returnedFrom?: PlanKey | null;
+    /** Set when returning from Stripe's customer portal, where the plan may just have changed. */
+    fromPortal?: boolean;
 }
 
-export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedFrom }: Props) {
+export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedFrom, fromPortal }: Props) {
     const { t, i18n } = useTranslation();
     const [busy, setBusy] = useState<PlanKey | 'portal' | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -65,6 +70,8 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     const [gaveUp, setGaveUp] = useState(false);
     const [overrideMarket, setOverrideMarket] = useState<Market | null>(null);
     const [statusFor, setStatusFor] = useState<string | null>(null);
+    // Bumped to re-read the plan status when the tier itself did not change (a cancel, a resume).
+    const [statusNonce, setStatusNonce] = useState(0);
     const rank = RANK[clinic.tier];
     const statusKey = `${clinic.id}:${clinic.tier}`;
     const statusLoaded = statusFor === statusKey;
@@ -81,7 +88,21 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
             setStatusFor(statusKey);
         });
         return () => { cancelled = true; };
-    }, [clinic.id, statusKey]);
+    }, [clinic.id, statusKey, statusNonce]);
+
+    // Back from the portal: Stripe's webhook lands a few seconds after the page
+    // does, so re-read the listing and its plan for a short while.
+    useEffect(() => {
+        if (!fromPortal) return;
+        let n = 0;
+        const id = window.setInterval(() => {
+            n += 1;
+            void refreshRef.current();
+            setStatusNonce((x) => x + 1);
+            if (n >= PORTAL_POLLS) window.clearInterval(id);
+        }, PORTAL_POLL_MS);
+        return () => window.clearInterval(id);
+    }, [fromPortal, clinic.id]);
 
     const handleMarketChange = (newMarket: Market) => {
         setOverrideMarket(newMarket);

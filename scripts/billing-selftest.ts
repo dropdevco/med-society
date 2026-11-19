@@ -623,7 +623,7 @@ async function main() {
     r = await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
     const portal = calls.find((c) => c.url.includes('/billing_portal/sessions'))?.body as string | undefined;
     check('portal: an owner gets the portal for the listing\'s own customer, returning to the Plan tab',
-        r.code === 200 && r.body.url === 'https://billing.stripe.com/p/session/x' && !!portal && portal.includes('customer=cus_1') && portal.includes(encodeURIComponent('/dashboard?tab=plan')), { r, portal });
+        r.code === 200 && r.body.url === 'https://billing.stripe.com/p/session/x' && !!portal && portal.includes('customer=cus_1') && portal.includes(encodeURIComponent('/dashboard?tab=plan&portal=1')), { r, portal });
     process.env.STRIPE_PORTAL_CONFIG = 'bpc_123';
     calls = [];
     await run({ url: '/api/billing?job=stripe-portal', headers: auth, body: { provider_id: PROVIDER_ID } });
