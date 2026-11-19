@@ -3,6 +3,7 @@
     "askDoctor": "Ask a Doctor",
     "medSociety": "Med Society",
     "findProviders": "Find doctors & clinics",
+    "hotels": "Hotels",
     "forProviders": "For Providers",
     "toggleTheme": "Toggle theme",
     "switchToSpanish": "Cambiar a Español",
@@ -1390,5 +1391,40 @@
     "showAll": "Show all {{count}}",
     "showFewer": "Show fewer",
     "practisesAt": "Practises at"
+  },
+  "hotels": {
+    "stayNearby": "Stay nearby",
+    "seeAll": "All hotels in {{city}}",
+    "distanceFrom": "{{distance}} from {{name}}",
+    "checkRates": "Check rates",
+    "disclosure": "Hotels picked by MedSociety for patients. We may earn a commission when you book.",
+    "amenitiesLabel": "Amenities",
+    "pageTitle": "Hotels near the clinics in {{city}}",
+    "pageSubtitle": "Places to stay before and after treatment, picked for patients: close to the clinics, quiet, and easy to reach from the border.",
+    "regionLabel": "City",
+    "filtersLabel": "Filter hotels",
+    "sortedNear": "Sorted by distance from {{name}}.",
+    "backToProvider": "Back to the profile",
+    "loading": "Loading hotels…",
+    "error": "Hotels could not be loaded. Please try again in a moment.",
+    "emptyRegion": "We are still picking hotels in {{city}}. Check back soon.",
+    "emptyFiltered": "No hotel matches these filters.",
+    "price": {
+      "1": "Budget",
+      "2": "Moderate",
+      "3": "Upscale",
+      "4": "Luxury"
+    },
+    "amenity": {
+      "clinic_shuttle": "Clinic shuttle",
+      "airport_shuttle": "Airport shuttle",
+      "border_shuttle": "Border shuttle",
+      "accessible": "Accessible",
+      "kitchenette": "Kitchenette",
+      "quiet_recovery": "Quiet for recovery",
+      "nurse_on_call": "Nurse on call",
+      "bilingual_staff": "English-speaking staff",
+      "parking": "Parking"
+    }
   }
 }

@@ -21,6 +21,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 | `docs/badges.md` | How organization badges work, end to end |
 | `docs/groupings.md` | Listings, doctors, clinics, organizations, clusters, sources and badges: what each is and how they connect |
 | `docs/clinics.md` | Clinics: teams, adding doctors, invites, the clinic page |
+| `docs/hotels.md` | Hotels near the clinics: curation, affiliate links, where they show |
 
 ## Hard rules
 

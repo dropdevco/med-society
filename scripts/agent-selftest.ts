@@ -94,6 +94,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const other = LIST.find((r) => r.id === id);
         return json(id === FULL.id ? FULL : other ? { ...other, services: [], status: 'live' } : null);
     }
+    if (url.includes('/rest/v1/hotels?')) {
+        // Made-up hotels. Only published rows of the asked region may be requested.
+        if (!url.includes('status=eq.live')) return new Response('drafts must never be read', { status: 400 });
+        const region = /region=eq\.([a-z-]+)/.exec(url)?.[1];
+        return json(region === 'sandiego-tijuana' ? [
+            { id: U(201), name: 'Hotel Prueba <b>x</b>', description: { en: 'Quiet rooms near Zona Río.', es: 'Cuartos tranquilos cerca de Zona Río.' }, address: 'Paseo de Prueba 1', city: 'Tijuana', lat: 32.527, lng: -117.022, website: null, booking_url: 'https://www.booking.com/hotel/mx/prueba.html', price_band: 2, rating: 8.9 / 2, amenities: ['clinic_shuttle', 'bilingual_staff'] },
+            { id: U(202), name: 'Hostal Sin Liga', description: {}, address: null, city: 'Tijuana', lat: 32.52, lng: -117.01, website: 'javascript:alert(1)', booking_url: null, price_band: null, rating: null, amenities: [] },
+        ] : []);
+    }
     if (url.includes('/rpc/provider_reviews')) {
         return json([{ author_label: 'Leticia M.', rating: 5, published_at: '2026-08-01T00:00:00Z', body: 'Muy buena atención', body_es: 'Muy buena atención', body_en: 'Very good care', source_lang: 'es' }]);
     }
@@ -323,6 +332,20 @@ r = await get('route=page&kind=home');
 check('plain home lists regions and browse links', r.body.includes('Browse San Diego – Tijuana by specialty') && r.body.includes('/openapi.json'));
 r = await get('route=page&kind=home&spec=bogus&list=1');
 check('a bad filter on the home page falls back to the home, with a note, never a 4xx', r.status === 200 && r.body.includes('not a known specialty'));
+r = await get('route=page&kind=hotels&region=sandiego-tijuana', { accept: 'text/html' });
+check('hotels HTML: title, canonical, Hotel JSON-LD, hotels listed', r.status === 200
+    && r.body.includes('<title>Hotels near the clinics in Tijuana — MedSociety</title>')
+    && r.body.includes('rel="canonical" href="https://www.medsociety.one/hotels?region=sandiego-tijuana"')
+    && r.body.includes('"@type":"Hotel"')
+    && r.body.includes('href="https://www.booking.com/hotel/mx/prueba.html"')
+    && r.body.includes('clinic shuttle'));
+check('hotels: hostile names are escaped and a javascript: link is dropped', !r.body.includes('<b>x</b>') && !r.body.includes('javascript:'));
+check('hotels: discloses the commission', /commission/i.test(r.body));
+r = await get('route=page&kind=hotels&region=elpaso-juarez', { accept: 'application/json' });
+check('hotels: an empty region says so and returns no hotels', r.status === 200 && r.json().data.hotels.length === 0 && r.json().data.city === 'Ciudad Juárez');
+r = await get('route=page&kind=hotels&region=bogus', { accept: 'application/json' });
+check('hotels: an unknown region falls back to Tijuana, never a 4xx', r.status === 200 && r.json().data.region === 'sandiego-tijuana');
+check('pages sitemap lists the hotels pages', (await get('route=sitemap&name=pages')).body.includes('/hotels?region=elpaso-juarez'));
 failList = true;
 r = await get(`route=page&kind=provider&id=${U(7)}`, { accept: 'text/html' });
 check('database down: the plain app shell is served, so people are never locked out', r.status === 200 && r.body === SHELL, r.status);

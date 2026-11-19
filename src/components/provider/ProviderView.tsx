@@ -17,6 +17,7 @@ import { ContactCard, DetailRow } from './ContactCard';
 import { ClinicMain } from './ClinicView';
 import { clinicFocus } from '../../utils/clinicFocus';
 import { PractisesAt } from './PractisesAt';
+import { StayNearby } from '../hotels/StayNearby';
 import { DoctorAnswers } from '../forum/ForumPromos';
 import { FORUMS_LISTED } from '../../lib/forumRoutes';
 import { useOwnerPhotos } from '../../hooks/useOwnerPhotos';
@@ -237,6 +238,8 @@ export function ProviderView({ provider, titleId }: { provider: Provider; titleI
                         {reviewBlock}
                     </>
                 )}
+
+                <StayNearby provider={provider} />
 
                 {FORUMS_LISTED && <DoctorAnswers providerId={provider.id} />}
 
