@@ -11,6 +11,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { InvitePage } from './pages/InvitePage';
 import { ProviderPage } from './pages/ProviderPage';
 import { BorderhealthPage } from './pages/BorderhealthPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const HotelsPage = lazy(() => import('./pages/HotelsPage').then((m) => ({ default: m.HotelsPage })));
 import { ForumPage } from './pages/ForumPage';
@@ -86,9 +87,13 @@ function AppRoutes() {
           where the user came from instead of bouncing through the redirect.
         */}
         <Route path="/sales" element={<Navigate to="/pricing" replace />} />
-        {/* Anything else is a mistyped or stale link; the directory is the
-            only sensible place to land. */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* /claim needs a listing id; without one, the "list or claim your
+            clinic" flow is what the visitor was after. */}
+        <Route path="/claim" element={<Navigate to="/borderhealth?seg=provider&by=listing" replace />} />
+        {/* Anything else is a mistyped or stale link. It used to redirect to the
+            directory, which hid broken links and showed crawlers the home page
+            at every bad URL; now it says so (noindex) and links onward. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {background && (
         <Routes>

@@ -275,7 +275,8 @@
     "footer": "© {{year}} MedSociety · Medical care across the US–Mexico border"
   },
   "contact": {
-    "title": "Contact us"
+    "title": "Contact us",
+    "pageTitle": "Contact — MedSociety"
   },
   "footer": {
     "copyright": "© {{year}} MedSociety · Medical care across the US–Mexico border",
@@ -389,7 +390,9 @@
         "body": "Where you show up in search, maps and AI assistants, how you compare with the clinics near you, and what to fix first. Included quarterly with Featured."
       }
     },
-    "basicF5": "A monthly email with how many people viewed your profile"
+    "basicF5": "A monthly email with how many people viewed your profile",
+    "pageTitle": "Plans and pricing for clinics — MedSociety",
+    "pageDescription": "List your clinic free on MedSociety, or get promoted or featured to reach patients across the US–Mexico border. No setup fee, no contract."
   },
   "account": {
     "kindTitle": "This listing is",
@@ -1446,5 +1449,12 @@
     "tabsLabel": "What are you looking for?",
     "tabCare": "Doctors & clinics",
     "tabHotels": "Hotels"
+  },
+  "pageNotFound": {
+    "pageTitle": "Page not found — MedSociety",
+    "title": "We couldn’t find that page",
+    "body": "The link may be old or mistyped. You can search doctors and clinics, or look at hotels near the clinics.",
+    "directory": "Find doctors & clinics",
+    "hotels": "Hotels near the clinics"
   }
 }
