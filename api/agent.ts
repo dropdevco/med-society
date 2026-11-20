@@ -808,12 +808,42 @@ function partBounds(part: number): [string | null, string | null] {
     return [at(part), at(part + 1)];
 }
 
+/** A snapshot whose job has not confirmed it for this long is treated as stopped. */
+const SNAPSHOT_MAX_AGE_MS = 20 * 60_000;
+
+/**
+ * One part from directory_snapshot, or null when the table is missing (0057 not
+ * applied), the part has no row, or the refresh job has stopped: the caller then
+ * pages provider_list as before, so the directory never depends on the job.
+ */
+async function readDirectorySnapshot(region: RegionId, part: number, now = Date.now()): Promise<{ rows: unknown[]; checkedAt: string } | null> {
+    try {
+        const { data } = await sb(`directory_snapshot?select=rows,row_count,checked_at&region=eq.${region}&part=eq.${part}`);
+        const row = (data as { rows?: unknown; row_count?: number; checked_at?: string }[])[0];
+        if (!row || !Array.isArray(row.rows) || typeof row.checked_at !== 'string') return null;
+        if (row.rows.length !== row.row_count) return null;
+        const age = now - Date.parse(row.checked_at);
+        if (!(age < SNAPSHOT_MAX_AGE_MS)) return null;
+        return { rows: row.rows, checkedAt: row.checked_at };
+    } catch (err) {
+        console.warn('[agent] directory snapshot unavailable, paging provider_list:', err instanceof Error ? err.message : err);
+        return null;
+    }
+}
+
 async function directoryRoute(res: Res, params: URLSearchParams) {
     const region = params.get('region');
     const part = Number(params.get('part'));
     if (!isRegionId(region)) throw new ApiError(400, 'invalid_parameter', 'region: not a known region.', { param: 'region', allowed: REGION_IDS });
     if (!Number.isInteger(part) || part < 0 || part >= DIRECTORY_PARTS) {
         throw new ApiError(400, 'invalid_parameter', `part: an integer from 0 to ${DIRECTORY_PARTS - 1}.`, { param: 'part' });
+    }
+
+    // The ready-made copy (migration 0057), rebuilt every 5 minutes by pg_cron:
+    // one stored row instead of up to three pages built on the spot.
+    const snapshot = await readDirectorySnapshot(region, part);
+    if (snapshot) {
+        return sendJson(res, 200, { region, part, parts: DIRECTORY_PARTS, generatedAt: snapshot.checkedAt, rows: snapshot.rows }, CACHE_DIRECTORY);
     }
 
     const [lo, hi] = partBounds(part);
