@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { track } from '../lib/posthog';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { readSavedMarket, saveChosenMarket, marketForLanguage, type Market } from '../lib/billing';
 import { InquiryModal } from '../components/sales/InquiryModal';
 import { CurrencyPicker } from '../components/account/CurrencyPicker';
@@ -39,6 +40,7 @@ const CITIES = [
 
 export function PricingPage() {
     const { t, i18n } = useTranslation();
+    useDocumentTitle(t('pricing.pageTitle'), { description: t('pricing.pageDescription') });
     const [modalPlan, setModalPlan] = useState<string | null>(null);
 
     // Clinics choose USD or MXN (the four Stripe prices, see api/billing.ts),

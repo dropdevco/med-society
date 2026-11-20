@@ -275,7 +275,8 @@
     "footer": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos"
   },
   "contact": {
-    "title": "Contáctanos"
+    "title": "Contáctanos",
+    "pageTitle": "Contacto — MedSociety"
   },
   "footer": {
     "copyright": "© {{year}} MedSociety · Atención médica en la frontera México–Estados Unidos",
@@ -389,7 +390,9 @@
         "body": "Dónde apareces en buscadores, mapas y asistentes de IA, cómo te comparas con las clínicas cerca de ti, y qué conviene arreglar primero. Incluida cada trimestre con Destacado."
       }
     },
-    "basicF5": "Un correo mensual con cuántas personas vieron tu perfil"
+    "basicF5": "Un correo mensual con cuántas personas vieron tu perfil",
+    "pageTitle": "Planes y precios para clínicas — MedSociety",
+    "pageDescription": "Publica tu clínica gratis en MedSociety, o destácala para llegar a pacientes de toda la frontera entre México y Estados Unidos. Sin costo de alta ni contrato."
   },
   "account": {
     "kindTitle": "Este perfil es",
@@ -1446,5 +1449,12 @@
     "tabsLabel": "¿Qué estás buscando?",
     "tabCare": "Médicos y clínicas",
     "tabHotels": "Hoteles"
+  },
+  "pageNotFound": {
+    "pageTitle": "Página no encontrada — MedSociety",
+    "title": "No encontramos esa página",
+    "body": "Puede que el enlace sea antiguo o tenga un error. Busca médicos y clínicas, o mira hoteles cerca de las clínicas.",
+    "directory": "Buscar médicos y clínicas",
+    "hotels": "Hoteles cerca de las clínicas"
   }
 }
