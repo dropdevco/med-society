@@ -1348,6 +1348,11 @@ select option {
 
 .ms-row-cell { scroll-snap-align: start; min-width: 0; }
 
+/* Rows below the fold skip layout and paint until they are scrolled near.
+   The track already clips its own overflow, so containment hides nothing;
+   the intrinsic size keeps the scrollbar from jumping as rows wake up. */
+.ms-row { content-visibility: auto; contain-intrinsic-size: auto 400px; }
+
 .ms-tile-media { transition: box-shadow 0.24s var(--ease-out); }
 .ms-tile-img { transition: transform 0.4s var(--ease-out); }
 .ms-tile:hover .ms-tile-media { box-shadow: var(--shadow); }

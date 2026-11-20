@@ -21,6 +21,7 @@ import {
 const SPECIALTY_KEYS = new Set(Object.keys(SpecialtyLabels));
 const SORT_MODES = new Set<SortMode>(['relevance', 'rating', 'reviews', 'distance', 'price']);
 const EMPTY: Provider[] = [];
+const EMPTY_INDEX: ReturnType<typeof buildSearchIndex> = new Map();
 
 // ── Provider fetch ──────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ const STATEMENT_TIMEOUT = '57014';
  *
  * Only the selected region is fetched (3–6 MB of the lean view).
  */
-async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]> {
+async function loadRegionFromSupabase(region: RegionId): Promise<RawProviderRow[]> {
     if (!supabase) {
         throw new NoSupabaseClientError('Supabase client not initialized');
     }
@@ -88,6 +89,49 @@ async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]
     };
 
     return readAllByKeyset(page, PAGE_SIZE);
+}
+
+/** Keep in step with DIRECTORY_PARTS in api/agent.ts. */
+const DIRECTORY_PARTS = 8;
+/** A part that has not answered by now is treated as down; the Supabase path takes over. */
+const DIRECTORY_TIMEOUT_MS = 15_000;
+
+/**
+ * The region from /api/directory: the same `provider_list` rows, split into
+ * fixed slices and served from Vercel's shared cache (see api/agent.ts,
+ * directoryRoute). One parallel burst of cached responses instead of nine
+ * database queries, and the database is no longer read once per visitor.
+ *
+ * All or nothing: a region with a missing slice would silently lose an
+ * eighth of its listings, so any failure throws and the caller falls back.
+ */
+async function loadRegionFromCache(region: RegionId): Promise<RawProviderRow[]> {
+    const parts = await Promise.all(
+        Array.from({ length: DIRECTORY_PARTS }, async (_, part) => {
+            const res = await fetch(`/api/directory/${region}/${part}`, {
+                headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(DIRECTORY_TIMEOUT_MS),
+            });
+            if (!res.ok) throw new Error(`directory part ${part}: HTTP ${res.status}`);
+            const body = await res.json() as { region?: string; parts?: number; rows?: unknown };
+            // A shape we do not expect (an SPA fallback page, a deploy whose part
+            // count differs) is a failure, never a partial directory.
+            if (body.region !== region || body.parts !== DIRECTORY_PARTS || !Array.isArray(body.rows)) {
+                throw new Error(`directory part ${part}: unexpected response`);
+            }
+            return body.rows as RawProviderRow[];
+        }),
+    );
+    return parts.flat();
+}
+
+async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]> {
+    try {
+        return await loadRegionFromCache(region);
+    } catch (err) {
+        console.warn('[directory] cached load failed, reading Supabase directly:', err);
+        return loadRegionFromSupabase(region);
+    }
 }
 
 /**
@@ -407,9 +451,29 @@ export function useProviders() {
         [t],
     );
 
+    /**
+     * The index is only read when there are search terms, and building it is
+     * the single most expensive step after a region lands (~180 ms for 8.5k
+     * rows in a dev build). So the first paint goes without it: it is built
+     * in the next idle moment, or at once if the page opened on a search.
+     */
+    const needsIndex = !filters.smart && tokenize(filters.search).length > 0;
+    const [idleFor, setIdleFor] = useState<readonly Provider[] | null>(null);
+    useEffect(() => {
+        if (allProviders.length === 0) return;
+        const done = () => setIdleFor(allProviders);
+        if (typeof requestIdleCallback === 'function') {
+            const id = requestIdleCallback(done, { timeout: 1500 });
+            return () => cancelIdleCallback(id);
+        }
+        const id = setTimeout(done, 200);
+        return () => clearTimeout(id);
+    }, [allProviders]);
+    const indexWanted = needsIndex || idleFor === allProviders;
+
     const searchIndex = useMemo(
-        () => buildSearchIndex(allProviders, labelOf),
-        [allProviders, labelOf],
+        () => (indexWanted ? buildSearchIndex(allProviders, labelOf) : EMPTY_INDEX),
+        [allProviders, labelOf, indexWanted],
     );
 
     const rawVocabulary = useMemo(

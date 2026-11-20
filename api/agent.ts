@@ -772,6 +772,68 @@ async function snapshot(region: RegionId): Promise<Snapshot> {
     }
 }
 
+// ── Directory parts: the app's region list, served from Vercel's cache ───────
+//
+// GET /api/directory/:region/:part  (rewritten to ?route=directory&region=…&part=…)
+//
+// The app used to page a whole region straight out of Supabase on every first
+// visit: nine 1,000-row requests, ~4.6 s before a single card showed, and the
+// same database work repeated for every visitor. Here the same rows are served
+// with a shared-cache header, so Vercel's edge answers almost every request and
+// the database is read once per part per few minutes instead of per visitor.
+//
+// A region is split into DIRECTORY_PARTS fixed slices of the uuid keyspace, not
+// into pages. Each slice holds the same listings whenever it was cached, so
+// parts cached at different moments can never overlap or skip a row (offset
+// pages can, when a listing is added or removed between two fetches). Slicing
+// also keeps each response far under Vercel's 4.5 MB function limit: San Diego–
+// Tijuana is ~8 MB of JSON, ~1 MB per slice.
+//
+// The rows are exactly what the anon key already reads from `provider_list`
+// (no contact fields, migration 0032), in the same shape, so the app hands them
+// to normalizeProvider and its IndexedDB cache unchanged.
+//
+// Keep DIRECTORY_PARTS in step with src/hooks/useProviders.ts.
+
+const DIRECTORY_PARTS = 8;
+const DIRECTORY_PAGE = 500;
+/** Edge copies are fresh for 5 minutes, then served stale while one request refreshes them. */
+const CACHE_DIRECTORY = 'public, s-maxage=300, stale-while-revalidate=86400';
+
+/** [lower inclusive, upper exclusive) uuid bounds of one slice; null = open end. */
+function partBounds(part: number): [string | null, string | null] {
+    const at = (i: number) => (i <= 0 || i >= DIRECTORY_PARTS
+        ? null
+        : `${Math.round((i * 16) / DIRECTORY_PARTS).toString(16)}0000000-0000-0000-0000-000000000000`);
+    return [at(part), at(part + 1)];
+}
+
+async function directoryRoute(res: Res, params: URLSearchParams) {
+    const region = params.get('region');
+    const part = Number(params.get('part'));
+    if (!isRegionId(region)) throw new ApiError(400, 'invalid_parameter', 'region: not a known region.', { param: 'region', allowed: REGION_IDS });
+    if (!Number.isInteger(part) || part < 0 || part >= DIRECTORY_PARTS) {
+        throw new ApiError(400, 'invalid_parameter', `part: an integer from 0 to ${DIRECTORY_PARTS - 1}.`, { param: 'part' });
+    }
+
+    const [lo, hi] = partBounds(part);
+    const rows: Record<string, unknown>[] = [];
+    // Keyset paging (id > last), never OFFSET: each page is an index range scan.
+    // Pages are kept small because building the JSON, not finding the rows, is
+    // what costs: a 1,000-row page of this view takes 0.7–0.9 s on the current
+    // instance, too close to the anon role's 3 s statement timeout under load.
+    for (let last = lo, first = true; ; first = false) {
+        const range = [last && `id=${first ? 'gte' : 'gt'}.${last}`, hi && `id=lt.${hi}`].filter(Boolean).join('&');
+        const { data } = await sb(`provider_list?select=*&region=eq.${region}${range ? `&${range}` : ''}&order=id&limit=${DIRECTORY_PAGE}`);
+        const page = data as Record<string, unknown>[];
+        rows.push(...page);
+        if (page.length < DIRECTORY_PAGE) break;
+        last = String(page[page.length - 1].id);
+    }
+
+    return sendJson(res, 200, { region, part, parts: DIRECTORY_PARTS, generatedAt: new Date().toISOString(), rows }, CACHE_DIRECTORY);
+}
+
 const haversineKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
     const rad = (d: number) => (d * Math.PI) / 180;
     const h = Math.sin(rad(bLat - aLat) / 2) ** 2
@@ -3657,6 +3719,7 @@ export default async function handler(req: Req, res: Res) {
             case 'site': return await siteRoute(res, params);
             case 'site-copy': return await siteCopyRoute(req, res);
             case 'site-grab': return await siteGrabRoute(req, res);
+            case 'directory': return await directoryRoute(res, params);
             default: throw new ApiError(404, 'not_found', 'Unknown route.');
         }
     } catch (err) {
