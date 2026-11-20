@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Provider } from '../../types/provider';
 import { track } from '../../lib/posthog';
-import { fetchPlanStatus, readSavedMarket, saveChosenMarket, marketForLanguage, startCheckout, type Market, type PlanKey, type PlanStatusRow } from '../../lib/billing';
+import { BillingError, fetchPlanStatus, openPortal, readSavedMarket, saveChosenMarket, marketForLanguage, startCheckout, type Market, type PlanKey, type PlanStatusRow } from '../../lib/billing';
 import { IconCheck, IconVerified, IconPromoted, IconChart, IconLock } from '../icons/Icons';
 import { CurrencyPicker } from './CurrencyPicker';
 
@@ -16,9 +16,12 @@ import { CurrencyPicker } from './CurrencyPicker';
  * the things the last review decided should be worth paying for. Hiding them
  * would undo that.
  *
- * Subscribing opens the payment page for the clinic being viewed. Nothing here
- * unlocks anything: the plan switches on when the payment reaches
- * api/billing.ts, and this panel only waits for `clinic.tier` to change.
+ * Subscribing opens Stripe Checkout for the clinic being viewed. Nothing here
+ * unlocks anything: the plan switches on when Stripe reports the invoice paid
+ * to api/billing.ts, and this panel only waits for `clinic.tier` to change.
+ * A clinic that already pays never gets a second Subscribe button (that would
+ * be a second subscription): it manages its plan in Stripe's customer portal,
+ * where it can switch plan, update its card or cancel on its own.
  */
 const FEATURES = [
     { key: 'listing', tier: 'basic', icon: <IconCheck size={15} weight={2.2} /> },
@@ -32,7 +35,7 @@ const FEATURES = [
 ] as const;
 
 const RANK = { basic: 0, promoted: 1, featured: 2 } as const;
-// What each market's payment link actually charges (lib/billing.ts): USD in us, MXN in mx.
+// What each market's Stripe price charges: USD in us, MXN in mx. Keep in step with the prices in Stripe.
 const PRICE: Record<Market, Record<PlanKey, string>> = {
     us: { promoted: '$49', featured: '$99' },
     mx: { promoted: '$899', featured: '$1,799' },
@@ -41,10 +44,13 @@ const PRICE: Record<Market, Record<PlanKey, string>> = {
 /** After a payment: check every 4 s for up to ~2 min for the plan to switch on. */
 const POLL_MS = 4000;
 const POLL_MAX = 30;
+/** After the portal: re-read every 3 s for 30 s. */
+const PORTAL_POLL_MS = 3000;
+const PORTAL_POLLS = 10;
 
 interface Props {
     clinic: Provider;
-    /** The signed-in account's email, pre-filled on the payment page. */
+    /** The signed-in account's email, shown beside the payment note. */
     email: string;
     /** Re-reads the clinic so a freshly activated tier shows up. */
     onRefresh: () => void | Promise<void>;
@@ -52,16 +58,20 @@ interface Props {
     highlight?: PlanKey | null;
     /** Set when returning from the payment page. */
     returnedFrom?: PlanKey | null;
+    /** Set when returning from Stripe's customer portal, where the plan may just have changed. */
+    fromPortal?: boolean;
 }
 
-export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedFrom }: Props) {
+export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedFrom, fromPortal }: Props) {
     const { t, i18n } = useTranslation();
-    const [busy, setBusy] = useState<PlanKey | null>(null);
+    const [busy, setBusy] = useState<PlanKey | 'portal' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState<PlanStatusRow[]>([]);
     const [gaveUp, setGaveUp] = useState(false);
     const [overrideMarket, setOverrideMarket] = useState<Market | null>(null);
     const [statusFor, setStatusFor] = useState<string | null>(null);
+    // Bumped to re-read the plan status when the tier itself did not change (a cancel, a resume).
+    const [statusNonce, setStatusNonce] = useState(0);
     const rank = RANK[clinic.tier];
     const statusKey = `${clinic.id}:${clinic.tier}`;
     const statusLoaded = statusFor === statusKey;
@@ -78,7 +88,21 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
             setStatusFor(statusKey);
         });
         return () => { cancelled = true; };
-    }, [clinic.id, statusKey]);
+    }, [clinic.id, statusKey, statusNonce]);
+
+    // Back from the portal: Stripe's webhook lands a few seconds after the page
+    // does, so re-read the listing and its plan for a short while.
+    useEffect(() => {
+        if (!fromPortal) return;
+        let n = 0;
+        const id = window.setInterval(() => {
+            n += 1;
+            void refreshRef.current();
+            setStatusNonce((x) => x + 1);
+            if (n >= PORTAL_POLLS) window.clearInterval(id);
+        }, PORTAL_POLL_MS);
+        return () => window.clearInterval(id);
+    }, [fromPortal, clinic.id]);
 
     const handleMarketChange = (newMarket: Market) => {
         setOverrideMarket(newMarket);
@@ -116,23 +140,47 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
     const lockedMarket = current?.market ?? null;
     const market = lockedMarket ?? overrideMarket ?? readSavedMarket() ?? marketForLanguage(i18n.language);
     const blocked = busy !== null || !statusLoaded;
+    // A plan that is being paid for: it is managed, not bought again.
+    const paying = status.find((s) => s.access && (s.status === 'active' || s.status === 'canceled'));
+    // Any Stripe history opens the portal, even after our records let the plan lapse: Stripe may
+    // still be retrying the last charge, and the card is fixed there, not with a new subscription.
+    const stripeManaged = status.some((s) => s.stripe);
+
+    const billingErrorText = (e: unknown, fallback: string) => {
+        const code = e instanceof BillingError ? e.code : '';
+        if (code === 'already_subscribed') return t('account.alreadySubscribed');
+        if (code === 'not_your_listing') return t('account.ownerOnlyBilling');
+        return fallback;
+    };
 
     const subscribe = async (plan: PlanKey) => {
         setBusy(plan);
         setError(null);
         track('checkout_started', { plan, provider_id: clinic.id, current_tier: clinic.tier, market });
         try {
-            const url = await startCheckout(clinic.id, plan, market, email);
+            const url = await startCheckout(clinic.id, plan, market);
             window.location.assign(url);
-        } catch {
+        } catch (e) {
             track('checkout_failed', { plan, provider_id: clinic.id });
-            setError(t('account.checkoutFailed'));
+            setError(billingErrorText(e, t('account.checkoutFailed')));
+            setBusy(null);
+        }
+    };
+
+    const managePlan = async () => {
+        setBusy('portal');
+        setError(null);
+        track('plan_portal_opened', { provider_id: clinic.id, current_tier: clinic.tier });
+        try {
+            window.location.assign(await openPortal(clinic.id));
+        } catch (e) {
+            setError(billingErrorText(e, t('account.portalFailed')));
             setBusy(null);
         }
     };
 
     const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(i18n.language, { dateStyle: 'long' }) : '');
-    const offered = (['promoted', 'featured'] as const).filter((p) => RANK[p] > rank);
+    const offered = paying ? [] : (['promoted', 'featured'] as const).filter((p) => RANK[p] > rank);
     const ended = rank === 0 && status.some((s) => s.status === 'lapsed' || s.status === 'refunded');
 
     return (
@@ -263,11 +311,36 @@ export function ClinicPlanPanel({ clinic, email, onRefresh, highlight, returnedF
                     <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', lineHeight: 1.55 }}>
                         {t('account.securePay', { email })}
                     </p>
+                    {error && !stripeManaged && <p role="alert" style={{ color: 'var(--red)', fontSize: '0.85rem' }}>{error}</p>}
+                </div>
+            )}
+
+            {stripeManaged && (
+                <div
+                    style={{
+                        padding: '1.1rem 1.2rem', borderRadius: 'var(--radius)', background: 'var(--navy-800)',
+                        border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.7rem',
+                    }}
+                >
+                    <p style={{ fontSize: '0.85rem', color: 'var(--gray-400)', lineHeight: 1.55 }}>{t('account.manageHelp')}</p>
+                    <button
+                        onClick={() => void managePlan()}
+                        disabled={blocked}
+                        className="press"
+                        style={{
+                            alignSelf: 'flex-start', padding: '0.8rem 1.4rem', borderRadius: 'var(--radius-pill)',
+                            background: 'var(--brand)', color: 'var(--on-brand)', border: 'none',
+                            fontWeight: 700, fontSize: '0.92rem',
+                            opacity: blocked ? 0.65 : 1, cursor: blocked ? 'progress' : 'pointer',
+                        }}
+                    >
+                        {busy === 'portal' ? t('account.manageBusy') : t('account.managePlan')}
+                    </button>
                     {error && <p role="alert" style={{ color: 'var(--red)', fontSize: '0.85rem' }}>{error}</p>}
                 </div>
             )}
 
-            {rank > 0 && (
+            {rank > 0 && !paying?.stripe && (
                 <p style={{ fontSize: '0.82rem', color: 'var(--gray-500)', lineHeight: 1.55 }}>
                     {t('account.cancelHelp')}{' '}
                     <Link to="/contact" style={{ textDecoration: 'underline' }}>{t('contact.title')}</Link>

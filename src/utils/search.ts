@@ -155,6 +155,8 @@ const FIELD_WEIGHTS = {
     service: 35,
     city: 20,
     address: 15,
+    /** Names of the organizations whose badge the listing holds (Hospital Ángeles, a consejo). */
+    org: 30,
     insurance: 10,
 } as const;
 
@@ -189,6 +191,10 @@ export interface SearchDoc {
     city: string;
     address: string;
     insurance: string;
+    /** Badge organization names, '|'-joined. */
+    org: string;
+    /** A single doctor rather than a clinic or a stay: what the badge tier ranks. */
+    doctor: boolean;
     /** Rating/reviews/verified rolled into one multiplier, computed once. */
     quality: number;
     promoted: boolean;
@@ -247,6 +253,33 @@ export function scoreDoc(doc: SearchDoc, terms: readonly string[]): number {
     }
 
     return total * doc.quality;
+}
+
+/**
+ * Words that name a kind of organization rather than one organization. A query
+ * made only of these ("hospital", "clinica") is looking for the place, so it
+ * does not lift the doctors who carry some hospital's badge above it.
+ */
+const GENERIC_ORG_WORDS = new Set([
+    'hospital', 'hospitales', 'clinica', 'clinicas', 'clinic', 'clinics', 'centro', 'center', 'centre',
+    'medico', 'medica', 'medical', 'colegio', 'consejo', 'asociacion', 'association', 'sociedad', 'society',
+    'grupo', 'group', 'mexicano', 'mexicana', 'nacional', 'general', 'salud', 'health',
+]);
+
+/**
+ * True when the query names an organization this doctor holds a badge from:
+ * every term lands at the start of a word in one badge's name, and at least one
+ * term is more than a generic word. "hospital angeles" matches a Hospital
+ * Ángeles badge; "hospital" alone matches nothing.
+ *
+ * applyFilters ranks these doctors right after paid placement, so a search for
+ * a hospital shows the doctors who practise there before the hospital's own
+ * listings (17 Nov 2026). Clinics and stays never qualify.
+ */
+export function badgeMatches(doc: SearchDoc, terms: readonly string[]): boolean {
+    if (!doc.doctor || !doc.org || !terms.length) return false;
+    if (terms.every((t) => GENERIC_ORG_WORDS.has(t))) return false;
+    return doc.org.split('|').some((name) => terms.every((t) => matchStrength(name, t) >= PREFIX));
 }
 
 /**
@@ -312,6 +345,8 @@ export function buildSearchIndex(
             city: fold(p.city ?? ''),
             address: fold(p.address ?? ''),
             insurance: fold((p.insurances ?? []).join('|')),
+            org: fold((p.badges ?? []).map((b) => b.name).join('|')),
+            doctor: !p.kind,
             quality: qualityOf(p),
             promoted: p.promoted,
         });

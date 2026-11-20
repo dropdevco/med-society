@@ -17,6 +17,8 @@ import { badgeLink, cardRow, currentBadges, GROUPS, groupOf, idOf, isWebLink, mo
 import { buildFacets } from '../src/utils/facets';
 import { countActiveFilters, defaultFilters, matchesFilters } from '../src/utils/filters';
 import { providerJsonLd } from '../src/utils/structuredData';
+import { compareRows, defaultCandidate } from '../src/components/admin/compare';
+import type { MatchCompare } from '../src/lib/adminApi';
 import { isDate, isWebLink as manualLink, levelFor, parseArgs, pick, removal, type Row } from './sources/badges-manual';
 
 let failures = 0;
@@ -132,7 +134,7 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
 // ── Migrations ────────────────────────────────────────────────────────────
 {
     const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql'));
-    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql', '0050_organization_groups.sql', '0051_match_scores.sql'];
+    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql', '0050_organization_groups.sql', '0051_match_scores.sql', '0055_review_compare.sql'];
     for (const f of ours) {
         check(`${f}: exists and no other file has its number`, files.filter((x) => x.startsWith(f.slice(0, 4))).join() === f);
         check(`${f}: says how to undo it`, /rollback/i.test(read(`supabase/migrations/${f}`)));
@@ -147,8 +149,8 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     // A view can only gain columns at the end: badges must follow production's last columns (0040_providers_kind).
     const view = /create or replace view public\.provider_list[\s\S]*?from public\.providers p/.exec(read('supabase/migrations/0043_sources_and_badges.sql'))?.[0] ?? '';
     check('provider_list keeps service_names and kind, then adds badges last', /"googlePlaceId",\s*service_names,\s*kind,\s*badges\s*from/.test(view));
-    // 0042 to 0046 are in production; 0050 and 0051 are new and must come after everything else (main took 0047 to 0049).
-    check('our unapplied migrations come after every other one', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0050'));
+    // 0042 to 0046, 0050 and 0051 are in production; 0055 is new and must come after every other migration (production already holds 0052 to 0054 from other work).
+    check('our unapplied migration (0055) comes after every other one', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0055'));
     for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
         check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
     }
@@ -217,6 +219,33 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     const two = [row('conacem', 'confirmed', 'Pediatría'), row('conacem', 'confirmed', 'Neonatología')];
     let asks = false; try { pick(two, undefined); } catch (e) { asks = /Pediatría/.test(String(e)); }
     check('manual: two badges from one organization ask for --label', asks && pick(two, 'Neonatología').label === 'Neonatología');
+}
+
+// ── Admin side-by-side (src/components/admin/compare.ts) ─────────────────────
+{
+    const cand = (id: string, name: string, extra: Partial<MatchCompare['candidates'][number]> = {}): MatchCompare['candidates'][number] =>
+        ({ doctor_id: id, display_name: name, similarity: 0.9, linked: false, cedulas: [], listings: [], badges: [], ...extra });
+    const base: MatchCompare = {
+        status: 'probable', tier: 3, confidence: 0.9, doctor_id: null,
+        record: { name: 'Rosa Ejemplo Rio', label: 'Member doctor', specialties: ['Pediatría'], cedulas: ['8880001'], region: 'sandiego-tijuana', url: null, valid_to: null, facts: null },
+        candidates: [
+            cand('d1', 'Dra. Rosa Ejemplo Rio', { similarity: 1, cedulas: [{ cedula: '8880001', title: 'Médico Cirujano', kind: 'licenciatura' }], listings: [{ id: 'p1', name: 'Dra. Rosa', city: 'Tijuana', region: 'sandiego-tijuana', specialty: ['pediatrics'], kind: null }] }),
+            cand('d2', 'Dra. Rosa Ejemplo Rios', { similarity: 0.93, cedulas: [{ cedula: '8880002', title: null, kind: 'licenciatura' }], listings: [{ id: 'p2', name: 'Dra. Rosa R', city: 'Juárez', region: 'elpaso-juarez', specialty: null, kind: null }] }),
+        ],
+        ai: { score: 74, verdict: 'needs_human', reason: 'Two share the name.', candidate: 'd2', model: 'test', scored_at: '2026-11-17T00:00:00Z', run: 'r', evidence: {} },
+        link: null,
+    };
+    const state = (c: MatchCompare, id: string) => Object.fromEntries(compareRows(c, c.candidates.find((x) => x.doctor_id === id)!).map((r) => [r.label, r.state]));
+    const same = state(base, 'd1');
+    check('compare: same name, same cédula, same region read as same', same['Name'] === 'same' && same['Cédula'] === 'same' && same['Region'] === 'same', same);
+    const other = state(base, 'd2');
+    check('compare: another cédula and another region are flagged', other['Cédula'] === 'differs' && other['Region'] === 'differs' && other['Name'] === 'differs', other);
+    check('compare: specialties in two vocabularies are shown, never judged', same['Specialty'] === 'unknown');
+    const silent = state({ ...base, record: { ...base.record!, cedulas: [] } }, 'd2');
+    check('compare: no cédula on one side is unknown, not a conflict', silent['Cédula'] === 'unknown');
+    check('compare: opens on the AI pick when nothing is linked', defaultCandidate(base)?.doctor_id === 'd2');
+    check('compare: opens on the linked doctor before the AI pick', defaultCandidate({ ...base, candidates: [base.candidates[0], { ...base.candidates[1], linked: false }].map((x) => (x.doctor_id === 'd1' ? { ...x, linked: true } : x)) })?.doctor_id === 'd1');
+    check('compare: a rejected AI pick is not preferred', defaultCandidate({ ...base, ai: { ...base.ai!, verdict: 'reject' } })?.doctor_id === 'd1');
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');

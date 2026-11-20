@@ -4,7 +4,7 @@ import type { ProviderFilters, Specialty } from '../../types/provider';
 import { SpecialtyLabels } from '../../types/provider';
 import type { FacetCounts } from '../../utils/facets';
 import { topInsurers } from '../../utils/facets';
-import { fold } from '../../utils/search';
+import { insurerSections } from '../../utils/insurers';
 import { regionPatch } from '../../utils/filters';
 import { PlacePicker } from './PlacePicker';
 import { languageName } from '../../utils/languages';
@@ -41,7 +41,7 @@ const RATINGS = [0, 3, 4, 4.5];
  */
 const PRICE_CEILINGS_MXN = [500, 1000, 2000, 5000];
 const PRICE_CEILINGS_USD = [25, 50, 100, 250];
-const INSURERS_SHOWN = 12;
+const INSURERS_SHOWN = 12; // a search box above the list from this many
 
 /** Toggle a value in or out of a multi-select axis. */
 function toggle<T>(list: T[], value: T): T[] {
@@ -79,13 +79,10 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
         .concat(filters.specialty.filter((s) => !showAllTags && !PRIMARY_SPECIALTIES.includes(s)))
         .filter((s, i, arr) => arr.indexOf(s) === i);
 
-    const insurerOptions = (() => {
-        const q = fold(insuranceQuery.trim());
-        const all = topInsurers(facets.insurance, q ? 400 : INSURERS_SHOWN);
-        const matched = q ? all.filter((n) => fold(n).includes(q)).slice(0, INSURERS_SHOWN) : all;
-        // Selected insurers always render, even if the search box hides them.
-        return [...new Set([...filters.insurances, ...matched])];
-    })();
+    // Every insurer, most accepted first, then US plans and the rest A–Z, in a
+    // box that scrolls (src/utils/insurers.ts). It used to stop at twelve.
+    const insurerGroups = insurerSections(topInsurers(facets.insurance, facets.insurance.size), insuranceQuery, filters.insurances);
+    const insurerHeading = { popular: t('search.coverPopular'), us: t('search.coverUs'), all: t('search.coverAll'), matches: null };
 
     const languageOptions = [...facets.language.entries()]
         .sort((a, b) => b[1] - a[1])
@@ -158,20 +155,25 @@ export function FilterBar({ filters, updateFilter, patchFilters, facets }: Filte
                         />
                     </div>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                    {insurerOptions.length === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', maxHeight: '18rem', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+                    {insurerGroups.length === 0 && (
                         <p style={{ fontSize: '0.8rem', color: 'var(--gray-500)', padding: '0.3rem 0' }}>
                             {t('filters.noInsurers', { defaultValue: 'No insurers match' })}
                         </p>
                     )}
-                    {insurerOptions.map((name) => (
-                        <CheckRow
-                            key={name}
-                            label={name}
-                            count={facets.insurance.get(name) ?? 0}
-                            checked={filters.insurances.includes(name)}
-                            onChange={() => updateFilter('insurances', toggle(filters.insurances, name))}
-                        />
+                    {insurerGroups.map((group) => (
+                        <div key={group.key} role="group" aria-label={insurerHeading[group.key] ?? undefined}>
+                            {insurerHeading[group.key] && <p className="ms-pop-head" style={{ marginLeft: 0 }}>{insurerHeading[group.key]}</p>}
+                            {group.names.map((name) => (
+                                <CheckRow
+                                    key={name}
+                                    label={name}
+                                    count={facets.insurance.get(name) ?? 0}
+                                    checked={filters.insurances.includes(name)}
+                                    onChange={() => updateFilter('insurances', toggle(filters.insurances, name))}
+                                />
+                            ))}
+                        </div>
                     ))}
                 </div>
             </Section>

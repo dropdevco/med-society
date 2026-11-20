@@ -588,7 +588,7 @@ function expandTerm(term: string): readonly string[] {
     return [term];
 }
 
-const FIELD_WEIGHTS = { name: 100, specialty: 45, service: 35, city: 20, address: 15, insurance: 10 } as const;
+const FIELD_WEIGHTS = { name: 100, specialty: 45, service: 35, city: 20, address: 15, org: 30, insurance: 10 } as const;
 type FieldKey = keyof typeof FIELD_WEIGHTS;
 const ALL_FIELDS = Object.keys(FIELD_WEIGHTS) as FieldKey[];
 const CONCEPT_FIELDS: FieldKey[] = ['specialty', 'service', 'insurance'];
@@ -604,6 +604,8 @@ interface SearchDoc {
     city: string;
     address: string;
     insurance: string;
+    org: string;
+    doctor: boolean;
     quality: number;
 }
 
@@ -638,6 +640,18 @@ function scoreDoc(doc: SearchDoc, terms: readonly string[]): number {
     return total * doc.quality;
 }
 
+// Same as src/utils/search.ts badgeMatches: the query names an organization this doctor holds a badge from.
+const GENERIC_ORG_WORDS = new Set([
+    'hospital', 'hospitales', 'clinica', 'clinicas', 'clinic', 'clinics', 'centro', 'center', 'centre',
+    'medico', 'medica', 'medical', 'colegio', 'consejo', 'asociacion', 'association', 'sociedad', 'society',
+    'grupo', 'group', 'mexicano', 'mexicana', 'nacional', 'general', 'salud', 'health',
+]);
+function badgeMatches(doc: SearchDoc, terms: readonly string[]): boolean {
+    if (!doc.doctor || !doc.org || !terms.length) return false;
+    if (terms.every((t) => GENERIC_ORG_WORDS.has(t))) return false;
+    return doc.org.split('|').some((name) => terms.every((t) => matchStrength(name, t) >= PREFIX));
+}
+
 function qualityOf(p: Row): number {
     const reviews = Math.log1p(Math.max(0, p.reviewCount || 0)) / Math.log1p(1000);
     const rating = Math.max(0, Math.min(2, (p.rating || 0) - 3)) / 2;
@@ -657,6 +671,8 @@ function buildDoc(p: Row): SearchDoc {
         city: fold(p.city),
         address: fold(p.address),
         insurance: fold(p.insurances.join('|')),
+        org: fold(p.organizations.map((o) => o.organization).join('|')),
+        doctor: !p.kind,
         quality: qualityOf(p),
     };
 }
@@ -674,25 +690,46 @@ interface Snapshot {
     postal: Map<string, { lat: number; lng: number }>;
 }
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 500;
 
-/** The whole lean directory of one region, paged exactly like src/hooks/useProviders.ts. */
+/**
+ * The whole lean directory of one region, paged by id like src/hooks/useProviders.ts:
+ * each page starts after the last id, so no request reads rows it skips (offset paging
+ * hit the anon role's 3 s statement timeout when the database was slow). Four id slices
+ * (by first hex digit) read at once, each in 500-row pages one after another, so a slow
+ * day stays well inside the function's time limit. A page that times out is asked again, twice.
+ */
+const SLICES: Array<[string | null, string | null]> = [
+    [null, '40000000-0000-0000-0000-000000000000'],
+    ['3fffffff-ffff-ffff-ffff-ffffffffffff', '80000000-0000-0000-0000-000000000000'],
+    ['7fffffff-ffff-ffff-ffff-ffffffffffff', 'c0000000-0000-0000-0000-000000000000'],
+    ['bfffffff-ffff-ffff-ffff-ffffffffffff', null],
+];
 async function loadRegion(region: RegionId): Promise<Snapshot> {
-    const page = (from: number, count: boolean) =>
-        sb(`provider_list?select=*&region=eq.${region}&order=id&limit=${PAGE_SIZE}&offset=${from}`, { count });
-    const first = await page(0, true);
-    const raw: unknown[] = [...(first.data as unknown[])];
-    if (first.total != null && first.total > PAGE_SIZE) {
-        const starts: number[] = [];
-        for (let from = PAGE_SIZE; from < first.total; from += PAGE_SIZE) starts.push(from);
-        for (const next of await Promise.all(starts.map((from) => page(from, false)))) raw.push(...(next.data as unknown[]));
-    } else if (first.total == null && raw.length === PAGE_SIZE) {
-        for (let from = PAGE_SIZE; ; from += PAGE_SIZE) {
-            const next = (await page(from, false)).data as unknown[];
-            raw.push(...next);
-            if (next.length < PAGE_SIZE) break;
+    const page = async (after: string | null, before: string | null): Promise<Array<{ id?: unknown }>> => {
+        const path = `provider_list?select=*&region=eq.${region}${after ? `&id=gt.${after}` : ''}${before ? `&id=lt.${before}` : ''}&order=id&limit=${PAGE_SIZE}`;
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return (await sb(path)).data as Array<{ id?: unknown }>;
+            } catch (err) {
+                // Two retries, backing off, as in useProviders.ts: a slow spell lasts seconds.
+                if (attempt >= 2 || !/\b500\b|57014|statement timeout/.test((err as Error).message)) throw err;
+                await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
+            }
         }
-    }
+    };
+    const slices = await Promise.all(SLICES.map(async ([from, before]) => {
+        const out: Array<{ id?: unknown }> = [];
+        for (let after = from; ;) {
+            const next = await page(after, before);
+            out.push(...next);
+            if (next.length < PAGE_SIZE) return out;
+            after = String(next[next.length - 1].id);
+        }
+    }));
+    // In id order, each row once.
+    const seen = new Set<string>();
+    const raw = slices.flat().filter((r) => { const id = String(r.id); if (seen.has(id)) return false; seen.add(id); return true; });
 
     const rows = raw.map(toRow).filter((r): r is Row => r !== null);
     const docs = new Map<string, SearchDoc>();
@@ -733,6 +770,68 @@ async function snapshot(region: RegionId): Promise<Snapshot> {
         if (entry.snap) return entry.snap;
         throw err;
     }
+}
+
+// ── Directory parts: the app's region list, served from Vercel's cache ───────
+//
+// GET /api/directory/:region/:part  (rewritten to ?route=directory&region=…&part=…)
+//
+// The app used to page a whole region straight out of Supabase on every first
+// visit: nine 1,000-row requests, ~4.6 s before a single card showed, and the
+// same database work repeated for every visitor. Here the same rows are served
+// with a shared-cache header, so Vercel's edge answers almost every request and
+// the database is read once per part per few minutes instead of per visitor.
+//
+// A region is split into DIRECTORY_PARTS fixed slices of the uuid keyspace, not
+// into pages. Each slice holds the same listings whenever it was cached, so
+// parts cached at different moments can never overlap or skip a row (offset
+// pages can, when a listing is added or removed between two fetches). Slicing
+// also keeps each response far under Vercel's 4.5 MB function limit: San Diego–
+// Tijuana is ~8 MB of JSON, ~1 MB per slice.
+//
+// The rows are exactly what the anon key already reads from `provider_list`
+// (no contact fields, migration 0032), in the same shape, so the app hands them
+// to normalizeProvider and its IndexedDB cache unchanged.
+//
+// Keep DIRECTORY_PARTS in step with src/hooks/useProviders.ts.
+
+const DIRECTORY_PARTS = 8;
+const DIRECTORY_PAGE = 500;
+/** Edge copies are fresh for 5 minutes, then served stale while one request refreshes them. */
+const CACHE_DIRECTORY = 'public, s-maxage=300, stale-while-revalidate=86400';
+
+/** [lower inclusive, upper exclusive) uuid bounds of one slice; null = open end. */
+function partBounds(part: number): [string | null, string | null] {
+    const at = (i: number) => (i <= 0 || i >= DIRECTORY_PARTS
+        ? null
+        : `${Math.round((i * 16) / DIRECTORY_PARTS).toString(16)}0000000-0000-0000-0000-000000000000`);
+    return [at(part), at(part + 1)];
+}
+
+async function directoryRoute(res: Res, params: URLSearchParams) {
+    const region = params.get('region');
+    const part = Number(params.get('part'));
+    if (!isRegionId(region)) throw new ApiError(400, 'invalid_parameter', 'region: not a known region.', { param: 'region', allowed: REGION_IDS });
+    if (!Number.isInteger(part) || part < 0 || part >= DIRECTORY_PARTS) {
+        throw new ApiError(400, 'invalid_parameter', `part: an integer from 0 to ${DIRECTORY_PARTS - 1}.`, { param: 'part' });
+    }
+
+    const [lo, hi] = partBounds(part);
+    const rows: Record<string, unknown>[] = [];
+    // Keyset paging (id > last), never OFFSET: each page is an index range scan.
+    // Pages are kept small because building the JSON, not finding the rows, is
+    // what costs: a 1,000-row page of this view takes 0.7–0.9 s on the current
+    // instance, too close to the anon role's 3 s statement timeout under load.
+    for (let last = lo, first = true; ; first = false) {
+        const range = [last && `id=${first ? 'gte' : 'gt'}.${last}`, hi && `id=lt.${hi}`].filter(Boolean).join('&');
+        const { data } = await sb(`provider_list?select=*&region=eq.${region}${range ? `&${range}` : ''}&order=id&limit=${DIRECTORY_PAGE}`);
+        const page = data as Record<string, unknown>[];
+        rows.push(...page);
+        if (page.length < DIRECTORY_PAGE) break;
+        last = String(page[page.length - 1].id);
+    }
+
+    return sendJson(res, 200, { region, part, parts: DIRECTORY_PARTS, generatedAt: new Date().toISOString(), rows }, CACHE_DIRECTORY);
 }
 
 const haversineKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
@@ -1043,6 +1142,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
     const insurance = q.insurance.map(fold);
     const kept: Row[] = [];
     const scores = new Map<string, number>();
+    const badged = new Set<string>();
     const distances = new Map<string, number>();
 
     for (const snap of snaps) {
@@ -1073,6 +1173,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
                 const score = doc ? scoreDoc(doc, q.terms) : 0;
                 if (score === 0) continue;
                 scores.set(p.id, score);
+                if (doc && badgeMatches(doc, q.terms)) badged.add(p.id);
             }
             kept.push(p);
         }
@@ -1104,6 +1205,11 @@ async function runSearch(q: Query): Promise<SearchResult> {
             if (ra !== rb) return ra - rb;
         }
         if (q.paidPlacement === 'first' && placement(a) !== placement(b)) return placement(b) - placement(a);
+        // Doctors holding a badge from the organization the query names (src/utils/filters.ts).
+        if (sort === 'relevance' && badged.size) {
+            const d = (badged.has(b.id) ? 1 : 0) - (badged.has(a.id) ? 1 : 0);
+            if (d !== 0) return d;
+        }
 
         switch (sort) {
             case 'relevance': {
@@ -3614,6 +3720,7 @@ export default async function handler(req: Req, res: Res) {
             case 'site': return await siteRoute(res, params);
             case 'site-copy': return await siteCopyRoute(req, res);
             case 'site-grab': return await siteGrabRoute(req, res);
+            case 'directory': return await directoryRoute(res, params);
             default: throw new ApiError(404, 'not_found', 'Unknown route.');
         }
     } catch (err) {
@@ -3798,7 +3905,7 @@ async function siteGrabRoute(req: Req, res: Res) {
 
 /** Exported for scripts/agent-selftest.ts, which checks these against the site's own src/utils. */
 export const __test = {
-    tokenize, scoreDoc, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
+    tokenize, scoreDoc, badgeMatches, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
     openApiSpec, languageCodes, expandTerm, fold, SEARCH_PARAMS, MCP_TOOLS, providerJsonLd, rpcHandle,
     parseCopy, copyWarnings, parseSiteHtml, isPublicIp, fetchPublicHtml,
 };

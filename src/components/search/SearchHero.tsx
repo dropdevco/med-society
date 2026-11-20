@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProviderFilters, Specialty, Country } from '../../types/provider';
 import { parseCityValue, suggest, type Suggestion, type SuggestVocabulary } from '../../utils/facets';
-import { fold } from '../../utils/search';
+import { insurerSections, type InsurerSection } from '../../utils/insurers';
 import { isPostalQuery, normalizePostal } from '../../utils/geo';
 import { REGIONS, type RegionId } from '../../utils/region';
 import { regionPatch } from '../../utils/filters';
@@ -53,6 +53,12 @@ interface SearchHeroProps {
      * it unset, because there the box is the page.
      */
     onDismiss?: () => void;
+    /**
+     * The filter area a click must land outside of to dismiss: the whole
+     * results toolbar (mode toggle, box, category rail), not only the box.
+     * Defaults to the box itself.
+     */
+    dismissArea?: RefObject<HTMLElement | null>;
 }
 
 /** The WHERE segment's draft: region, side and postal code. */
@@ -83,6 +89,7 @@ function draftFrom(f: ProviderFilters): Draft {
 export function SearchHero({
     filters, vocabulary, insurers, onSubmit, onProvider, autoFocus, onWhereChange, onRegionChange,
     onDismiss,
+    dismissArea,
 }: SearchHeroProps) {
     const { t } = useTranslation();
     const [draft, setDraft] = useState<Draft>(() => draftFrom(filters));
@@ -171,17 +178,33 @@ export function SearchHero({
         // finger. And by the path, not contains(): a click that removes its
         // own target (a chip's ×, a suggestion row) is no longer inside the
         // box by the time it bubbles up here.
-        const onClick = (e: MouseEvent) => {
-            if (wrapRef.current && !e.composedPath().includes(wrapRef.current)) onDismiss();
+        //
+        // And only when the press began outside too. A press inside that is
+        // released outside (dragging to select typed text, slipping off a row)
+        // still produces a click, aimed at the nearest common ancestor, which
+        // is outside the box; that collapsed it mid-edit (17 Nov 2026).
+        const area = () => dismissArea?.current ?? wrapRef.current;
+        let pressedInside = false;
+        const onPress = (e: PointerEvent) => {
+            const a = area();
+            pressedInside = !!a && e.composedPath().includes(a);
         };
+        const onClick = (e: MouseEvent) => {
+            const a = area();
+            if (pressedInside) { pressedInside = false; return; }
+            if (a && !e.composedPath().includes(a)) onDismiss();
+        };
+        // Capture: a control inside that stops propagation still counts as a press inside.
+        document.addEventListener('pointerdown', onPress, true);
         // Attached a task later: the tap that opened the box is still on its
         // way up to the document, and would close it again on arrival.
         const timer = window.setTimeout(() => document.addEventListener('click', onClick));
         return () => {
             window.clearTimeout(timer);
+            document.removeEventListener('pointerdown', onPress, true);
             document.removeEventListener('click', onClick);
         };
-    }, [onDismiss]);
+    }, [onDismiss, dismissArea]);
 
     const suggestions = useMemo(
         () => (open === 'what' ? suggest(vocabulary, draft.text) : []),
@@ -484,9 +507,6 @@ function WherePopover({ draft, onPick }: {
     );
 }
 
-/** How many insurers fit before the list stops being a list. */
-const COVER_SHOWN = 8;
-
 function CoverPopover({ insurers, selected, onToggle, onClear }: {
     insurers: string[]; selected: string[];
     onToggle: (name: string) => void; onClear: () => void;
@@ -494,13 +514,16 @@ function CoverPopover({ insurers, selected, onToggle, onClear }: {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
 
-    const shown = useMemo(() => {
-        const q = fold(query.trim());
-        const matched = q ? insurers.filter((n) => fold(n).includes(q)) : insurers;
-        // A selected insurer always renders, or the search box can hide the
-        // very filter the user is trying to switch off.
-        return [...new Set([...selected, ...matched])].slice(0, COVER_SHOWN + selected.length);
-    }, [insurers, query, selected]);
+    // Every insurer, in sections, in a list that scrolls: the old popover cut
+    // at eight rows, so the US plans the listings name (BCBS, Aetna, Cigna)
+    // were unreachable without typing.
+    const sections = useMemo(() => insurerSections(insurers, query, selected), [insurers, query, selected]);
+    const heading: Record<InsurerSection['key'], string | null> = {
+        popular: t('search.coverPopular'),
+        us: t('search.coverUs'),
+        all: t('search.coverAll'),
+        matches: null,
+    };
 
     return (
         <div className="ms-pop ms-pop-cover" onClick={(e) => e.stopPropagation()}>
@@ -522,20 +545,25 @@ function CoverPopover({ insurers, selected, onToggle, onClear }: {
                 )}
             </button>
 
-            {shown.map((name) => (
-                <button
-                    key={name}
-                    onClick={() => onToggle(name)}
-                    className={`ms-pop-row${selected.includes(name) ? ' is-chosen' : ''}`}
-                >
-                    <span className="ms-pop-label"><strong>{name}</strong></span>
-                    {selected.includes(name) && (
-                        <span className="ms-pop-meta"><IconCheck size={15} weight={2.4} /></span>
-                    )}
-                </button>
+            {sections.map((section) => (
+                <div key={section.key} role="group" aria-label={heading[section.key] ?? undefined}>
+                    {heading[section.key] && <p className="ms-pop-head">{heading[section.key]}</p>}
+                    {section.names.map((name) => (
+                        <button
+                            key={name}
+                            onClick={() => onToggle(name)}
+                            className={`ms-pop-row${selected.includes(name) ? ' is-chosen' : ''}`}
+                        >
+                            <span className="ms-pop-label"><strong>{name}</strong></span>
+                            {selected.includes(name) && (
+                                <span className="ms-pop-meta"><IconCheck size={15} weight={2.4} /></span>
+                            )}
+                        </button>
+                    ))}
+                </div>
             ))}
 
-            {shown.length === 0 && (
+            {sections.length === 0 && (
                 <p className="ms-pop-empty">{t('filters.noInsurers')}</p>
             )}
         </div>

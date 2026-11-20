@@ -145,3 +145,10 @@
 .adm-decide label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.45; }
 .adm-decide input[type='checkbox'] { margin-top: 3px; accent-color: var(--accent); flex: none; }
 @media (max-width: 640px) { .adm-claim .adm-dl > div { grid-template-columns: 1fr; gap: 0; } }
+
+/* Side-by-side compare (VerificationPanel): a record beside a candidate doctor. */
+.adm-compare { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.adm-compare .adm-table th[scope="row"] { white-space: nowrap; color: var(--gray-400); font-weight: 600; }
+.adm-compare .adm-table th[scope="row"] .adm-badge { margin-left: 6px; font-size: 10px; padding: 2px 7px; }
+.adm-compare tr.is-differs td { background: rgba(169, 47, 40, 0.08); }
+.adm-compare td { width: 45%; overflow-wrap: anywhere; }
