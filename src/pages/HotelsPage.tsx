@@ -6,6 +6,9 @@ import { track } from '../lib/posthog';
 import { useProvider } from '../hooks/useProvider';
 import { HotelCard } from '../components/hotels/HotelCard';
 import { HotelMap } from '../components/hotels/HotelMap';
+import { HotelSkeleton } from '../components/hotels/HotelSkeleton';
+import { StayDates } from '../components/hotels/StayDates';
+import { validStay } from '../utils/hotelLinks';
 import { HOTEL_AMENITIES, type Hotel, type HotelAmenity } from '../types/hotel';
 import { distanceKm } from '../utils/geo';
 import { isRegionId, readLastRegion, regionOf, REGIONS, writeLastRegion, type RegionId } from '../utils/region';
@@ -23,6 +26,16 @@ export function HotelsPage() {
     const nearId = params.get('near') ?? undefined;
     const { provider: near } = useProvider(nearId);
     const city = REGIONS[region].mx.city;
+    // Stay dates live in the URL (?checkin=&checkout=), so the homepage search and a shared link keep them.
+    const stay = validStay(params.get('checkin'), params.get('checkout'));
+    const [draftDates, setDraftDates] = useState({ checkin: stay?.checkin ?? '', checkout: stay?.checkout ?? '' });
+    const setDates = (next: { checkin: string; checkout: string }) => {
+        setDraftDates(next);
+        const ok = validStay(next.checkin, next.checkout);
+        const p = new URLSearchParams(params);
+        if (ok) { p.set('checkin', ok.checkin); p.set('checkout', ok.checkout); } else { p.delete('checkin'); p.delete('checkout'); }
+        setParams(p, { replace: true });
+    };
 
     // Keyed by region: until this region's list arrives, the page is loading (null).
     const [loaded, setLoaded] = useState<{ region: RegionId; hotels: Hotel[]; failed: boolean } | null>(null);
@@ -108,6 +121,10 @@ export function HotelsPage() {
                         </button>
                     ))}
                 </div>
+                <div className="ms-hotels-datebar">
+                    <StayDates idPrefix="hotels-page" checkin={draftDates.checkin} checkout={draftDates.checkout} onChange={setDates} />
+                    <p>{stay ? t('hotels.datesSet') : t('hotels.datesHint')}</p>
+                </div>
                 {origin && (
                     <p className="ms-hotels-near">
                         {t('hotels.sortedNear', { name: origin.name })}{' '}
@@ -135,7 +152,12 @@ export function HotelsPage() {
 
             <div className="ms-hotels-body">
                 <div className="ms-hotels-list" aria-live="polite" aria-busy={hotels === null}>
-                    {hotels === null && <p className="ms-hotels-empty">{t('hotels.loading')}</p>}
+                    {hotels === null && (
+                        <>
+                            <span className="sr-only">{t('hotels.loading')}</span>
+                            {Array.from({ length: 4 }).map((_, i) => <HotelSkeleton key={i} />)}
+                        </>
+                    )}
                     {hotels !== null && rows.length === 0 && (
                         <p className="ms-hotels-empty">
                             {failed ? t('hotels.error') : hotels.length === 0 ? t('hotels.emptyRegion', { city }) : t('hotels.emptyFiltered')}
@@ -143,7 +165,7 @@ export function HotelsPage() {
                     )}
                     {rows.map(({ hotel, km }) => (
                         <HotelCard key={hotel.id} hotel={hotel} surface="hotels_page" distanceKm={km}
-                            fromName={origin?.name} providerId={origin?.id} />
+                            fromName={origin?.name} providerId={origin?.id} checkin={stay?.checkin} checkout={stay?.checkout} />
                     ))}
                     {rows.length > 0 && <p className="ms-hotel-disclosure">{t('hotels.disclosure')}</p>}
                 </div>

@@ -60,3 +60,16 @@ select 'published draft now nearest, hidden one gone' as check,
   (select array_agg(hotel->>'name' order by distance_km) = array['Hotel Borrador', 'Hotel Cerca']
      from public.hotels_near(32.5272, -117.0222, 5, 8)) as ok;
 reset role;
+
+-- 0056: Google place IDs are unique, and visitors can read the new columns.
+update public.hotels set google_place_id = 'ChIJ-test-cerca', review_count = 1234 where id = '00000000-0000-4000-8000-0000000000c1';
+do $$ begin update public.hotels set google_place_id = 'ChIJ-test-cerca' where id = '00000000-0000-4000-8000-0000000000c4';
+  raise exception 'duplicate place id accepted'; exception when unique_violation then raise notice 'ok: duplicate google place id refused'; end $$;
+do $$ begin update public.hotels set review_count = -1 where id = '00000000-0000-4000-8000-0000000000c4';
+  raise exception 'negative review count accepted'; exception when check_violation then raise notice 'ok: negative review count refused'; end $$;
+set role anon;
+select 'anon reads place id and review count' as check,
+  (select google_place_id = 'ChIJ-test-cerca' and review_count = 1234 from public.hotels where id = '00000000-0000-4000-8000-0000000000c1') as ok;
+select 'hotels_near returns the new columns' as check,
+  (select hotel->>'google_place_id' = 'ChIJ-test-cerca' from public.hotels_near(32.5272, -117.0222, 5, 8) where hotel->>'name' = 'Hotel Cerca') as ok;
+reset role;

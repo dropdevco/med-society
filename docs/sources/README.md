@@ -25,6 +25,7 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 | ADM dental council | — | consejo | permission needed | robots.txt bars AI agents | E, assisted | ? | Per claim | Letter to send |
 | JCI | — | accreditor | permission needed | 403; robots.txt bars AI agents | E, assisted | Facilities | Yearly | Low priority |
 | ACERBAC | — | association | export | Site down, no public list | F, export | ? | Monthly | Ask for list |
+| Google Places, hotels near the clinics | `google-places-hotels` | licensed API (lodging, not doctors) | licensed | Google Maps Platform terms, the same key and basis as the provider sweeps in `scripts/doctoralia/`. Only the place ID may be kept indefinitely; like providers, we also keep name, address, coordinates and rating. Photos are never stored (served through `/api/place-photo`). Not run by `scripts/sources/`: `scripts/hotels/find.ts`, see [docs/hotels.md](../hotels.md) | B, JSON | No | By hand | **Built** (19 Nov 2026) |
 | CMMI | — | consejo | export | Statute clause 18.4 promises the directory on request | F, export | ? | Monthly | Ask for list |
 
 Reader types: **A** static HTML · **B** JSON feed · **C** bulk file · **D** real browser · **E** assisted human lookup · **F** export or shared sheet.

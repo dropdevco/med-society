@@ -48,3 +48,6 @@ supabase/.temp
 
 # Claude Code local runtime state
 .claude/scheduled_tasks.lock
+
+# Hotel finder runs and Google response cache (scripts/hotels/find.ts; never commit)
+scripts/hotels/.data

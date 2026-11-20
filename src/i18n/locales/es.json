@@ -1431,6 +1431,20 @@
       "nurse_on_call": "Enfermera disponible",
       "bilingual_staff": "Personal que habla inglés",
       "parking": "Estacionamiento"
-    }
+    },
+    "googleReviews_one": "{{formatted}} reseña en Google",
+    "googleReviews_other": "{{formatted}} reseñas en Google",
+    "checkin": "Llegada",
+    "checkout": "Salida",
+    "datesSet": "Los precios en Booking.com se abren para estas fechas.",
+    "datesHint": "Agrega tus fechas para ver precios de tu estancia, o déjalas vacías y elígelas en Booking.com.",
+    "searchLabel": "Buscar hoteles",
+    "whereLabel": "Dónde",
+    "searchButton": "Buscar hoteles",
+    "rowTitle": "Hoteles cerca de las clínicas en {{city}}",
+    "rowSubtitle": "Hospédate cerca de tu médico, elegidos para pacientes.",
+    "tabsLabel": "¿Qué estás buscando?",
+    "tabCare": "Médicos y clínicas",
+    "tabHotels": "Hoteles"
   }
 }

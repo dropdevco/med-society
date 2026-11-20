@@ -33,7 +33,12 @@ export interface Hotel {
     booking_url: string | null;
     /** 1 = budget … 4 = luxury. */
     price_band: number | null;
+    /** Google's rating, 0–5, when the hotel came from Google Places (migration 0056). */
     rating: number | null;
+    /** How many Google reviews the rating is from. */
+    review_count: number | null;
+    /** Google place ID: how /api/place-photo serves the cover photo, never stored itself. */
+    google_place_id: string | null;
     amenities: HotelAmenity[];
     photo_url: string | null;
     status: HotelStatus;

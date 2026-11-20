@@ -1848,29 +1848,34 @@ select option {
 .ms-stay-all { font-size: 0.84rem; font-weight: 650; color: var(--gray-400); }
 .ms-stay-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.8rem; }
 .ms-hotel {
-  display: flex; flex-direction: column; overflow: hidden; min-width: 0;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--navy-800); box-shadow: var(--shadow-sm);
+  position: relative; display: block; overflow: hidden; min-width: 0; aspect-ratio: 4 / 5;
+  border-radius: var(--radius); background: var(--navy-800); box-shadow: var(--shadow-sm);
+  color: #fff; text-decoration: none; isolation: isolate;
 }
-.ms-hotel-photo {
-  aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center;
-  font-size: 2rem; font-weight: 800; overflow: hidden;
+.ms-hotel img, .ms-hotel-mono {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.ms-hotel-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ms-hotel-body { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.85rem 1rem 1rem; flex: 1; }
-.ms-hotel-name { font-size: 1rem; font-weight: 750; margin: 0; line-height: 1.3; }
-.ms-hotel-meta { display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; margin: 0; font-size: 0.8rem; color: var(--gray-400); }
-.ms-hotel-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
-.ms-hotel-desc { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--gray-300); }
-.ms-hotel-amenities { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.ms-hotel-amenities li {
-  font-size: 0.7rem; font-weight: 650; padding: 0.18rem 0.55rem;
-  border-radius: var(--radius-pill); background: var(--surface); color: var(--gray-300);
+.ms-hotel-mono {
+  display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: 800;
+  background: linear-gradient(160deg, hsl(var(--mono-h, 210deg) 45% 38%), hsl(var(--mono-h, 210deg) 50% 18%));
+  color: rgba(255, 255, 255, 0.35);
 }
-.ms-hotel-cta {
-  margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.5rem 0.9rem; border-radius: var(--radius-pill);
-  background: var(--brand); color: var(--on-brand); font-size: 0.82rem; font-weight: 700; text-decoration: none;
+.ms-hotel-shade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.25) 38%, rgba(0, 0, 0, 0) 62%);
 }
+.ms-hotel-name {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; margin: 0; padding: 1rem 1.1rem 1.1rem;
+  font-size: 1.15rem; font-weight: 750; line-height: 1.2; letter-spacing: -0.01em; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+a.ms-hotel:hover img, a.ms-hotel:hover .ms-hotel-mono { transform: scale(1.05); }
+a.ms-hotel:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.ms-hotel--compact .ms-hotel-name { font-size: 1.02rem; padding: 0.9rem 1rem 1rem; }
+.ms-hotels-list .ms-hotel, .ms-stay-list .ms-hotel { aspect-ratio: 4 / 3; }
+.ms-hotel.is-skeleton { pointer-events: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .ms-hotel img, .ms-hotel-mono { transition: none; } }
 .ms-hotel-disclosure { margin: 0; font-size: 0.74rem; color: var(--gray-500); }
 .ms-hotels-page { padding: calc(68px + 2rem) 1.25rem 3rem; max-width: 1200px; margin: 0 auto; }
 .ms-hotels-hero h1 { font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
@@ -1878,7 +1883,7 @@ select option {
 .ms-hotels-regions, .ms-hotels-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .ms-hotels-regions button, .ms-hotels-filters button {
   padding: 0.4rem 0.85rem; border-radius: var(--radius-pill); border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); font-size: 0.82rem; font-weight: 650; cursor: pointer;
+  background: var(--surface); color: var(--white); font-size: 0.82rem; font-weight: 650; cursor: pointer;
 }
 .ms-hotels-regions button.on, .ms-hotels-filters button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
 .ms-hotels-near { margin: 0.9rem 0 0; font-size: 0.86rem; color: var(--gray-400); }
@@ -1888,6 +1893,52 @@ select option {
 .ms-hotels-list .ms-hotel-disclosure, .ms-hotels-empty { grid-column: 1 / -1; }
 .ms-hotels-empty { color: var(--gray-400); margin: 1rem 0; }
 .ms-hotels-map { position: sticky; top: calc(68px + 1rem); height: min(70vh, 620px); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+/* Homepage tabs: what the search is for (Doctors & clinics | Hotels). */
+.ms-vertical-tabs {
+  display: flex; justify-content: center; gap: 0.3rem; margin: 0 auto 1rem;
+  border-bottom: 1px solid var(--border); width: max-content; max-width: 100%;
+}
+.ms-vertical-tabs button {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.6rem 1rem 0.7rem; margin-bottom: -1px; background: none;
+  border-bottom: 2px solid transparent; color: var(--gray-400);
+  font-size: 0.92rem; font-weight: 700; white-space: nowrap;
+}
+.ms-vertical-tabs button:hover { color: var(--white); }
+.ms-vertical-tabs button.is-active { color: var(--white); border-bottom-color: var(--white); }
+.ms-vertical-tabs button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+.ms-vertical-care { display: flex; flex-direction: column; }
+.ms-vertical-care[hidden] { display: none; }
+/* The hotels box: one pill like the doctors' box, stacking on a phone. */
+.ms-hotel-search {
+  display: flex; align-items: stretch; gap: 0.5rem; padding: 0.5rem;
+  border: 1px solid var(--border-strong); border-radius: 22px; background: var(--navy-800); box-shadow: var(--shadow-sm);
+  max-width: 820px; margin: 0 auto;
+}
+.ms-hotel-search label, .ms-stay-dates label { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.35rem 0.8rem; min-width: 0; flex: 1; }
+.ms-hotel-search label > span, .ms-stay-dates label > span { font-size: 0.7rem; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gray-400); }
+.ms-hotel-search select, .ms-stay-dates input {
+  border: 0; background: transparent; color: var(--white); font: inherit; font-size: 0.95rem; font-weight: 650; padding: 0; min-height: 1.6rem; width: 100%;
+}
+.ms-hotel-search .ms-stay-dates { display: flex; flex: 2; border-left: 1px solid var(--border); }
+.ms-stay-dates label + label { border-left: 1px solid var(--border); }
+.ms-hotel-search-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; flex-shrink: 0;
+  padding: 0 1.4rem; border-radius: 16px; background: var(--brand); color: var(--on-brand); font-weight: 750; font-size: 0.92rem;
+}
+.ms-hotels-datebar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin-top: 1rem; }
+.ms-hotels-datebar .ms-stay-dates { display: flex; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.ms-hotels-datebar p { margin: 0; font-size: 0.82rem; color: var(--gray-400); max-width: 32rem; }
+.ms-hotel-row-head { margin-bottom: 1rem; }
+.ms-hotel-row-head h2 { margin: 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.015em; }
+.ms-hotel-row-head h2 a { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--white); text-decoration: none; }
+.ms-hotel-row-head p { margin: 0.25rem 0 0; font-size: 0.86rem; color: var(--gray-400); }
+@media (max-width: 760px) {
+  .ms-hotel-search { flex-direction: column; border-radius: 18px; }
+  .ms-hotel-search .ms-stay-dates { border-left: 0; border-top: 1px solid var(--border); }
+  .ms-hotel-search-btn { min-height: 46px; }
+  .ms-vertical-tabs button { padding: 0.55rem 0.75rem 0.65rem; font-size: 0.86rem; }
+}
 @media (max-width: 900px) {
   .ms-hotels-body { grid-template-columns: 1fr; }
   .ms-hotels-map { position: static; height: 320px; order: -1; }

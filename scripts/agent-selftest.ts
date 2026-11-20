@@ -105,7 +105,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (!url.includes('status=eq.live')) return new Response('drafts must never be read', { status: 400 });
         const region = /region=eq\.([a-z-]+)/.exec(url)?.[1];
         return json(region === 'sandiego-tijuana' ? [
-            { id: U(201), name: 'Hotel Prueba <b>x</b>', description: { en: 'Quiet rooms near Zona Río.', es: 'Cuartos tranquilos cerca de Zona Río.' }, address: 'Paseo de Prueba 1', city: 'Tijuana', lat: 32.527, lng: -117.022, website: null, booking_url: 'https://www.booking.com/hotel/mx/prueba.html', price_band: 2, rating: 8.9 / 2, amenities: ['clinic_shuttle', 'bilingual_staff'] },
+            { id: U(201), name: 'Hotel Prueba <b>x</b>', description: { en: 'Quiet rooms near Zona Río.', es: 'Cuartos tranquilos cerca de Zona Río.' }, address: 'Paseo de Prueba 1', city: 'Tijuana', lat: 32.527, lng: -117.022, website: null, booking_url: 'https://www.booking.com/hotel/mx/prueba.html', price_band: 2, rating: 4.5, review_count: 6373, amenities: ['clinic_shuttle', 'bilingual_staff'] },
             { id: U(202), name: 'Hostal Sin Liga', description: {}, address: null, city: 'Tijuana', lat: 32.52, lng: -117.01, website: 'javascript:alert(1)', booking_url: null, price_band: null, rating: null, amenities: [] },
         ] : []);
     }
@@ -371,6 +371,8 @@ check('hotels HTML: title, canonical, Hotel JSON-LD, hotels listed', r.status ==
     && r.body.includes('clinic shuttle'));
 check('hotels: hostile names are escaped and a javascript: link is dropped', !r.body.includes('<b>x</b>') && !r.body.includes('javascript:'));
 check('hotels: discloses the commission', /commission/i.test(r.body));
+check('hotels: Google rating is attributed, with the review count, and kept out of the JSON-LD', r.body.includes('rated 4.5 from 6,373 Google reviews') && !r.body.includes('aggregateRating'));
+check('hotels: asks the database for the review count, best rated first', calls.some((c) => c.includes('/rest/v1/hotels?') && c.includes('review_count') && c.includes('order=rating.desc.nullslast,review_count.desc.nullslast')));
 r = await get('route=page&kind=hotels&region=elpaso-juarez', { accept: 'application/json' });
 check('hotels: an empty region says so and returns no hotels', r.status === 200 && r.json().data.hotels.length === 0 && r.json().data.city === 'Ciudad Juárez');
 r = await get('route=page&kind=hotels&region=bogus', { accept: 'application/json' });

@@ -1,28 +1,61 @@
 # Hotels
 
-The first piece of the medical-trip pipeline: patients who travel to Tijuana or Ciudad Juárez for treatment can find a place to stay near their doctor. Background research on how travel sites get hotel data is in [travel-booking-data.md](travel-booking-data.md).
+The first piece of the medical-trip pipeline: patients who travel to Tijuana or Ciudad Juárez for treatment can find a place to stay near their doctor. Background research on how travel sites get hotel data is in [travel-booking-data.md](travel-booking-data.md). Getting paid for bookings is in [booking-affiliate.md](booking-affiliate.md).
 
 ## How it works
 
-- **Curated, not imported.** An admin adds each hotel by hand in **Admin → Hotels** (`/admin?tab=hotels`). Nothing is scraped. The details come from the hotel's own site and its Booking.com page, typed in by a person ([ADR 0002](adr/0002-source-access-policy.md)).
-- **Booking is off-site.** "Check rates" opens the hotel's Booking.com page, with our affiliate id added by `bookingHref` in [`src/utils/hotelLinks.ts`](../src/utils/hotelLinks.ts). MedSociety takes no payments and holds no reservations. A hotel with no Booking.com page can link to its own website instead, with no commission.
-- **Separate from providers.** Hotels live in `public.hotels` ([migration 0054](../supabase/migrations/0054_hotels.sql)), so they never reach search, leads, claims, provider analytics or `provider_list`. Recovery houses are different: they offer care, so they stay in `providers` with `kind = 'stay'` ([recovery-centers-plan.md](recovery-centers-plan.md)).
+- **Found near the clinics, then curated.** `scripts/hotels/find.ts` finds hotels through Google Places around the densest clusters of our own listings and publishes them (below). An admin can also add, edit or hide any hotel by hand in **Admin → Hotels** (`/admin?tab=hotels`). Nothing is scraped, and Booking.com is never read ([ADR 0002](adr/0002-source-access-policy.md); the register entry is in [sources/README.md](sources/README.md)).
+- **Booking is off-site.** "Check rates" opens Booking.com, with the patient's dates and our affiliate link added by `bookingHref` in [`src/utils/hotelLinks.ts`](../src/utils/hotelLinks.ts). MedSociety takes no payments and holds no reservations. A hotel with no Booking.com link can link to its own website instead, with no commission.
+- **Separate from providers.** Hotels live in `public.hotels` (migrations [0054](../supabase/migrations/0054_hotels.sql) and [0056](../supabase/migrations/0056_hotels_google.sql)), so they never reach search, leads, claims, provider analytics or `provider_list`. Recovery houses are different: they offer care, so they stay in `providers` with `kind = 'stay'` ([recovery-centers-plan.md](recovery-centers-plan.md)).
 
 ## Where patients see hotels
 
 | Place | What | Code |
 |---|---|---|
+| Homepage, above the search box | Tabs, "Doctors & clinics" and "Hotels", like Expedia's. Hotels takes a city and optional dates and opens `/hotels`. `/?tab=hotels` opens on it | `src/components/search/VerticalTabs.tsx`, `src/components/hotels/HotelSearchBox.tsx` |
+| Homepage, after the first row | "Hotels near the clinics in {city}", up to 10 cards. Hidden when the region has none | `src/components/hotels/HotelRow.tsx` |
 | A provider's page or modal, Mexican side only | "Stay nearby": the 3 closest published hotels within 8 km, with distances | `src/components/hotels/StayNearby.tsx`, `hotels_near()` RPC |
-| `/hotels?region=…` | Every published hotel in the region's Mexican city, with price and amenity filters and a map. `&near=<providerId>` sorts by distance from that provider | `src/pages/HotelsPage.tsx` |
+| `/hotels?region=…` | Every published hotel in the region's Mexican city, with dates, filters and a map. `&near=<providerId>` sorts by distance from that provider. `&checkin=&checkout=` (YYYY-MM-DD) carry the stay to Booking.com; past or impossible dates are dropped | `src/pages/HotelsPage.tsx` |
 | Crawlers and agents | The same list as server HTML, Markdown or JSON, with `Hotel` JSON-LD, and listed in the sitemap and `llms.txt` | `hotelsPage()` in `api/agent.ts` |
 
-The nav has a "Hotels" link. Every list shows the line "We may earn a commission when you book". Affiliate links carry `rel="sponsored"`.
+The nav has a "Hotels" link (hidden under 480px). Every list shows the line "We may earn a commission when you book". Affiliate links carry `rel="sponsored"`.
 
-## Adding a hotel
+Cards show the hotel's own photo when an admin set one, else its Google cover photo through `/api/place-photo` (nothing stored; the proxy only serves place IDs of providers and published hotels), else a monogram. Ratings are Google's, with the review count.
+
+## Finding hotels (Google Places)
+
+```bash
+npx tsx scripts/hotels/find.ts                 # dry run: prints the picks, writes nothing
+npx tsx scripts/hotels/find.ts --commit        # publishes them (status live)
+npx tsx scripts/hotels/find.ts --city=juarez --per-city=15
+```
+
+1. **Centres:** the 5 densest 1-km cells of live Mexican listings in each city, at least 1.5 km apart, read from `providers`.
+2. **Search:** around each centre, a Google text search for "hotel" and a nearby search for lodging, 3 km.
+3. **Filters:**
+   - Mexican side only (the Tijuana survey line and US-address checks from the provider sweeps; Place Details confirms country MX).
+   - No motels, auto hotels or hostels. In Mexico these are often hourly rooms.
+   - Closed places are dropped, and so is anything under 4.0 stars or 100 reviews.
+4. **Ranking:** closeness to listings, then rating × log(reviews), with no more than half from one Google price level. 12 per city by default.
+5. **Each row gets:**
+   - name, address, coordinates, phone and website
+   - Google rating and review count
+   - `google_place_id`
+   - a Booking.com search link for the hotel's name and city
+   - a factual description from our own data ("120 doctors and clinics listed within 1 km. The nearest is 600 m away."), in EN and ES
+   - no amenities: only an admin adds those, from what the hotel states
+
+Re-running updates the same rows by place ID. It never un-hides a hotel an admin hid, and never overwrites the description of a hand-made hotel.
+
+Each run has a UUIDv7 run ID, stored on the rows it writes (`source_run_id`) and in its run file under `scripts/hotels/.data/` (git-ignored, with a cache of Google's responses so a dry run and the commit after it are billed once). A run of both cities is about 50 searches and 25 Place Details calls, under US$2 at list price.
+
+Google's terms let us keep only the place ID indefinitely. Like providers, the row also keeps name, address, coordinates and rating. Re-run the finder from time to time to refresh them, and remove what Google no longer lists.
+
+## Adding a hotel by hand
 
 1. **Admin → Hotels → Add a hotel.**
 2. **Coordinates:** paste `lat, lng`, or a Google Maps link to the hotel. The form reads the pin (`!3d…!4d…`) over the map's view (`@…`) and shows which region it falls in.
-3. **Booking.com link:** the hotel's page URL with no tracking parameters (`https://www.booking.com/hotel/mx/<name>.html`). We add `aid`, `lang` and `label` ourselves.
+3. **Booking.com link:** the hotel's page URL with no tracking parameters (`https://www.booking.com/hotel/mx/<name>.html`), or a Booking.com search for it. We add the dates, `lang`, `label` and the affiliate link ourselves.
 4. **Amenities:** only what the hotel itself states. "Nurse on call" and "Clinic shuttle" are promises to patients, so leave them unticked if in doubt.
 5. **Photo:** an `https` URL we have the right to use (the hotel's press kit, or one they sent). Leave it empty rather than hotlinking a Booking.com image.
 6. Save as a **draft**. It goes public only when you click **Publish**. **Hide** takes it down again.
@@ -49,16 +82,20 @@ The list is closed: it is checked in the migration and listed in `HOTEL_AMENITIE
 
 These go to PostHog (`src/lib/posthog.ts`):
 
-- `hotel_impression`: one per provider page that showed hotels, and one per region view of `/hotels`. Props: `surface`, `region`, `count`, `provider_id`.
-- `hotel_outbound_click`: one per "Check rates" click. Props: `hotel_id`, `hotel_name`, `region`, `surface`, `affiliate`, `provider_id`, `distance_km`.
+- `hotel_impression`: one per provider page that showed hotels, one per region view of `/hotels`, and one per region the homepage row is shown for. Props: `surface` (`provider_page`, `hotels_page`, `home`), `region`, `count`, `provider_id`.
+- `hotel_outbound_click`: one per "Check rates" click. Props: `hotel_id`, `hotel_name`, `region`, `surface`, `affiliate`, `dated`, `provider_id`, `distance_km`.
+- `home_tab_selected`: the homepage tab a visitor switched to (`care` or `hotels`).
+- `search_performed` with `vertical: 'hotels'`: a search from the homepage Hotels tab.
 
 Together these show which doctors send patients to hotels, which is the number to reconcile against Booking.com's commission reports.
 
-## Setup checklist
+## Checks
 
-- [ ] Apply `supabase/migrations/0054_hotels.sql` to production by hand. 0050–0053 are already there. Test it first with `bash supabase/tests/hotels/run.sh`, which needs Docker.
-- [ ] Join the [Booking.com Affiliate Partner Programme](https://www.booking.com/affiliate-program/v2/index.html), then set `VITE_BOOKING_AFFILIATE_ID` in Vercel (Production and Preview). Until then, links work without commission.
-- [ ] Seed 8–12 hotels per city near the clinic clusters: Zona Río, Hipódromo and Zona Urbana Río in Tijuana, and the hospital corridor around Av. Tecnológico and Paseo Triunfo de la República in Juárez.
+```bash
+npm run hotels:selftest                 # links, affiliate template, dates, the finder's rules
+bash supabase/tests/hotels/run.sh       # 0054 + 0056 in a throwaway Postgres (Docker)
+npx tsx scripts/agent-selftest.ts       # the server-rendered /hotels page
+```
 
 ## Later
 

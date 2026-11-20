@@ -1431,6 +1431,20 @@
       "nurse_on_call": "Nurse on call",
       "bilingual_staff": "English-speaking staff",
       "parking": "Parking"
-    }
+    },
+    "googleReviews_one": "{{formatted}} Google review",
+    "googleReviews_other": "{{formatted}} Google reviews",
+    "checkin": "Check-in",
+    "checkout": "Check-out",
+    "datesSet": "Rates on Booking.com open for these dates.",
+    "datesHint": "Add your dates to see rates for your stay, or leave them empty and pick them on Booking.com.",
+    "searchLabel": "Search hotels",
+    "whereLabel": "Where",
+    "searchButton": "Search hotels",
+    "rowTitle": "Hotels near the clinics in {{city}}",
+    "rowSubtitle": "Stay close to your doctor, picked for patients.",
+    "tabsLabel": "What are you looking for?",
+    "tabCare": "Doctors & clinics",
+    "tabHotels": "Hotels"
   }
 }
