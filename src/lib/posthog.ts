@@ -99,6 +99,7 @@ export type AppEvent =
     | 'pricing_cta_click'
     | 'checkout_started'
     | 'checkout_failed'
+    | 'plan_portal_opened'
     | 'forum_thread_created'
     | 'forum_reply_created'
     | 'forum_helpful_marked'

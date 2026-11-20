@@ -1,5 +1,10 @@
 # GHL workflows for paid plans
 
+> **Payments have moved to Stripe** (see [stripe-billing.md](stripe-billing.md)).
+> This page describes the old GoHighLevel payment-link path. It stays in the code
+> until the workflows below are turned off, then gets removed. GHL itself remains
+> the CRM: the site still writes plan tags and notes to each contact.
+
 Two workflows in the MedSociety sub-account tell the site "something changed on
 this contact". The site does the rest: it reads that contact's real payments from
 GHL, switches the plan on or off, mirrors the tags and emails the team.
