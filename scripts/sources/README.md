@@ -1,6 +1,6 @@
 # Source pipeline
 
-Reads outside directories (hospitals, consejos, colegios, associations, regulators) every week, so MedSociety can show which organizations a doctor really belongs to. Decisions behind it: [ADR 0001–0006](../../docs/adr/README.md). Which sources we may read: [the register](../../docs/sources/README.md). Phase status: [the roadmap](../../docs/roadmap/verification-and-badges.md).
+Reads outside directories (hospitals, CONACEM, accreditors, associations, regulators) every week, so MedSociety can show which organizations a doctor really belongs to. Decisions behind it: [ADR 0001–0006](../../docs/adr/README.md). Which sources we may read: [the register](../../docs/sources/README.md). Phase status: [the roadmap](../../docs/roadmap/verification-and-badges.md).
 
 ## Run it
 
@@ -108,6 +108,10 @@ npm run sources:dashboard                    # the dashboard without Docker
 4. **Parse** with the adapter, then merge duplicates by external id.
 5. **Judge** green or red against the last good run ([ADR 0004](../../docs/adr/0004-matching-and-freshness.md)): a failed or empty target, a drop over 30%, or mostly nameless rows make it red.
 6. **Write** the run to `.data/<source>/runs/<started-at>_<run-id>.json`, with entries, per-target counts, and doctors added and removed since the last good run. A red run is kept for inspection but never becomes the baseline.
+
+**Worldwide lists** (GHA, JCI) keep every record. One outside our two regions has `region` null and its country in `facts`; it is stored but never matched to a listing (`lib/places.ts`).
+
+**Watch sources** (`entity: 'watch'`, today only `bajahealthtourism-watch`) store their records and stop there: no matching, no badges. From the second run on, each added record prints a `new <kind>: …` line, also written to the GitHub job summary when `GITHUB_STEP_SUMMARY` is set. A JSON POST (`politePost`, for JCI's search) goes through the same identity, pacing and refusals as `politeGet`.
 
 ## Run IDs
 

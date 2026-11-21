@@ -18,5 +18,6 @@ One file per decision that had a real alternative. Each has: Context, Decision, 
 | [0012](0012-ai-match-scorer.md) | An AI scorer rates name-only matches, in shadow mode first; auto-linking waits for a checked sample | Accepted |
 | [0013](0013-clinic-listings.md) | A clinic is a listing marked as one and shows its doctors' own listings; linking never grants editing, owning goes through claim review | Proposed |
 | [0014](0014-ai-auto-link-live.md) | AI matches at 80 or above become badges on the site; supersedes the name-only rule of 0004 and the shadow mode of 0012 | Accepted |
+| [0015](0015-certifications-from-conacem-only.md) | Specialty certifications come only from CONACEM; other consejos and colegios are dropped | Accepted |
 
 Status values: Proposed, Accepted, Superseded by NNNN. A decision that contradicts an accepted one supersedes it explicitly; never edit an accepted record to mean something else.

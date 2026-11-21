@@ -82,9 +82,10 @@ export function toEntry(r: ConacemRecord, region: RegionId, query: string): Sour
 }
 
 /** One lookup per distinct surname pair among the hospital sources' last good runs. */
-export function lookupsFrom(sources: { entries: { name: string; region: RegionId }[] }[]): Map<string, RegionId> {
+export function lookupsFrom(sources: { entries: { name: string; region: RegionId | null }[] }[]): Map<string, RegionId> {
     const out = new Map<string, RegionId>();
     for (const s of sources) for (const e of s.entries) {
+        if (!e.region) continue; // hospital sources always place a doctor; a record outside our regions has nothing to look up
         const q = surnameQuery(e.name);
         if (q && !out.has(q.toLowerCase())) out.set(q.toLowerCase(), e.region);
     }

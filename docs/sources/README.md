@@ -1,6 +1,6 @@
 # Data sources and permissions register
 
-Status: living document · Owner: Emilio · Last updated 6 Nov 2026
+Status: living document · Owner: Emilio · Last updated 21 Nov 2026
 
 Every outside source the pipeline in `scripts/sources/` reads, or plans to read, is listed here. A source is built only when its access is **open** or **permission** is recorded below ([ADR 0002](../adr/0002-source-access-policy.md)). Signed letters are kept in the team vault, never in this repository; this table records only what they allow.
 
@@ -13,20 +13,24 @@ Every outside source the pipeline in `scripts/sources/` reads, or plans to read,
 | Centro Médico de Especialidades (Juárez) | — | hospital | unknown | Not researched yet | — | — | — | Research |
 | Padrón Estatal de Salud (`bajahealthtourism.com`, Secretaría de Turismo) | `padron-salud-bc` | regulator register | open | robots.txt blocks only `/admin`, `/portal`, `/login`; no terms published | A | Register no. | Weekly | Built (residences only) |
 | COEPRIS BC REPSSABI | `coepris-bc` | regulator (facilities) | open | robots.txt allows all; public JSON feed | B, JSON | Register no. | Weekly | Built (recovery residences only) |
-| CMCPER (plastic surgery board) | — | consejo | open | robots.txt allows the directory pages | A | Cert. no. | Weekly | Planned |
+| CMCPER (plastic surgery board) | — | consejo | open | robots.txt allows the directory pages | — | — | — | **Dropped** 21 Nov 2026: certifications come from CONACEM ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) |
 | CLUES | — | regulator (facilities) | open | "No existen restricciones para su uso" | C, file | Facilities | Monthly | Planned |
-| CCPERBC | — | colegio | open | robots.txt blocks only `/wp-admin/` | A | No | Weekly | Planned |
+| CCPERBC | — | colegio | open | robots.txt blocks only `/wp-admin/` | — | — | — | **Dropped** 21 Nov 2026: no colegios ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) |
 | Baja Health Cluster | `baja-health-cluster` | cluster | open | robots.txt blocks only `/wp-admin/`; ask for cédulas | A | No | Weekly | Built (recovery centers) |
 | Baja Health Cluster doctors and dentists | `baja-health-cluster-doctors` | cluster | open | Same site and robots.txt as above | A, list pages plus one profile page per member | Rarely (5 of 106 on 16 Nov 2026) | Weekly | **Built** (16 Nov), dry run only until reviewed |
 | CONACEM | `conacem` | consejo umbrella | permission | Received 4 Nov 2026: display the certified-specialist data, obtained by whatever means works (CONACEM will not change its site or add an API). **Waives:** robots.txt (unreadable, 403) and the firewall's refusal of our bot, so a real browser with a standard identity is used; it still sends an `X-Client: MedSocietyBot` header. Copy in the team vault | Lookup through a real browser (by surname pair, all consejos) | No (certificate no. and validity dates) | Weekly | **Built** (4 Nov) |
 | SEP (cédula registry) | — | government | permission needed | reCAPTCHA on every call; also file a transparency request | E, assisted | Yes | Per claim | Letter to send |
-| CMGO | — | consejo | permission needed | Directory moved behind a doctor login. Its certifications are also in CONACEM | E, assisted | ? | Per claim | Covered through CONACEM for now |
-| CMRI (radiology consejo) | — | consejo | unknown | `cmri.org.mx/radCertificados.php`, a name search with no login or CAPTCHA. Checked 9 Nov 2026: no robots.txt (404), no terms published. A person may look doctors up by hand; no automated reader until David rules. Its certifications are also in CONACEM | — | ? | — | Research |
-| ADM dental council | — | consejo | permission needed | robots.txt bars AI agents | E, assisted | ? | Per claim | Letter to send |
-| JCI | — | accreditor | permission needed | 403; robots.txt bars AI agents | E, assisted | Facilities | Yearly | Low priority |
+| CMGO | — | consejo | permission needed | Directory moved behind a doctor login. Its certifications are also in CONACEM | — | — | — | **Dropped** 21 Nov 2026: covered by CONACEM ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) |
+| CMRI (radiology consejo) | — | consejo | unknown | `cmri.org.mx/radCertificados.php`. Its certifications are also in CONACEM | — | — | — | **Dropped** 21 Nov 2026: covered by CONACEM ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) |
+| ADM dental council | — | consejo | permission needed | robots.txt bars AI agents. Dental boards are, as far as we know, **not** in CONACEM | — | — | — | **Dropped** 21 Nov 2026: dentists have no certification source now ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) |
+| JCI (Joint Commission International), worldwide | `jci` | accreditor | permission | Received 21 Nov 2026 (reported by Emilio): scrape, store and display; an API may follow. Letter to file in the team vault. Waives nothing. **Cloudflare answers our bot with 403**: ask JCI to allowlist `MedSocietyBot` or send the API. See [jci.md](jci.md) | B, JSON (Sitecore Discover) | No | Weekly | **Built, blocked** (21 Nov) |
 | ACERBAC | — | association | export | Site down, no public list | F, export | ? | Monthly | Ask for list |
+| GHA (Global Healthcare Accreditation), worldwide | `gha` | accreditor | permission | Received 21 Nov 2026 (reported by Emilio): scrape, store and display the accredited and certified organizations until GHA's API exists. Letter to file in the team vault. Waives nothing. No logo permission. See [gha.md](gha.md) | A, static HTML | No | Weekly | **Built** (21 Nov) |
+| bajahealthtourism.com.mx catalogue, **watch only** | `bajahealthtourism-watch` | regulator | open | The site's public JSON API; robots.txt allows all. Flags new doctors, hospitals, clinics and hotels; makes no badges. The API exposes personal data we never keep. See [bajahealthtourism-watch.md](bajahealthtourism-watch.md) | B, JSON | No | Daily | **Built** (21 Nov) |
 | Google Places, hotels near the clinics | `google-places-hotels` | licensed API (lodging, not doctors) | licensed | Google Maps Platform terms, the same key and basis as the provider sweeps in `scripts/doctoralia/`. Only the place ID may be kept indefinitely; like providers, we also keep name, address, coordinates and rating. Photos are never stored (served through `/api/place-photo`). Not run by `scripts/sources/`: `scripts/hotels/find.ts`, see [docs/hotels.md](../hotels.md) | B, JSON | No | By hand | **Built** (19 Nov 2026) |
-| CMMI | — | consejo | export | Statute clause 18.4 promises the directory on request | F, export | ? | Monthly | Ask for list |
+| CMMI | — | consejo | export | Statute clause 18.4 promises the directory on request. Its certifications are also in CONACEM | — | — | — | **Dropped** 21 Nov 2026: covered by CONACEM ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) |
+
+Records outside our two regions are stored too (with no region, never matched to a listing): GHA and JCI are read worldwide. Consejos and colegios other than CONACEM were dropped on 21 Nov 2026 ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)).
 
 Reader types: **A** static HTML · **B** JSON feed · **C** bulk file · **D** real browser · **E** assisted human lookup · **F** export or shared sheet.
 

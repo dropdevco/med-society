@@ -23,10 +23,21 @@ export interface LoadSummary {
     badges: { renewed: number; lapsed: number } | null;
 }
 
+/**
+ * Facts kept on the record itself, so they can be queried without the run payload:
+ * the badge's evidence (consejo, certificate, register), and where a worldwide record
+ * sits and what it holds (GHA, JCI). The whole entry is in source_observations too.
+ */
+const FACT_KEYS = [
+    'consejo', 'certificate', 'register',
+    'country', 'city', 'state', 'website', 'languages', 'programs', 'categories', 'accreditations', 'certifications', 'hcoId',
+    'kind', 'siteId', 'slug', 'entityType', 'municipality', 'listedAt',
+] as const;
+
 /** What the badge says: the hospital site, or the certified specialty. */
 export function entryRow(e: ObservedEntry, source: string) {
     const x = e.extra ?? {};
-    const facts = Object.fromEntries(Object.entries({ consejo: x.consejo, certificate: x.certificate, register: x.register }).filter(([, v]) => v != null));
+    const facts = Object.fromEntries(FACT_KEYS.map((k) => [k, x[k]]).filter(([, v]) => v != null));
     return {
         source_slug: source,
         external_id: e.externalId,
@@ -42,7 +53,7 @@ export function entryRow(e: ObservedEntry, source: string) {
     };
 }
 
-export async function loadRun(db: SupabaseClient, run: RunRecord, entity: 'doctor' | 'facility' = 'doctor'): Promise<LoadSummary> {
+export async function loadRun(db: SupabaseClient, run: RunRecord, entity: 'doctor' | 'facility' | 'watch' = 'doctor'): Promise<LoadSummary> {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-7/.test(run.id)) throw new Error(`run ${run.id} has no UUIDv7 run ID, so it cannot be loaded`);
     const source = run.source;
     const summary: LoadSummary = { run: run.id, status: run.status, entries: run.entries.length, newRecords: 0, confirmed: 0, probable: 0, unmatched: 0, badges: null };
@@ -86,6 +97,11 @@ export async function loadRun(db: SupabaseClient, run: RunRecord, entity: 'docto
         }
     }
 
+    // A watch keeps its records (first seen, last seen) so new ones can be flagged, and nothing more.
+    if (entity === 'watch') {
+        summary.newRecords = run.entries.filter((e) => !known.has(e.externalId)).length;
+        return summary;
+    }
     if (entity === 'facility') return matchFacilities(db, run, summary, !lookup);
 
     // Known records: reuse the decision. New records: match.
@@ -149,8 +165,10 @@ async function matchFacilities(db: SupabaseClient, run: RunRecord, summary: Load
     if (ownerError) throw new Error(`facility_source_ids: ${ownerError.message}`);
     const byRegister = new Map((owners ?? []).map((o) => [o.external_id as string, o.provider_id as string]));
 
-    const fresh = run.entries.filter((e) => !final(e.externalId));
-    summary.newRecords = fresh.filter((e) => !known.has(e.externalId)).length;
+    // A record outside our regions (most of a worldwide list) is stored above but never matched:
+    // there is no listing for it to be. It is matched if a later run places it in a region.
+    const fresh = run.entries.filter((e) => !final(e.externalId) && e.region !== null);
+    summary.newRecords = run.entries.filter((e) => !known.has(e.externalId)).length;
     const matches = [];
     for (const e of fresh) {
         const { data, error } = await db.rpc('facility_name_candidates', { p_name: e.name, p_region: e.region, p_limit: 5 });

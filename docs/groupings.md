@@ -55,12 +55,12 @@ Anyone whose badge we show. Each has a name, a logo (shown only with permission 
 |---|---|---|---|
 | `hospital` | A hospital whose directory lists the doctor | Affiliation | Star Médica, Hospital Ángeles |
 | `consejo` | A specialty board that certifies doctors | **Credential** | CONACEM |
-| `colegio` | A professional college (colegio) of doctors | Affiliation | none yet (CCPERBC planned) |
+| `colegio` | A professional college (colegio) of doctors | Affiliation | none (colegios dropped 21 Nov 2026, [ADR 0015](adr/0015-certifications-from-conacem-only.md)) |
 | `association` | A professional or industry association | Affiliation | none yet (ACERBAC not readable) |
 | `cluster` | A regional business cluster of many kinds of providers | Affiliation | Baja Health Cluster |
 | `wellness_center` | A wellness or recovery network listing its members | Affiliation | none yet |
 | `regulator` | A government body that registers facilities | **Facility** | COEPRIS BC, Padrón Estatal de Salud |
-| `accreditor` | A body that accredits facilities | **Facility** | none yet (JCI, low priority) |
+| `accreditor` | A body that accredits facilities | **Facility** | GHA, JCI (worldwide; only records in our regions are matched) |
 
 The site shows badges in this order: **Credential** (a qualification was checked), then **Facility** (a regulator checked the place), then **Affiliation** (membership: says nothing about quality).
 
