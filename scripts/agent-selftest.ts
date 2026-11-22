@@ -67,6 +67,8 @@ const SHELL = '<!doctype html><html lang="en"><head><title>Old</title>\n<meta na
 
 let failList = false;
 let calls: string[] = [];
+/** What /rest/v1/directory_snapshot returns; null = the table does not exist. */
+let snapshot: { rows: unknown; row_count: number; checked_at: string }[] | null = null;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(`${init?.method ?? 'GET'} ${url}`);
@@ -76,6 +78,11 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         headers: { 'content-type': 'application/json', ...(total !== undefined ? { 'content-range': `0-0/${total}` } : {}) },
     });
     if (url.endsWith('/index.html')) return new Response(SHELL, { status: 200 });
+    if (url.includes('/rest/v1/directory_snapshot')) {
+        // null = migration 0057 not applied: PostgREST answers 404 for an unknown table.
+        if (snapshot === null) return new Response('{"code":"42P01"}', { status: 404 });
+        return json(snapshot);
+    }
     if (url.includes('/rest/v1/provider_list')) {
         const region = /region=eq\.([a-z-]+)/.exec(url)?.[1];
         const rows = region === 'elpaso-juarez' ? JUAREZ : region === 'sandiego-tijuana' ? LIST : [...LIST, ...JUAREZ];
@@ -263,6 +270,28 @@ check('country=US', (await rest('providers&country=US').then((x) => x.json().dat
 check('paging: offset/next_offset', (await rest('providers&region=sandiego-tijuana&limit=2').then((x) => x.json().pagination.next_offset)) === 2);
 // Offset paging made the last page read ~9,000 rows; nine in parallel passed the 3 s anon limit (18 Nov 2026).
 check('directory loads by id (keyset), never by offset', calls.some((c) => c.includes('provider_list?select=*')) && calls.filter((c) => c.includes('provider_list?select=*')).every((c) => !c.includes('offset=') && /order=id&limit=500$/.test(c)));
+// /api/directory reads the ready-made copy (0057) and pages provider_list only without one.
+{
+    const part0 = LIST.filter((p) => p.id < '20000000').sort((a, b) => (a.id < b.id ? -1 : 1));
+    const fresh = new Date(Date.now() - 6 * 60_000).toISOString();
+    const dir = async () => { calls = []; const o = await get('route=directory&region=sandiego-tijuana&part=0'); return { o, b: o.json(), paged: calls.some((c) => c.includes('/rest/v1/provider_list')) }; };
+
+    let d = await dir();
+    check('directory without the snapshot table (0057 not applied) pages provider_list as before', d.o.status === 200 && d.paged && d.b.rows.length === part0.length, { paged: d.paged, n: d.b.rows?.length });
+
+    snapshot = [{ rows: part0, row_count: part0.length, checked_at: fresh }];
+    d = await dir();
+    check('directory serves a fresh snapshot in one read, with no provider_list paging', d.o.status === 200 && !d.paged && JSON.stringify(d.b.rows) === JSON.stringify(part0) && d.b.generatedAt === fresh && d.b.parts === 8, { paged: d.paged });
+    check('directory snapshot keeps the cache header', /s-maxage=300/.test(d.o.headers['cache-control'] ?? ''), d.o.headers);
+
+    snapshot = [{ rows: part0, row_count: part0.length, checked_at: new Date(Date.now() - 25 * 60_000).toISOString() }];
+    check('a snapshot the job stopped confirming (25 min) is ignored', (await dir()).paged);
+    snapshot = [{ rows: part0.slice(1), row_count: part0.length, checked_at: fresh }];
+    check('a snapshot whose rows disagree with its count is ignored', (await dir()).paged);
+    snapshot = [];
+    check('a part with no snapshot row is paged', (await dir()).paged);
+    snapshot = null;
+}
 const near = (await rest('providers&near_postal=22000&radius_km=3&sort=distance')).json();
 check('near_postal centres on providers holding that code and reports distance', near.pagination.total === 5 && typeof near.data[0].distance_km === 'number');
 check('unknown postal code is a clear 400', (await rest('providers&near_postal=99999')).status === 400);

@@ -129,7 +129,10 @@ docs/                        agent-integration, doctor-analytics, ghl-billing-wo
 ### Search and the region model
 
 `useProviders` loads **one region** from the lean view `provider_list` and keeps `?region=` in the URL.
-Picking a place in the other region switches immediately. Heavy Doctoralia fields live in `provider_details`
+Picking a place in the other region switches immediately. The rows arrive in 8 parts from `/api/directory/:region/:part`
+(Vercel's CDN cache, 5 minutes). On a cache miss the function reads `directory_snapshot`, a ready-made copy of each part
+that pg_cron rebuilds every 5 minutes (migration 0057), and pages `provider_list` only when that copy is missing or has
+not been confirmed for 20 minutes. Every deploy empties the CDN cache, so the miss path is the one first visitors see. Heavy Doctoralia fields live in `provider_details`
 (migration 0020), reviews come from `provider_reviews()` (0027, names abbreviated in SQL). Filters live in the
 URL (`parseFilters` / `serializeFilters`), which decides discover-versus-results mode and makes searches
 shareable; do not add a parallel filter state.
@@ -248,7 +251,7 @@ npx tsx scripts/images-selftest.ts
   placeholder view count from `profileViews()`.
 - **Postgres lowercases unquoted column names.** `normalizeProvider` re-maps `googleplaceid`, `reviewcount`,
   `imageurl`, `postalcode`, `pricefrommxn`. A new camelCase field needs a fallback there.
-- **Supabase caps a select at 1,000 rows;** `useProviders` pages with `.range()`.
+- **Supabase caps a select at 1,000 rows;** the direct fallback in `useProviders` pages by id (keyset), never by offset.
 - **Silent fallback to mock data** when Supabase is unreachable or empty (console warning only).
 - **Photos are filtered.** Use `portraitUrl()`; a shared Doctoralia "no photo" banner is rejected there. Legacy
   Doctoralia S3 paths have `_small` at 68 px, so `src/utils/images.ts` serves larger files only to 2x screens.
