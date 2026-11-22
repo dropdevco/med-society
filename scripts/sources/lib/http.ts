@@ -52,12 +52,27 @@ function backoffMs(attempt: number, retryAfter: string | null): number {
  * treats 404 as "no rules"); anything else that is not 2xx throws.
  */
 export async function politeGet(url: string, accept: number[] = []): Promise<Fetched> {
+    return politeRequest(url, { method: 'GET' }, accept);
+}
+
+/**
+ * POST JSON to a search service a page itself calls (JCI's results come from one,
+ * docs/sources/jci.md). Same identity, pacing and refusals as politeGet. `headers`
+ * carries what the page sends; never a credential of ours.
+ */
+export async function politePost(url: string, body: unknown, headers: Record<string, string> = {}): Promise<Fetched> {
+    return politeRequest(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...headers } }, []);
+}
+
+async function politeRequest(url: string, init: { method: 'GET' | 'POST'; body?: string; headers?: Record<string, string> }, accept: number[]): Promise<Fetched> {
     for (let attempt = 0; ; attempt++) {
         await throttle();
         let res: Response;
         try {
             res = await fetch(url, {
-                headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'es-MX,es;q=0.9' },
+                method: init.method,
+                body: init.body,
+                headers: { 'Accept-Language': 'es-MX,es;q=0.9', ...init.headers, 'User-Agent': USER_AGENT },
                 redirect: 'follow',
                 signal: AbortSignal.timeout(TIMEOUT_MS),
             });

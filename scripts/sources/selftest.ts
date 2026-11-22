@@ -21,6 +21,11 @@ import { parseDirectory } from './adapters/hospital-angeles';
 import { dmyToIso, parseDetail, parseList } from './adapters/padron-salud-bc';
 import { doctorUrl, parseCard } from './adapters/starmedica';
 import { entryRow } from './lib/load';
+import { parseDirectory as parseGha, readTerm } from './adapters/gha';
+import { appScriptUrl, discoverConfig, isChallenge, jci, searchBody, toEntry as jciToEntry } from './adapters/jci';
+import { municipalityNames, watchEntry } from './adapters/bajahealthtourism-watch';
+import { normalizeCountry, regionOf } from './lib/places';
+import { watchFlags } from './run';
 import { decide, decideFacility, type NameCandidate } from './lib/match';
 import { nameKey, parseName } from './lib/names';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
@@ -353,8 +358,9 @@ check('label: a cluster doctor reads as a member', badgeRows.clusterDoctor.label
 }
 
 const slugs = Object.keys(ADAPTERS);
-check('all seven sources run', slugs.length === 7 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster', 'baja-health-cluster-doctors'].every((s) => slugs.includes(s)), slugs);
-check('facilities are marked, doctors are not', slugs.filter((s) => ADAPTERS[s].entity === 'facility').length === 3);
+check('all ten sources run', slugs.length === 10 && ['hospital-angeles', 'starmedica', 'conacem', 'coepris-bc', 'padron-salud-bc', 'baja-health-cluster', 'baja-health-cluster-doctors', 'gha', 'jci', 'bajahealthtourism-watch'].every((s) => slugs.includes(s)), slugs);
+check('facilities are marked, doctors are not', JSON.stringify(slugs.filter((s) => ADAPTERS[s].entity === 'facility')) === JSON.stringify(['coepris-bc', 'padron-salud-bc', 'baja-health-cluster', 'gha', 'jci']));
+check('the watch is the only watch-only source', JSON.stringify(slugs.filter((s) => ADAPTERS[s].entity === 'watch')) === JSON.stringify(['bajahealthtourism-watch']));
 check('COEPRIS loads before the sources that match on its numbers', slugs.indexOf('coepris-bc') < slugs.indexOf('padron-salud-bc'));
 check('no source runs without open access or a recorded letter', Object.values(ADAPTERS).every((a) => a.access === 'open' || !!a.permission));
 
@@ -441,6 +447,55 @@ check('similarity: matches pg_trgm on a known pair', Math.abs(similarity('maria 
     check('report: counts values that are phones', r.matchingPhones === 1);
     check('report: phones unavailable is not zero', buildReport(rows, null).matchingPhones === null);
     check('report: prints totals only', Object.values(r).every((v) => typeof v === 'number'));
+}
+
+// ── Worldwide accreditors (GHA, JCI) and the Baja Health Tourism watch: made-up records ──
+{
+    const card = (name: string, seals: string, place: string, extra = '') => `<div role="listitem" class="collection-item-6 w-dyn-item"><div class="directory-card"><div class="directory-card-info"><div class="seals-container-main">${seals}</div><div class="journal-card-description-2"><h2 class="gha-new-h2">${name}</h2><div class="hotel-info-container directory no-line"><div class="address-container"><div class="paragraph-8 padding-top">${place.split('|')[0]}</div><div class="paragraph-8 padding-top margin">|</div><div class="paragraph-8 padding-top">${place.split('|')[1] ?? ''}</div></div></div>${extra}</div></div></div>`;
+    const seal = (program: string, date: string) => `<div class="accreditation-container"><img class="mt-seal"/><div class="gha-new-paragraph bold center white">${program}</div><div class="gha-new-paragraph small white">${date}</div></div>`;
+    const page = `<div class="w-tab-menu"><a data-w-tab="Tab 1" class="tab-link-tab-1 w-inline-block w-tab-link"><div>Hospitals with Excellence<br/></div></a><a data-w-tab="Tab 2" class="w-inline-block w-tab-link"><div class="tab-description">Ambulatory Centers</div></a></div>`
+        + `<div class="w-tab-content"><div data-w-tab="Tab 1" class="w-tab-pane"><div role="list">`
+        + card('Hospital Ejemplo Uno', seal('Hospital Accreditation', 'Since September 20, 2017'), 'Thailand|Bangkok', '<div class="hotel-info-container directory no-line"><div class="address-container website"><a href="https://uno.example">https://uno.example</a></div></div>')
+        + `</div></div><div data-w-tab="Tab 2" class="w-tab-pane"><div role="list">`
+        + card('Hospital Ejemplo Uno', seal('Ambulatory Certification', 'Since January 8th, 2025'), 'Thailand|Bangkok')
+        + card('Clínica Ejemplo Dos', seal('Ambulatory Accreditation', 'September 18, 2017 – September 18, 2020'), 'Mexico|Tijuana')
+        + card('Centro Ejemplo Tres', seal('', 'Since November 24, 2022 - November 24, 2025'), 'USA|El Paso')
+        + card('', seal('Empty slot', 'Since May 1, 2020'), 'Mexico|Tijuana')
+        + `</div></div></div>`;
+    const g = parseGha(page);
+    const uno = g.find((x) => x.externalId === 'hospital-ejemplo-uno');
+    const dos = g.find((x) => x.externalId === 'clinica-ejemplo-dos');
+    const tres = g.find((x) => x.externalId === 'centro-ejemplo-tres');
+    check('GHA: one record per organization, empty slots skipped', g.length === 3, g.map((x) => x.externalId));
+    check('GHA: an organization in two tabs keeps both programs and dates', uno?.extra?.programs === 'Hospital Accreditation (since 2017-09-20); Ambulatory Certification (since 2025-01-08)' && uno?.extra?.categories === 'Hospitals with Excellence; Ambulatory Centers', uno?.extra);
+    check('GHA: outside our regions is stored with its country, never a region', uno?.region === null && uno?.extra?.country === 'Thailand' && uno?.extra?.city === 'Bangkok' && uno?.extra?.website === 'https://uno.example');
+    check('GHA: a Tijuana clinic gets our region and an ended term a valid_to', dos?.region === 'sandiego-tijuana' && dos?.extra?.validFrom === '2017-09-18' && dos?.extra?.validTo === '2020-09-18', dos?.extra);
+    check('GHA: a blank program takes the tab name; "Since a – b" is a term; USA is the United States', tres?.extra?.label === 'Ambulatory Centers' && tres?.extra?.validTo === '2025-11-24' && tres?.region === 'elpaso-juarez' && tres?.extra?.country === 'United States', tres?.extra);
+    check('GHA: date lines read in every form GHA prints', JSON.stringify(['Accredited Since December 10, 2024', 'May 14, 2018 - May 13, 2021', 'Hospital Program'].map(readTerm)) === JSON.stringify([{ since: '2024-12-10', until: null }, { since: '2018-05-14', until: '2021-05-13' }, null]));
+    let paged = '';
+    try { parseGha(page.replace('<div role="list">', '<div role="list"><a class="w-pagination-next">')); } catch (e) { paged = (e as Error).message; }
+    check('GHA: a paged list stops the run instead of reading half of it', /paged/.test(paged), paged);
+    check('places: namesakes stay out (a Tijuana outside Mexico is no region)', regionOf('Spain', 'Tijuana') === null && regionOf(null, 'Ciudad Juárez') === 'elpaso-juarez' && normalizeCountry('Kingdom of Saudi Arabia') === 'Saudi Arabia');
+
+    check('JCI: Cloudflare check pages are recognized, the real page is not', isChallenge('Just a moment...', '<html></html>') && isChallenge('JCI', '<div class="cf-turnstile"></div>') && !isChallenge('Find Accredited International Organizations', '<script src="/_next/static/chunks/pages/_app-abc.js"></script>'));
+    check('JCI: its letter waives only the block, so robots.txt is still read', JSON.stringify(jci.permission?.waives) === '["block"]');
+    check('JCI: the page script\'s search settings are read, the key never stored', JSON.stringify(discoverConfig('x={env:"prod",customerKey:"111-222",apiKey:"01-abcDEF123"},y')) === JSON.stringify({ domain: '222', apiKey: '01-abcDEF123' }) && discoverConfig('nothing') === null);
+    check('JCI: the main script is found in the page', appScriptUrl('<script src="/_next/static/chunks/pages/_app-abc123.js">') === 'https://www.jointcommission.org/_next/static/chunks/pages/_app-abc123.js');
+    const acc = (program: string, decision: string, date: string) => ({ aoProgramName: { program: { title: { value: program } } }, aoStatus: { program: { title: { value: decision } } }, aoStatusFrom: { jsonValue: { value: `${date}T05:00:00Z` } } });
+    const j = jciToEntry({ hco_id: '60009999', name: 'Hospital  Ejemplo Cuatro', city: 'Tijuana', country: 'Mexico', web_address: 'http://cuatro.example', acc_org_jci_accreditation: [acc('Hospital Program', 'Accredited', '2025-10-03')], acc_org_jci_certification: [acc('Primary Stroke', 'Certified', '2024-01-02')] }, 't');
+    check('JCI: a record keeps its id, programs and dates, and Tijuana gets our region', j?.externalId === '60009999' && j?.name === 'Hospital Ejemplo Cuatro' && j?.region === 'sandiego-tijuana' && j?.extra?.accreditations === 'Hospital Program: Accredited (2025-10-03)' && j?.extra?.certifications === 'Primary Stroke: Certified (2024-01-02)' && j?.extra?.validFrom === '2025-10-03', j);
+    check('JCI: a record with no id is dropped', jciToEntry({ name: 'x' }, 't') === null);
+    check('JCI: the search asks for the page\'s widget, 100 at a time', JSON.stringify(searchBody(200).widget.items[0].search).includes('"limit":100,"offset":200'));
+
+    const munis = municipalityNames(JSON.stringify({ value: [{ name: 'Baja California', municipalities: [{ id: 1, name: 'Tijuana' }, { id: 4, name: 'Mexicali' }] }] }));
+    const raw = { id: 7, name: 'Dra. Ejemplo Cinco', active: '1', typeEntity: 'M', municipality_id: 1, slu: 'dra-ejemplo-cinco', created_at: '2026-11-01', email: 'x@example.test', phone1: '5550000000', rfc: 'XAXX010101000', identity: 'doc.pdf', profesional_license_number: '1234567' };
+    const w = watchEntry('doctor', 'doctors', raw, munis, 't');
+    check('watch: a record keeps only id, name, type and place', w?.externalId === 'doctor:7' && w?.region === 'sandiego-tijuana' && w?.extra?.municipality === 'Tijuana' && !/example\.test|5550000000|XAXX|doc\.pdf|1234567/.test(JSON.stringify(w)), w);
+    check('watch: inactive records are not watched', watchEntry('doctor', 'doctors', { ...raw, active: '0' }, munis, 't') === null);
+    const watchRun = { id: 'r', source: 'bajahealthtourism-watch', startedAt: 't', finishedAt: 't', status: 'green', reasons: [], permission: null, targets: [], counts: { entries: 2, added: 1, removed: 0 }, added: ['doctor:7'], removed: [], entries: [{ ...w!, runId: 'r' }] } as never;
+    check('watch: a later run flags what is new, the first only sets the baseline', watchFlags(watchRun, false)[0] === 'new doctor: Dra. Ejemplo Cinco (Tijuana) https://bajahealthtourism.com.mx/doctors' && /baseline/.test(watchFlags(watchRun, true)[0]));
+    const row = entryRow({ ...j!, runId: 'r' }, 'jci');
+    check('load: a worldwide record keeps its country and programs on the row', row.region === 'sandiego-tijuana' && row.facts.country === 'Mexico' && row.facts.accreditations === 'Hospital Program: Accredited (2025-10-03)' && row.label === 'Hospital Program', row.facts);
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');

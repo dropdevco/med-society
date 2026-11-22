@@ -19,7 +19,7 @@ Every phase ends with a demo and a go/no-go. Nothing is applied to production, p
 | 6 | Weekly runs on a Hetzner VM ([0006](../adr/0006-pipeline-runtime.md)) | Two unattended weekly runs, green in `/admin` | **Timer and local health dashboard built 2 Nov** (`docker compose up -d scheduler dashboard`); VM not set up yet |
 | 7a | Recovery centers in Tijuana: COEPRIS, the Padrón, Baja Health Cluster ([ADR 0008](../adr/0008-facility-badges.md)) | Badges on real listings | Built on the branch; needs listings, and 0042 to 0045 applied |
 | 7b | Identity review outcome ([ADR 0009](../adr/0009-identity-review-outcome.md)): identity tables first, disagreeing names reviewed | Local registry gives the same 394 IDs across 7 runs; review sheet and cédula report run | **Built on the branch**, tested in the sandbox |
-| 7+ | Next sources: CMCPER, CLUES, colegios, associations, then consejos as letters arrive | Per source | Not started |
+| 7+ | Next sources: GHA and JCI accreditors worldwide (built 21 Nov 2026; JCI blocked by Cloudflare), bajahealthtourism.com.mx watch (built 21 Nov), CLUES, associations. Consejos and colegios dropped in favour of CONACEM ([ADR 0015](../adr/0015-certifications-from-conacem-only.md)) | Per source | In progress |
 
 ## Badge design
 

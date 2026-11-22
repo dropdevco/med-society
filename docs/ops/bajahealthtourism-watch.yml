@@ -1,0 +1,43 @@
+# The daily bajahealthtourism.com.mx watch (docs/sources/bajahealthtourism-watch.md).
+# Lives in the PRIVATE repository dropdevco/med-society-ops as
+# .github/workflows/bajahealthtourism-watch.yml; the copy here is the reviewed original.
+# Same secrets as sources-weekly.yml. No browser, no scorer: five JSON requests a day.
+#
+# New doctors, hospitals, clinics and hotels are listed in the run's summary
+# (Actions → Daily watch → the run → Summary). The first run only stores a baseline.
+name: Daily watch, bajahealthtourism.com.mx
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # every day 07:00 Mexico City (UTC-6)
+  workflow_dispatch:
+
+concurrency:
+  group: bajahealthtourism-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dropdevco/med-society
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Watch and load
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/sources/run.ts --source=bajahealthtourism-watch --commit
