@@ -5,8 +5,10 @@
  * only enough to tell a new record from a known one: its id, name, type and place.
  * The run's "added" list is the flag. Nothing here is matched or shown on the site.
  *
- * The doctors list returns whole records, including contact details, tax and
- * identity fields. None of that is kept: only the fields picked in `watchEntry`
+ * The doctors list returns whole records: contact details, licence numbers, links to
+ * uploaded certification documents and the staff accounts that reviewed them, plus
+ * tax (RFC) and identity fields that were empty on every record on 22 Nov 2026.
+ * None of that is kept: only the fields picked in `watchEntry`
  * ever reach a run file or the database.
  * Notes: docs/sources/bajahealthtourism-watch.md
  */
@@ -35,7 +37,8 @@ const str = (v: unknown): string | null => {
 
 /**
  * The only fields kept from a record. Everything else the API returns (phones,
- * e-mails, RFC, identity documents, licences) is dropped here, on purpose.
+ * e-mails, licences, document links, staff accounts, and the RFC and identity
+ * fields should they ever be filled) is dropped here, on purpose.
  */
 export function watchEntry(kind: (typeof WATCHED)[number]['kind'], section: string, r: Record<string, unknown>, municipalities: Map<string, string>, observedAt: string): CollectedEntry | null {
     const id = str(r.id);
