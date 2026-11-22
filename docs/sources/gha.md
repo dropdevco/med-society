@@ -6,7 +6,7 @@ GHA accredits and certifies hospitals, clinics, medical-travel facilitators, and
 
 ## Access
 
-Permission, received 21 Nov 2026 (reported by Emilio): scrape, store and display the accredited and certified organizations. GHA said an API may follow and asked us to scrape until then. **File the letter in the team vault** and check this wording against it. robots.txt is still read and obeyed; the permission waives nothing.
+Permission: letter of 21 Nov 2026, in the team vault. Scrape, store and display the accredited and certified organizations; GHA said an API may follow and asked us to scrape until then. robots.txt allows us and is still read every run; nothing needs waiving.
 
 Logo use is **not** authorized, so `organizations.logo_permission_at` stays empty and no logo shows.
 

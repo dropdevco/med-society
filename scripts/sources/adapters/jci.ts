@@ -4,9 +4,14 @@
  * service, with a browser key it ships in its own script; this adapter reads the page,
  * takes that key from the script each run (nothing of it is stored here), and pages
  * through the same search the page makes.
- * Written permission, 21 Nov 2026 (docs/sources/README.md). Notes: docs/sources/jci.md
+ * jointcommission.org sits behind a Cloudflare check that refuses plain HTTP clients, so
+ * the page and its script are read through a real browser. JCI's letter (21 Nov 2026)
+ * asks us to find a way in until their API exists, which waives that block; the browser
+ * still sends `X-Client: MedSocietyBot`. Nothing here solves a CAPTCHA: a check that
+ * wants a person ends the run red. Notes: docs/sources/jci.md
  */
-import { politeGet, politePost } from '../lib/http';
+import { openBrowser, pace } from '../lib/browser';
+import { politePost } from '../lib/http';
 import type { TargetOutcome } from '../lib/judge';
 import { normalizeCountry, regionOf } from '../lib/places';
 import type { Collected, CollectedEntry, SourceAdapter } from '../lib/types';
@@ -96,6 +101,40 @@ export function toEntry(r: JciRecord, observedAt: string): CollectedEntry | null
     };
 }
 
+/** "Just a moment…": Cloudflare's check page, which a real browser normally passes by itself in a few seconds. */
+export const isChallenge = (title: string, html: string) =>
+    /just a moment|attention required|un momento/i.test(title) || /cf-turnstile|challenges\.cloudflare\.com\/turnstile/i.test(html);
+
+/** Opens the page in a real browser and reads the search settings from its main script. */
+async function readSearchConfig(): Promise<{ domain: string; apiKey: string }> {
+    const open = await openBrowser(jci.permission);
+    try {
+        const page = await open.context.newPage();
+        await pace();
+        await page.goto(JCI_PAGE, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+        // Give Cloudflare's automatic check time to finish and load the real page.
+        let html = '';
+        for (let i = 0; i < 15; i++) {
+            html = await page.content();
+            if (appScriptUrl(html)) break;
+            await page.waitForTimeout(2_000);
+        }
+        if (isChallenge(await page.title(), html) && !appScriptUrl(html)) {
+            throw new Error('Cloudflare kept the check page up (it may want a person). Not worked around: ask JCI to allowlist MedSocietyBot, or for the API');
+        }
+        const scriptUrl = appScriptUrl(html);
+        if (!scriptUrl) throw new Error('the JCI page no longer names its main script (format change?)');
+        await pace();
+        const script = await open.context.request.get(scriptUrl);
+        if (!script.ok()) throw new Error(`JCI's main script answered ${script.status()}`);
+        const config = discoverConfig(await script.text());
+        if (!config) throw new Error('the JCI script no longer carries its search settings (format change?)');
+        return config;
+    } finally {
+        await open.close();
+    }
+}
+
 interface DiscoverResponse { widgets?: Array<{ content?: JciRecord[]; total_item?: number }> }
 
 async function collect(): Promise<Collected> {
@@ -105,11 +144,7 @@ async function collect(): Promise<Collected> {
     const outcome = (key: string, url: string, ok: boolean, count: number, error?: string) =>
         targets.push({ key, url, ok, count, fetchedAt: new Date().toISOString(), ...(error ? { error } : {}) });
 
-    const page = await politeGet(JCI_PAGE);
-    const scriptUrl = appScriptUrl(page.body);
-    if (!scriptUrl) throw new Error('the JCI page no longer names its main script (format change?)');
-    const config = discoverConfig((await politeGet(scriptUrl)).body);
-    if (!config) throw new Error('the JCI script no longer carries its search settings (format change?)');
+    const config = await readSearchConfig();
 
     const url = `${DISCOVER}/${config.domain}`;
     let total: number | null = null;
@@ -144,7 +179,9 @@ export const jci: SourceAdapter = {
         grantedOn: '2026-11-21',
         scope: 'Scrape, store and display the accredited organizations; an API may follow',
         conditions: 'Scrape until the API exists',
-        reference: 'Written permission, as reported by Emilio on 21 Nov 2026; file the letter in the team vault',
+        reference: 'Letter of 21 Nov 2026 in the team vault: scrape until the API exists, finding a way in meanwhile',
+        // JCI asked us to find a way in until their API exists: past its Cloudflare check, through a real browser.
+        waives: ['block'],
     },
     // robots.txt is read on JCI's site, which allows our agent; the search host is an API with no robots.txt.
     targets: [{ key: 'organizations', label: 'International accredited organizations', url: JCI_PAGE, region: null }],

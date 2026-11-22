@@ -22,7 +22,7 @@ import { dmyToIso, parseDetail, parseList } from './adapters/padron-salud-bc';
 import { doctorUrl, parseCard } from './adapters/starmedica';
 import { entryRow } from './lib/load';
 import { parseDirectory as parseGha, readTerm } from './adapters/gha';
-import { appScriptUrl, discoverConfig, searchBody, toEntry as jciToEntry } from './adapters/jci';
+import { appScriptUrl, discoverConfig, isChallenge, jci, searchBody, toEntry as jciToEntry } from './adapters/jci';
 import { municipalityNames, watchEntry } from './adapters/bajahealthtourism-watch';
 import { normalizeCountry, regionOf } from './lib/places';
 import { watchFlags } from './run';
@@ -477,6 +477,8 @@ check('similarity: matches pg_trgm on a known pair', Math.abs(similarity('maria 
     check('GHA: a paged list stops the run instead of reading half of it', /paged/.test(paged), paged);
     check('places: namesakes stay out (a Tijuana outside Mexico is no region)', regionOf('Spain', 'Tijuana') === null && regionOf(null, 'Ciudad Juárez') === 'elpaso-juarez' && normalizeCountry('Kingdom of Saudi Arabia') === 'Saudi Arabia');
 
+    check('JCI: Cloudflare check pages are recognized, the real page is not', isChallenge('Just a moment...', '<html></html>') && isChallenge('JCI', '<div class="cf-turnstile"></div>') && !isChallenge('Find Accredited International Organizations', '<script src="/_next/static/chunks/pages/_app-abc.js"></script>'));
+    check('JCI: its letter waives only the block, so robots.txt is still read', JSON.stringify(jci.permission?.waives) === '["block"]');
     check('JCI: the page script\'s search settings are read, the key never stored', JSON.stringify(discoverConfig('x={env:"prod",customerKey:"111-222",apiKey:"01-abcDEF123"},y')) === JSON.stringify({ domain: '222', apiKey: '01-abcDEF123' }) && discoverConfig('nothing') === null);
     check('JCI: the main script is found in the page', appScriptUrl('<script src="/_next/static/chunks/pages/_app-abc123.js">') === 'https://www.jointcommission.org/_next/static/chunks/pages/_app-abc123.js');
     const acc = (program: string, decision: string, date: string) => ({ aoProgramName: { program: { title: { value: program } } }, aoStatus: { program: { title: { value: decision } } }, aoStatusFrom: { jsonValue: { value: `${date}T05:00:00Z` } } });

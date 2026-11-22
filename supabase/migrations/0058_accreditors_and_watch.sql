@@ -3,7 +3,7 @@
 --
 -- GHA and JCI are facility sources like COEPRIS (docs/adr/0008): their records are
 -- stored whole, worldwide, and a record in one of our regions is matched to a listing
--- for a person to confirm. Written permission for both, as reported on 21 Nov 2026
+-- for a person to confirm. Written permission for both, letters of 21 Nov 2026 in the team vault
 -- (docs/sources/README.md). Neither shows a logo until its logo permission is recorded.
 --
 -- The watch ('bajahealthtourism-watch') keeps a few fields of each catalogue record so
@@ -36,7 +36,7 @@ insert into public.organizations (slug, name, kind, country, website, info_url) 
 -- doctor_links = false: neither list has a page per organization, only the list itself.
 insert into public.data_sources (slug, organization_id, name, access, permission_granted_on, permission_scope, permission_ref, doctor_links, entity)
 select o.slug, o.id, x.name, 'permission', date '2026-11-21', x.scope,
-       'Written permission as reported by Emilio, 21 Nov 2026; letter to be filed in the team vault', false, 'facility'
+       'Letter of 21 Nov 2026, in the team vault', false, 'facility'
 from public.organizations o
 join (values
     ('gha', 'Global Healthcare Accreditation, accredited and certified organizations', 'Scrape, store and display; an API may follow'),

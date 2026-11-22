@@ -161,7 +161,7 @@ export const gha: SourceAdapter = {
         grantedOn: '2026-11-21',
         scope: 'Scrape, store and display the accredited and certified organizations; an API may follow',
         conditions: 'Scrape until the API exists',
-        reference: 'Written permission, as reported by Emilio on 21 Nov 2026; file the letter in the team vault',
+        reference: 'Letter of 21 Nov 2026 in the team vault: scrape, store and display until the API exists',
     },
     targets: [{ key: 'directory', label: 'All programs, worldwide', url: GHA_PAGE, region: null }],
     parse: (html: string) => parseDirectory(html),
