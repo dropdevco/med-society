@@ -141,6 +141,7 @@ export function HotelsPage() {
             <header className="ms-hotels-hero">
                 <h1>{t(side === 'us' ? 'hotels.pageTitleUs' : 'hotels.pageTitle', { city })}</h1>
                 <p>{t(side === 'us' ? 'hotels.pageSubtitleUs' : 'hotels.pageSubtitle')}</p>
+                <p className="ms-hotels-crossnote"><Link to={`/getting-here?region=${region}`}>{t('hotels.gettingHere')}</Link></p>
                 {side === 'us' && (
                     <p className="ms-hotels-crossnote">
                         {t('hotels.crossingNote')}{' '}

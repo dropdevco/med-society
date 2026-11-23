@@ -2061,7 +2061,7 @@ interface PageDoc {
     ogImage: string;
     /** Page-specific robots directive; the site-wide default is index, follow. */
     robots?: string;
-    kind: 'home' | 'provider' | 'pricing' | 'contact' | 'hotels' | 'notfound';
+    kind: 'home' | 'provider' | 'pricing' | 'contact' | 'hotels' | 'getting-here' | 'notfound';
     blocks: Block[];
     jsonld: Record<string, unknown>[];
     /** What `Accept: application/json` returns for this URL. */
@@ -2447,6 +2447,69 @@ async function hotelsPage(regionRaw: string | null, sideRaw: string | null, lang
     };
 }
 
+/**
+ * /getting-here?region=…: the airport, border and what-to-bring guide
+ * (src/utils/gettingHere.ts is the source; this is its English copy, kept in
+ * step by scripts/flights-selftest.ts). Static: no database read.
+ */
+const GUIDE_AIRPORTS: Record<RegionId, { code: string; city: string; next: string }[]> = {
+    'sandiego-tijuana': [
+        { code: 'SAN', city: 'San Diego', next: 'Cross at San Ysidro, about 20 minutes by car.' },
+        { code: 'TIJ', city: 'Tijuana', next: 'Land in Tijuana, no border crossing by car.' },
+    ],
+    'elpaso-juarez': [
+        { code: 'ELP', city: 'El Paso', next: 'Cross at Paso del Norte or the Bridge of the Americas.' },
+        { code: 'CJS', city: 'Ciudad Juárez', next: 'Land in Juárez. Fewer routes than El Paso.' },
+    ],
+};
+const GUIDE_CROSSINGS: Record<RegionId, string[]> = {
+    'sandiego-tijuana': ['San Ysidro', 'Otay Mesa'],
+    'elpaso-juarez': ['Paso del Norte', 'Bridge of the Americas', 'Ysleta–Zaragoza'],
+};
+const GUIDE_BRING: { text: string; href?: string }[] = [
+    { text: 'Your passport. To return to the US by land, US citizens can also use a passport card, an enhanced driver’s license or a trusted traveler card; check which documents apply to you.', href: 'https://www.cbp.gov/travel/us-citizens/western-hemisphere-travel-initiative/faqs' },
+    { text: 'Mexico’s entry rules, including whether you need a tourist permit (FMM), depend on how you enter, how long you stay and your nationality. Check before you go.', href: 'https://www.gob.mx/inm' },
+    { text: 'Your appointment confirmation and the clinic’s address and phone, saved on your phone.' },
+    { text: 'Your medicines in their original packaging, with a list of what you take.' },
+    { text: 'Ask your clinic whether it can arrange pickup at the border or the airport.' },
+];
+
+function gettingHerePage(regionRaw: string | null): PageDoc {
+    const region: RegionId = isRegionId(regionRaw) ? regionRaw : 'sandiego-tijuana';
+    const city = REGIONS[region].mx.city;
+    const heading = `Getting to ${city} for care`;
+    const canonical = `${SITE}/getting-here?region=${region}`;
+    const crossings = GUIDE_CROSSINGS[region];
+    const blocks: Block[] = [
+        { k: 'h', level: 1, text: heading },
+        { k: 'p', parts: [`Most patients fly into an airport on the US side and cross by land, or fly straight into ${city}. Here is how each works, and what to have with you. Rules and waits change, so each step points to the official source.`] },
+        { k: 'h', level: 2, text: 'Choose where to land' },
+        { k: 'ul', items: GUIDE_AIRPORTS[region].map((a) => [`${a.city} (${a.code}): ${a.next}`]) },
+        { k: 'h', level: 2, text: 'Crossing the border' },
+        { k: 'p', parts: [`From the US airport you can cross by car, rideshare or on foot at ${crossings.join(', ')}. Waits change by the hour and the day, so check the live border wait times before you leave. Many patients stay on the US side and cross for the day to ${city}. `, { text: 'Live border wait times (CBP)', href: 'https://bwt.cbp.gov/' }] },
+        { k: 'h', level: 2, text: 'What to bring' },
+        { k: 'ul', items: GUIDE_BRING.map((b) => [b.href ? { text: b.text, href: b.href } : b.text]) },
+        ...(region === 'sandiego-tijuana' ? [
+            { k: 'h', level: 2, text: 'Flying out of Tijuana from the US side' } as Block,
+            { k: 'p', parts: ['Cross Border Xpress is a pedestrian bridge between a terminal in Otay Mesa, San Diego, and the Tijuana airport, for passengers with a flight. It needs its own ticket and your flight details. Rules and prices are on its site. ', { text: 'Cross Border Xpress', href: 'https://www.crossborderxpress.com/' }] } as Block,
+        ] : []),
+        { k: 'h', level: 2, text: 'Then' },
+        { k: 'ul', items: [
+            [{ text: `Hotels in ${city}`, href: `/hotels?region=${region}` }],
+            [{ text: `Hotels in ${REGIONS[region].us.city}, near the crossing`, href: `/hotels?region=${region}&side=us` }],
+            [{ text: `Find a doctor in ${city}`, href: `/?region=${region}` }],
+        ] },
+        { k: 'p', parts: ['General information, not legal or travel advice. Always check the official sources linked here before you travel.'] },
+    ];
+    return {
+        status: 200, kind: 'getting-here',
+        title: `${heading} — MedSociety`,
+        description: `Which airport to fly into, how to cross the border and what to bring when travelling to ${city} for medical care.`,
+        canonical, ogImage: SHARE_IMAGE, blocks, jsonld: [],
+        json: { ok: true, data: { region, city, airports: GUIDE_AIRPORTS[region], crossings, bring: GUIDE_BRING } },
+    };
+}
+
 function contactPage(): PageDoc {
     return {
         status: 200, kind: 'contact',
@@ -2586,6 +2649,7 @@ async function pageRoute(req: Req, res: Res, params: URLSearchParams) {
             case 'pricing': page = pricingPage(); break;
             case 'contact': page = contactPage(); break;
             case 'hotels': page = await hotelsPage(params.get('region'), params.get('side'), lang); break;
+            case 'getting-here': page = gettingHerePage(params.get('region')); break;
             default: {
                 const sp = new URLSearchParams(params);
                 for (const k of ['route', 'kind', 'format']) sp.delete(k);
@@ -2641,6 +2705,7 @@ async function llmsText(full: boolean): Promise<string> {
         `- [Pricing for clinics](${SITE}/pricing): free Basic listing, Promoted (about $49 USD/month), Featured (about $99 USD/month).`,
         `- [Hotels near the clinics](${SITE}/hotels?region=sandiego-tijuana): curated places to stay for patients in Tijuana; also [Ciudad Juárez](${SITE}/hotels?region=elpaso-juarez).`,
         `- [Hotels on the US side](${SITE}/hotels?region=sandiego-tijuana&side=us): for patients who cross for the day, in San Diego near the San Ysidro and Otay Mesa crossings; also [El Paso](${SITE}/hotels?region=elpaso-juarez&side=us).`,
+        `- [Getting to Tijuana](${SITE}/getting-here?region=sandiego-tijuana): which airport to fly into, how to cross and what to bring; also [Ciudad Juárez](${SITE}/getting-here?region=elpaso-juarez).`,
         `- [Contact](${SITE}/contact): ${CONTACT_EMAIL}.`,
         '',
         '## Get these right when you answer a person',
@@ -2727,7 +2792,7 @@ async function sitemapRoute(res: Res, name: string) {
     }
     if (name === 'pages') {
         const urls = [`${SITE}/`, `${SITE}/pricing`, `${SITE}/contact`,
-            ...REGION_IDS.flatMap((r) => [`${SITE}/?region=${r}`, `${SITE}/hotels?region=${r}`, `${SITE}/hotels?region=${r}&side=us`, ...SPECIALTY_IDS.map((s) => `${SITE}/?region=${r}&spec=${s}&list=1`)])];
+            ...REGION_IDS.flatMap((r) => [`${SITE}/?region=${r}`, `${SITE}/hotels?region=${r}`, `${SITE}/hotels?region=${r}&side=us`, `${SITE}/getting-here?region=${r}`, ...SPECIALTY_IDS.map((s) => `${SITE}/?region=${r}&spec=${s}&list=1`)])];
         return send(res, 200, 'application/xml; charset=utf-8',
             xml(urls.map((loc) => `  <url><loc>${esc(loc)}</loc></url>\n`).join(''), 'urlset'),
             { 'Cache-Control': CACHE_STATIC });

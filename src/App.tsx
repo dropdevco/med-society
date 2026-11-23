@@ -13,6 +13,7 @@ import { ProviderPage } from './pages/ProviderPage';
 import { BorderhealthPage } from './pages/BorderhealthPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
+const GettingHerePage = lazy(() => import('./pages/GettingHerePage').then((m) => ({ default: m.GettingHerePage })));
 const HotelsPage = lazy(() => import('./pages/HotelsPage').then((m) => ({ default: m.HotelsPage })));
 import { ForumPage } from './pages/ForumPage';
 import { ForumThreadPage } from './pages/ForumThreadPage';
@@ -65,6 +66,8 @@ function AppRoutes() {
         <Route path="/providers/:providerId" element={<ProviderPage />} />
         {/* Curated hotels near the clinics (docs/hotels.md). */}
         <Route path="/hotels" element={<Suspense fallback={null}><HotelsPage /></Suspense>} />
+        {/* How to get to the clinics: airports, crossing, what to bring (docs/booking-affiliate.md, F2). */}
+        <Route path="/getting-here" element={<Suspense fallback={null}><GettingHerePage /></Suspense>} />
         {/* The two forums, deployed but unlisted: random paths, no links
             anywhere (see lib/forumRoutes.ts). Patients ask and clinicians
             answer; Med Society is clinicians only. */}

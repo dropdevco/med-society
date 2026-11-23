@@ -1508,7 +1508,8 @@
     "tabsLabel": "¿Qué estás buscando?",
     "tabCare": "Médicos y clínicas",
     "tabHotels": "Hoteles",
-    "tabFlights": "Vuelos"
+    "tabFlights": "Vuelos",
+    "gettingHere": "Cómo llegar: aeropuertos, cruce y qué llevar"
   },
   "flights": {
     "searchLabel": "Buscar vuelos",

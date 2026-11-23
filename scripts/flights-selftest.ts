@@ -3,6 +3,8 @@
  * No network, no credentials.
  *   npx tsx scripts/flights-selftest.ts
  */
+import { readFileSync } from 'node:fs';
+import { GUIDE, guideFor } from '../src/utils/gettingHere';
 import { buildFlightHref, earnsFlightCommission, FLIGHT_DESTINATIONS, parseAirport, suggestedTrip, validFlightQuery } from '../src/utils/flightLinks';
 
 let failed = 0;
@@ -50,6 +52,21 @@ console.log('validation');
         && validFlightQuery({ ...ok, adults: 0 })?.adults === 1 && validFlightQuery(ok)?.adults === 1);
     const s = suggestedTrip(TODAY);
     check('the suggested trip is two weeks out, back a week later', s.depart === '2026-12-07' && s.ret === '2026-12-14', s);
+}
+
+console.log('getting-here guide (api/agent.ts keeps an English copy)');
+{
+    const agent = readFileSync(new URL('../api/agent.ts', import.meta.url), 'utf8');
+    const strings = [
+        ...GUIDE.bring.map((b) => b.text.en), GUIDE.cbx.en, GUIDE.disclaimer.en,
+        ...(['sandiego-tijuana', 'elpaso-juarez'] as const).flatMap((r) => guideFor(r, 'en').airports.map((a) => a.next.en)),
+    ];
+    const missing = strings.filter((x) => !agent.includes(x));
+    check('the prerendered guide has the same English text as the page', missing.length === 0, missing);
+    check('each region has a US and a Mexican airport and its crossings', (['sandiego-tijuana', 'elpaso-juarez'] as const).every((r) => {
+        const g = guideFor(r, 'en');
+        return g.airports.length === 2 && g.airports[0].side === 'us' && g.airports[1].side === 'mx' && g.crossings.length >= 2;
+    }));
 }
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nall checks passed');
