@@ -2466,6 +2466,22 @@ const GUIDE_CROSSINGS: Record<RegionId, string[]> = {
     'sandiego-tijuana': ['San Ysidro', 'Otay Mesa'],
     'elpaso-juarez': ['Paso del Norte', 'Bridge of the Americas', 'Ysleta–Zaragoza'],
 };
+const GUIDE_GROUND_COMMON: { text: string; href?: string }[] = [
+    { text: 'Rideshare apps usually cannot take you across the border: ride to the crossing, walk over, then request or arrange a new ride on the other side.' },
+    { text: 'Ask your clinic or hotel to arrange a car or pickup on the Mexican side. It is usually the simplest way to be met at the right place.' },
+];
+const GUIDE_GROUND: Record<RegionId, { text: string; href?: string }[]> = {
+    'sandiego-tijuana': [
+        { text: 'San Diego airport to the border: car, taxi or rideshare, or by transit with MTS bus 992 to downtown and then the Blue Line trolley to San Ysidro.', href: 'https://www.san.org/To-From/Public-Transportation' },
+        { text: 'To fly out of Tijuana airport from the US side, see Cross Border Xpress below. At the Tijuana airport, rideshare pickup may be restricted, so ask your clinic or hotel to arrange the car.' },
+        ...GUIDE_GROUND_COMMON,
+    ],
+    'elpaso-juarez': [
+        { text: 'El Paso airport to the border: car, taxi or rideshare, or Sun Metro buses toward downtown, where the Paso del Norte bridge is. Check Sun Metro for routes.', href: 'https://sunmetro.net/' },
+        { text: 'On foot over the bridges: pedestrian hours and any small fee are on the City of El Paso’s international bridges page.', href: 'https://www.elpasotexas.gov/international-bridges' },
+        ...GUIDE_GROUND_COMMON,
+    ],
+};
 const GUIDE_BRING: { text: string; href?: string }[] = [
     { text: 'Your passport. To return to the US by land, US citizens can also use a passport card, an enhanced driver’s license or a trusted traveler card; check which documents apply to you.', href: 'https://www.cbp.gov/travel/us-citizens/western-hemisphere-travel-initiative/faqs' },
     { text: 'Mexico’s entry rules, including whether you need a tourist permit (FMM), depend on how you enter, how long you stay and your nationality. Check before you go.', href: 'https://www.gob.mx/inm' },
@@ -2487,6 +2503,9 @@ function gettingHerePage(regionRaw: string | null): PageDoc {
         { k: 'ul', items: GUIDE_AIRPORTS[region].map((a) => [`${a.city} (${a.code}): ${a.next}`]) },
         { k: 'h', level: 2, text: 'Crossing the border' },
         { k: 'p', parts: [`From the US airport you can cross by car, rideshare or on foot at ${crossings.join(', ')}. Waits change by the hour and the day, so check the live border wait times before you leave. Many patients stay on the US side and cross for the day to ${city}. `, { text: 'Live border wait times (CBP)', href: 'https://bwt.cbp.gov/' }] },
+        { k: 'h', level: 2, text: 'Getting around on the ground' },
+        { k: 'p', parts: ['Plain options, no fares or times: those change, so each link goes to the operator. We have no booking partners for these.'] },
+        { k: 'ul', items: GUIDE_GROUND[region].map((g) => [g.href ? { text: g.text, href: g.href } : g.text]) },
         { k: 'h', level: 2, text: 'What to bring' },
         { k: 'ul', items: GUIDE_BRING.map((b) => [b.href ? { text: b.text, href: b.href } : b.text]) },
         ...(region === 'sandiego-tijuana' ? [
@@ -2506,7 +2525,7 @@ function gettingHerePage(regionRaw: string | null): PageDoc {
         title: `${heading} — MedSociety`,
         description: `Which airport to fly into, how to cross the border and what to bring when travelling to ${city} for medical care.`,
         canonical, ogImage: SHARE_IMAGE, blocks, jsonld: [],
-        json: { ok: true, data: { region, city, airports: GUIDE_AIRPORTS[region], crossings, bring: GUIDE_BRING } },
+        json: { ok: true, data: { region, city, airports: GUIDE_AIRPORTS[region], crossings, ground: GUIDE_GROUND[region], bring: GUIDE_BRING } },
     };
 }
 
