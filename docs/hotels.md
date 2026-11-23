@@ -51,6 +51,17 @@ Each run has a UUIDv7 run ID, stored on the rows it writes (`source_run_id`) and
 
 Google's terms let us keep only the place ID indefinitely. Like providers, the row also keeps name, address, coordinates and rating. Re-run the finder from time to time to refresh them, and remove what Google no longer lists.
 
+## The US side (San Diego, El Paso)
+
+Some patients would rather not sleep in Mexico and cross for the day. So each region also has hotels on the US side, with `country = 'US'` (migration 0059; `region` still comes from longitude, so San Diego sits in `sandiego-tijuana` and El Paso in `elpaso-juarez`).
+
+- **Where they show.** `/hotels?region=…&side=us` (a second toggle under the city buttons), a second homepage row ("Stay in San Diego, cross for your appointment"), the Hotels tab's search box ("San Diego (cross to Tijuana)"), and a smaller group on a Mexican provider's page when a border crossing is within 30 km of the clinic. Every list asks for one country, so the two sides never mix.
+- **How they are found.** `npx tsx scripts/hotels/find.ts --city=sandiego` or `--city=elpaso` (dry run by default). The search is centred a few km into the US from each crossing (a search at the line itself fills with Mexican hotels), within 6 km. Place Details must say the country is US. Ranking is by distance to the nearest crossing, then rating × log(reviews); the same filters apply (4.0 stars, 100 reviews, no motels or campgrounds). Default 8 per city. The row's `city` is Google's locality (Chula Vista, San Ysidro), so the Booking.com search is right.
+- **What a US tile says.** The photo, the name, and one line: the straight-line distance to the nearest crossing ("1.3 mi to San Ysidro" in English, "A 2.1 km de San Ysidro" in Spanish). Never a travel time, never a claim about waits or safety; the page links to CBP's border wait times instead.
+- **Crossings.** The list lives in `src/utils/borderCrossings.ts`, with a copy in `api/agent.ts` (it cannot import from `src/`); `scripts/agent-selftest.ts` checks they match. The coordinates are approximate, the pedestrian entrance to a few hundred metres.
+- **Admin.** Admin → Hotels has a "Side of the border" choice, so a hand-added US hotel stays US.
+- **Ship order.** Apply 0059, deploy, then run the finder with `--commit`. The finder never changes the status of a hotel an admin has hidden or kept as a draft.
+
 ## Adding a hotel by hand
 
 1. **Admin → Hotels → Add a hotel.**
@@ -82,8 +93,8 @@ The list is closed: it is checked in the migration and listed in `HOTEL_AMENITIE
 
 These go to PostHog (`src/lib/posthog.ts`):
 
-- `hotel_impression`: one per provider page that showed hotels, one per region view of `/hotels`, and one per region the homepage row is shown for. Props: `surface` (`provider_page`, `hotels_page`, `home`), `region`, `count`, `provider_id`.
-- `hotel_outbound_click`: one per "Check rates" click. Props: `hotel_id`, `hotel_name`, `region`, `surface`, `affiliate`, `dated`, `provider_id`, `distance_km`.
+- `hotel_impression`: one per provider page that showed hotels, one per region view of `/hotels`, and one per region the homepage row is shown for. Props: `surface` (`provider_page`, `hotels_page`, `home`), `region`, `side` (`mx` or `us`), `count`, `provider_id`. The homepage and provider page send one per side.
+- `hotel_outbound_click`: one per "Check rates" click. Props: `hotel_id`, `hotel_name`, `region`, `surface`, `side`, `affiliate`, `dated`, `provider_id`, `distance_km`; for US hotels also `crossing_id` and `crossing_km`.
 - `home_tab_selected`: the homepage tab a visitor switched to (`care` or `hotels`).
 - `search_performed` with `vertical: 'hotels'`: a search from the homepage Hotels tab.
 

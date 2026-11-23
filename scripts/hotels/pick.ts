@@ -18,24 +18,7 @@ export interface Candidate {
     address: string | null;
     rating: number | null;
     reviews: number;
-    /**
- * US side: the hotel is chosen for how easy the crossing is, not for the
- * clinics (which are all in Mexico). Closeness to the nearest crossing first,
- * then rating × log(reviews), so a 4.6-star hotel 15 km out still loses to a
- * good one a few minutes from the line.
- */
-export function scoreNearCrossing(c: Candidate, crossings: BorderCrossing[]): Scored {
-    let crossing = crossings[0];
-    let km = Infinity;
-    for (const x of crossings) {
-        const d = kmBetween(c, x);
-        if (d < km) { km = d; crossing = x; }
-    }
-    const quality = (c.rating ?? 0) * Math.log10(Math.max(c.reviews, 1));
-    return { ...c, clinicsWithin1Km: 0, nearestClinicKm: Infinity, crossing, crossingKm: km, score: quality - Math.min(km, 15) * 0.8 };
-}
-
-/** Google's 0–4 price level, when it has one. */
+    /** Google's 0–4 price level, when it has one. */
     priceLevel: number | null;
     businessStatus: string | null;
     types: string[];
@@ -146,6 +129,23 @@ export function pick(
         if (!chosen.includes(c)) chosen.push(c);
     }
     return chosen;
+}
+
+/**
+ * US side: the hotel is chosen for how easy the crossing is, not for the
+ * clinics (which are all in Mexico). Closeness to the nearest crossing first,
+ * then rating × log(reviews), so a 4.6-star hotel 15 km out still loses to a
+ * good one a few minutes from the line.
+ */
+export function scoreNearCrossing(c: Candidate, crossings: BorderCrossing[]): Scored {
+    let crossing = crossings[0];
+    let km = Infinity;
+    for (const x of crossings) {
+        const d = kmBetween(c, x);
+        if (d < km) { km = d; crossing = x; }
+    }
+    const quality = (c.rating ?? 0) * Math.log10(Math.max(c.reviews, 1));
+    return { ...c, clinicsWithin1Km: 0, nearestClinicKm: Infinity, crossing, crossingKm: km, score: quality - Math.min(km, 15) * 0.8 };
 }
 
 /** Google's 0–4 price level → our 1–4 band. 0 (free) and 1 (inexpensive) are both "$". */

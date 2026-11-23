@@ -15,15 +15,18 @@ import { StayDates } from './StayDates';
 export function HotelSearchBox({ region }: { region: RegionId }) {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const [city, setCity] = useState<RegionId>(region);
+    // "sandiego-tijuana" = stay in Tijuana; "sandiego-tijuana:us" = stay in San Diego and cross.
+    const [where, setWhere] = useState<string>(region);
     const [dates, setDates] = useState({ checkin: '', checkout: '' });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
+        const [city, side] = where.split(':') as [RegionId, 'us' | undefined];
         const p = new URLSearchParams({ region: city });
+        if (side === 'us') p.set('side', 'us');
         const stay = validStay(dates.checkin, dates.checkout);
         if (stay) { p.set('checkin', stay.checkin); p.set('checkout', stay.checkout); }
-        track('search_performed', { vertical: 'hotels', region: city, dated: Boolean(stay) });
+        track('search_performed', { vertical: 'hotels', region: city, side: side ?? 'mx', dated: Boolean(stay) });
         navigate(`/hotels?${p.toString()}`);
     };
 
@@ -31,10 +34,11 @@ export function HotelSearchBox({ region }: { region: RegionId }) {
         <form className="ms-hotel-search" role="search" aria-label={t('hotels.searchLabel')} onSubmit={submit}>
             <label className="ms-hotel-search-city" htmlFor="hotel-search-city">
                 <span>{t('hotels.whereLabel')}</span>
-                <select id="hotel-search-city" value={city} onChange={(e) => setCity(e.target.value as RegionId)}>
-                    {(Object.keys(REGIONS) as RegionId[]).map((r) => (
-                        <option key={r} value={r}>{REGIONS[r].mx.city}</option>
-                    ))}
+                <select id="hotel-search-city" value={where} onChange={(e) => setWhere(e.target.value)}>
+                    {(Object.keys(REGIONS) as RegionId[]).flatMap((r) => [
+                        <option key={r} value={r}>{REGIONS[r].mx.city}</option>,
+                        <option key={`${r}:us`} value={`${r}:us`}>{t('hotels.whereUs', { city: REGIONS[r].us.city, mx: REGIONS[r].mx.city })}</option>,
+                    ])}
                 </select>
             </label>
             <StayDates idPrefix="hotel-search" checkin={dates.checkin} checkout={dates.checkout} onChange={setDates} />

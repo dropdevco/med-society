@@ -110,6 +110,33 @@ const REGIONS = {
     },
 } as const;
 type RegionId = keyof typeof REGIONS;
+
+/**
+ * Land border crossings, for describing US-side hotels. Keep in step with
+ * src/utils/borderCrossings.ts (BORDER_CROSSINGS); scripts/agent-selftest.ts
+ * checks that the two lists match.
+ */
+const BORDER_CROSSINGS: { id: string; region: RegionId; lat: number; lng: number; label: string }[] = [
+    { id: 'san-ysidro', region: 'sandiego-tijuana', lat: 32.5430, lng: -117.0290, label: 'the San Ysidro crossing' },
+    { id: 'otay-mesa', region: 'sandiego-tijuana', lat: 32.5524, lng: -116.9378, label: 'the Otay Mesa crossing' },
+    { id: 'paso-del-norte', region: 'elpaso-juarez', lat: 31.7495, lng: -106.4876, label: 'the Paso del Norte bridge' },
+    { id: 'bridge-of-the-americas', region: 'elpaso-juarez', lat: 31.7633, lng: -106.4505, label: 'the Bridge of the Americas' },
+    { id: 'ysleta-zaragoza', region: 'elpaso-juarez', lat: 31.6700, lng: -106.3310, label: 'the Ysleta–Zaragoza bridge' },
+];
+function crossingKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+function nearestCrossingOf(point: { lat: number; lng: number }, region: RegionId) {
+    let best: { label: string; km: number } | null = null;
+    for (const c of BORDER_CROSSINGS) {
+        if (c.region !== region) continue;
+        const km = crossingKm(point, c);
+        if (!best || km < best.km) best = { label: c.label, km };
+    }
+    return best;
+}
 const REGION_IDS = Object.keys(REGIONS) as RegionId[];
 const isRegionId = (v: unknown): v is RegionId =>
     typeof v === 'string' && Object.prototype.hasOwnProperty.call(REGIONS, v);
@@ -2335,7 +2362,8 @@ function pricingPage(): PageDoc {
 }
 
 /**
- * /hotels?region=…: the curated hotels near the clinics (migration 0054,
+ * /hotels?region=…[&side=us]: the curated hotels near the clinics, or on the US
+ * side for patients who cross for the day (migrations 0054 and 0059,
  * docs/hotels.md). Reads the published rows the anon key can see. The
  * outbound links stay the hotel's own pages here: the affiliate id is added in
  * the browser (src/utils/hotelLinks.ts), not for crawlers.
@@ -2347,12 +2375,14 @@ const HOTEL_AMENITY_NAMES: Record<string, string> = {
 };
 const PRICE_BANDS = ['', 'budget', 'moderate', 'upscale', 'luxury'];
 
-async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc> {
+async function hotelsPage(regionRaw: string | null, sideRaw: string | null, lang: Lang): Promise<PageDoc> {
     const region: RegionId = isRegionId(regionRaw) ? regionRaw : 'sandiego-tijuana';
-    const city = REGIONS[region].mx.city;
-    const canonical = `${SITE}/hotels?region=${region}`;
+    const side: 'mx' | 'us' = sideRaw === 'us' ? 'us' : 'mx';
+    const city = REGIONS[region][side].city;
+    const heading = side === 'us' ? `Hotels in ${city}, near the border crossings` : `Hotels near the clinics in ${city}`;
+    const canonical = `${SITE}/hotels?region=${region}${side === 'us' ? '&side=us' : ''}`;
     const { data } = await sb(`hotels?select=id,name,description,address,city,lat,lng,website,booking_url,price_band,rating,review_count,amenities`
-        + `&status=eq.live&region=eq.${region}&order=rating.desc.nullslast,review_count.desc.nullslast,name&limit=200`);
+        + `&status=eq.live&region=eq.${region}&country=eq.${side === 'us' ? 'US' : 'MX'}&order=rating.desc.nullslast,review_count.desc.nullslast,name&limit=200`);
     const rows = (Array.isArray(data) ? data : []) as {
         id: string; name: string; description: { en?: string; es?: string } | null; address: string | null; city: string;
         lat: number; lng: number; website: string | null; booking_url: string | null;
@@ -2363,9 +2393,14 @@ async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc
         return href && /^https?:\/\//i.test(href) ? href : null;
     };
     const blocks: Block[] = [
-        { k: 'h', level: 1, text: `Hotels near the clinics in ${city}` },
-        { k: 'p', parts: ['Places to stay before and after treatment, picked by MedSociety for patients: close to the clinics, quiet, and easy to reach from the border. We may earn a commission when you book.'] },
-        { k: 'p', parts: ['Other city: ', ...REGION_IDS.filter((r) => r !== region).flatMap((r, i) => [...(i ? [', '] : []), { text: REGIONS[r].mx.city, href: `/hotels?region=${r}` }]), '. Find a doctor in the ', { text: 'directory', href: `/?region=${region}` }, '.'] },
+        { k: 'h', level: 1, text: heading },
+        { k: 'p', parts: [side === 'us'
+            ? `Some patients prefer to stay on the US side and cross for the day. These hotels in and around ${city} are a short drive from the border crossing; distances are in a straight line, and crossing times vary. We may earn a commission when you book.`
+            : 'Places to stay before and after treatment, picked by MedSociety for patients: close to the clinics, quiet, and easy to reach from the border. We may earn a commission when you book.'] },
+        { k: 'p', parts: side === 'us'
+            ? ['Prefer to stay in Mexico: ', { text: `hotels in ${REGIONS[region].mx.city}`, href: `/hotels?region=${region}` }, '. Find a doctor in the ', { text: 'directory', href: `/?region=${region}` }, '.']
+            : ['Other city: ', ...REGION_IDS.filter((r) => r !== region).flatMap((r, i) => [...(i ? [', '] : []), { text: REGIONS[r].mx.city, href: `/hotels?region=${r}` }]),
+                '. Or stay on the US side: ', { text: `hotels in ${REGIONS[region].us.city}`, href: `/hotels?region=${region}&side=us` }, '. Find a doctor in the ', { text: 'directory', href: `/?region=${region}` }, '.'] },
     ];
     if (rows.length === 0) {
         blocks.push({ k: 'p', parts: [`We are still picking hotels in ${city}.`] });
@@ -2374,7 +2409,9 @@ async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc
             k: 'ul', items: rows.map((h) => {
                 const href = link(h);
                 const desc = (lang === 'es' ? h.description?.es : h.description?.en) ?? h.description?.en ?? h.description?.es;
+                const cross = side === 'us' ? nearestCrossingOf(h, region) : null;
                 const facts = [
+                    cross ? `${(Math.round(cross.km * 0.621371 * 10) / 10)} mi (${Math.round(cross.km * 10) / 10} km) in a straight line from ${cross.label}` : '',
                     // Google's rating, said as such. Not in the JSON-LD: ratings from another site are not ours to mark up.
                     h.rating != null ? `rated ${Number(h.rating).toFixed(1)}${h.review_count ? ` from ${h.review_count.toLocaleString('en-US')} Google reviews` : ' on Google'}` : '',
                     h.price_band ? PRICE_BANDS[h.price_band] ?? '' : '',
@@ -2387,11 +2424,13 @@ async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc
     }
     return {
         status: 200, kind: 'hotels',
-        title: `Hotels near the clinics in ${city} — MedSociety`,
-        description: `Hotels in ${city} picked for medical patients: near the clinics, quiet for recovery, with shuttles and English-speaking staff where offered.`,
+        title: `${heading} — MedSociety`,
+        description: side === 'us'
+            ? `Hotels in ${city} for medical patients who cross the border for the day: a short drive from the crossing, picked by MedSociety.`
+            : `Hotels in ${city} picked for medical patients: near the clinics, quiet for recovery, with shuttles and English-speaking staff where offered.`,
         canonical, ogImage: SHARE_IMAGE, blocks,
         jsonld: rows.length ? [{
-            '@context': 'https://schema.org', '@type': 'ItemList', name: `Hotels near the clinics in ${city}`,
+            '@context': 'https://schema.org', '@type': 'ItemList', name: heading,
             numberOfItems: rows.length,
             itemListElement: rows.map((h, i) => ({
                 '@type': 'ListItem', position: i + 1,
@@ -2404,7 +2443,7 @@ async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc
                 },
             })),
         }] : [],
-        json: { ok: true, data: { region, city, hotels: rows.map((h) => ({ ...h, url: link(h) })) }, notes: ['Curated by MedSociety; rates and availability are on the linked page.'] },
+        json: { ok: true, data: { region, side, city, hotels: rows.map((h) => ({ ...h, url: link(h) })) }, notes: ['Curated by MedSociety; rates and availability are on the linked page.'] },
     };
 }
 
@@ -2546,7 +2585,7 @@ async function pageRoute(req: Req, res: Res, params: URLSearchParams) {
             case 'provider': page = await providerPage(clean(params.get('id'), 80), lang); break;
             case 'pricing': page = pricingPage(); break;
             case 'contact': page = contactPage(); break;
-            case 'hotels': page = await hotelsPage(params.get('region'), lang); break;
+            case 'hotels': page = await hotelsPage(params.get('region'), params.get('side'), lang); break;
             default: {
                 const sp = new URLSearchParams(params);
                 for (const k of ['route', 'kind', 'format']) sp.delete(k);
@@ -2601,6 +2640,7 @@ async function llmsText(full: boolean): Promise<string> {
         `- Provider pages live at ${SITE}/providers/{id}. Send \`Accept: text/markdown\` or \`Accept: application/json\` for a cleaner representation of any page.`,
         `- [Pricing for clinics](${SITE}/pricing): free Basic listing, Promoted (about $49 USD/month), Featured (about $99 USD/month).`,
         `- [Hotels near the clinics](${SITE}/hotels?region=sandiego-tijuana): curated places to stay for patients in Tijuana; also [Ciudad Juárez](${SITE}/hotels?region=elpaso-juarez).`,
+        `- [Hotels on the US side](${SITE}/hotels?region=sandiego-tijuana&side=us): for patients who cross for the day, in San Diego near the San Ysidro and Otay Mesa crossings; also [El Paso](${SITE}/hotels?region=elpaso-juarez&side=us).`,
         `- [Contact](${SITE}/contact): ${CONTACT_EMAIL}.`,
         '',
         '## Get these right when you answer a person',
@@ -2687,7 +2727,7 @@ async function sitemapRoute(res: Res, name: string) {
     }
     if (name === 'pages') {
         const urls = [`${SITE}/`, `${SITE}/pricing`, `${SITE}/contact`,
-            ...REGION_IDS.flatMap((r) => [`${SITE}/?region=${r}`, `${SITE}/hotels?region=${r}`,...SPECIALTY_IDS.map((s) => `${SITE}/?region=${r}&spec=${s}&list=1`)])];
+            ...REGION_IDS.flatMap((r) => [`${SITE}/?region=${r}`, `${SITE}/hotels?region=${r}`, `${SITE}/hotels?region=${r}&side=us`, ...SPECIALTY_IDS.map((s) => `${SITE}/?region=${r}&spec=${s}&list=1`)])];
         return send(res, 200, 'application/xml; charset=utf-8',
             xml(urls.map((loc) => `  <url><loc>${esc(loc)}</loc></url>\n`).join(''), 'urlset'),
             { 'Cache-Control': CACHE_STATIC });
@@ -3937,5 +3977,5 @@ async function siteGrabRoute(req: Req, res: Res) {
 export const __test = {
     tokenize, scoreDoc, badgeMatches, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
     openApiSpec, languageCodes, expandTerm, fold, SEARCH_PARAMS, MCP_TOOLS, providerJsonLd, rpcHandle,
-    parseCopy, copyWarnings, parseSiteHtml, isPublicIp, fetchPublicHtml,
+    parseCopy, copyWarnings, parseSiteHtml, isPublicIp, fetchPublicHtml, BORDER_CROSSINGS,
 };

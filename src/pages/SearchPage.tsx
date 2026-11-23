@@ -863,7 +863,7 @@ export function SearchPage() {
                             loading={loading}
                             onSelect={handleSelect}
                             onSeeAll={runSearch}
-                            afterFirst={<HotelRow region={filters.region} />}
+                            afterFirst={<><HotelRow region={filters.region} /><HotelRow region={filters.region} side="us" /></>}
                         />
                     </div>
                 </>
