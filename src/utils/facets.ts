@@ -41,7 +41,7 @@ export function buildFacets(
 
     for (const p of providers) {
         if (matchesFilters(p, filters, ctx, 'specialty')) {
-            for (const s of p.specialty) bump(specialty, s);
+            for (const s of new Set(p.specialty.map((x) => (x === 'orthodontist' ? 'dentist' : x)))) bump(specialty, s);
         }
         if (matchesFilters(p, filters, ctx, 'insurances')) {
             for (const i of p.insurances ?? []) bump(insurance, i);
@@ -135,7 +135,11 @@ export function buildVocabulary(
     const bump = <K>(m: Map<K, number>, k: K) => m.set(k, (m.get(k) ?? 0) + 1);
 
     for (const p of providers) {
-        for (const s of p.specialty) bump(specialtyCounts, s);
+        // Orthodontists are shown under Dentist (one rail tile, one filter), so
+        // they count towards it — once, even for a listing tagged with both.
+        for (const s of new Set(p.specialty.map((x) => (x === 'orthodontist' ? 'dentist' : x)))) {
+            bump(specialtyCounts, s);
+        }
         for (const name of serviceNamesOf(p)) {
             const trimmed = name.trim();
             if (trimmed) bump(serviceCounts, trimmed);

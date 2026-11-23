@@ -80,8 +80,19 @@ export function countActiveFilters(filters: ProviderFilters): number {
  */
 export const FOCUSED_MAX_SPECIALTIES = 3;
 
+/**
+ * Does the provider carry this specialty? Orthodontist is folded into Dentist
+ * (there is one tile and one filter for both), so choosing Dentist also finds
+ * listings tagged only as orthodontists.
+ */
+export function hasSpecialty(p: Provider, specialty: Specialty): boolean {
+    return p.specialty.includes(specialty)
+        || (specialty === 'dentist' && p.specialty.includes('orthodontist'));
+}
+
 export function isFocusedOn(p: Provider, specialty: Specialty): boolean {
-    if (!p.specialty.includes(specialty)) return false;
+    if (!hasSpecialty(p, specialty)) return false;
+    if (specialty === 'dentist' && !p.specialty.includes('dentist')) return p.specialty.length <= FOCUSED_MAX_SPECIALTIES;
     return p.specialty[0] === specialty || p.specialty.length <= FOCUSED_MAX_SPECIALTIES;
 }
 
@@ -162,7 +173,7 @@ export function matchesFilters(
     }
 
     if (!skipped('specialty') && filters.specialty.length) {
-        if (!filters.specialty.some((s) => p.specialty.includes(s))) return false;
+        if (!filters.specialty.some((s) => hasSpecialty(p, s))) return false;
     }
 
     if (!skipped('country') && filters.country && p.country !== filters.country) return false;
