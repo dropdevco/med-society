@@ -120,6 +120,13 @@ export async function registerPasskey(): Promise<AuthResult> {
     return { error: error?.message ?? null };
 }
 
+/** Whether this account already has a passkey. False when it cannot be read. */
+export async function hasPasskey(): Promise<boolean> {
+    if (!supabase) return false;
+    const { data, error } = await supabase.auth.passkey.list();
+    return !error && (data?.length ?? 0) > 0;
+}
+
 export async function signOut(): Promise<void> {
     track('sign_out');
     await supabase?.auth.signOut();

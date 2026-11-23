@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Provider } from '../types/provider';
 import { useSession } from '../hooks/useSession';
 import { useMyClinic } from '../hooks/useMyClinic';
-import { registerPasskey, signOut, supportsPasskeys } from '../lib/auth';
+import { hasPasskey, registerPasskey, signOut, supportsPasskeys } from '../lib/auth';
 import type { PlanKey } from '../lib/billing';
 import { supabase } from '../lib/supabase';
 import { useProviderStats, type ProviderStats } from '../hooks/useProviderStats';
@@ -371,6 +371,15 @@ function SignOutRow() {
     const { t } = useTranslation();
     const { user } = useSession();
     const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
+    // The prompt is for people who have none: hidden once there is one, and
+    // not shown while that is still being looked up.
+    const [passkeyState, setPasskeyState] = useState<'unknown' | 'none' | 'has'>('unknown');
+    useEffect(() => {
+        if (!supportsPasskeys()) return;
+        let live = true;
+        void hasPasskey().then((has) => { if (live) setPasskeyState(has ? 'has' : 'none'); });
+        return () => { live = false; };
+    }, []);
     return (
         <p style={{ marginTop: '2rem', textAlign: 'center' }}>
             {/* Which account this is matters once Google exists: a Gmail and a work
@@ -380,17 +389,20 @@ function SignOutRow() {
                     {t('account.signedInAs', { email: user.email })}
                 </span>
             )}
-            {supportsPasskeys() && (
+            {supportsPasskeys() && (passkeyState === 'none' || passkeyMsg) && (
                 <span style={{ display: 'block', marginBottom: '0.6rem' }}>
+                    {passkeyState === 'none' && (
                     <button
                         onClick={async () => {
                             const r = await registerPasskey();
+                            if (!r.error) setPasskeyState('has');
                             setPasskeyMsg(r.error ? `${t('account.passkeyAddFailed')} (${r.error})` : t('account.passkeyAdded'));
                         }}
                         style={{ background: 'none', color: 'var(--accent)', fontSize: '0.84rem', textDecoration: 'underline' }}
                     >
                         {t('account.passkeyAdd')}
                     </button>
+                    )}
                     {passkeyMsg && <span role="status" style={{ display: 'block', marginTop: '0.3rem', color: 'var(--gray-500)', fontSize: '0.8rem' }}>{passkeyMsg}</span>}
                 </span>
             )}
