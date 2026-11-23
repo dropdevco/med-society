@@ -13,6 +13,9 @@
     "signIn": "Sign in",
     "myClinic": "My clinic",
     "primaryNav": "Main",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "menu": "Menu",
     "skipToContent": "Skip to main content",
     "resultsHeading": "Provider search results",
     "resultsRegion": "Search results"

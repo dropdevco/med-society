@@ -109,6 +109,14 @@ export function IconClose(p: IconProps) {
     );
 }
 
+export function IconMenu(p: IconProps) {
+    return (
+        <Svg {...p}>
+            <path d="M4 7h16M4 12h16M4 17h16" />
+        </Svg>
+    );
+}
+
 export function IconChevronRight(p: IconProps) {
     return (
         <Svg {...p}>

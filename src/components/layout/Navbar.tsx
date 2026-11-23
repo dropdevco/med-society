@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Logo } from '../brand/Logo';
-import { IconSun, IconMoon, IconLanguage } from '../icons/Icons';
+import { IconSun, IconMoon, IconLanguage, IconMenu, IconClose } from '../icons/Icons';
 import { useSession } from '../../hooks/useSession';
 import { useIsClinician } from '../../hooks/useIsClinician';
 import { FORUMS_LISTED, FORUM_PATH } from '../../lib/forumRoutes';
@@ -29,6 +30,48 @@ export function Navbar() {
     }, [theme]);
 
     const isSpanish = i18n.language.startsWith('es');
+
+    // Phone menu. Under 700px the bar keeps only the logo, language and theme
+    // (see .ms-nav-burger in index.css); every page link lives in this menu.
+    const [menuOpen, setMenuOpen] = useState(false);
+    const burgerRef = useRef<HTMLButtonElement>(null);
+
+    // Following a link, or going back, lands on a new page: close the menu.
+    useEffect(() => { setMenuOpen(false); }, [pathname]);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            setMenuOpen(false);
+            burgerRef.current?.focus();
+        };
+        // Rotating a tablet or widening the window past the breakpoint hides
+        // the button, so a menu left open would have no way to close.
+        const wide = window.matchMedia('(min-width: 701px)');
+        const onWide = (e: MediaQueryListEvent) => { if (e.matches) setMenuOpen(false); };
+        const scrollY = document.documentElement.style.overflow;
+        document.documentElement.style.overflow = 'hidden';
+        document.addEventListener('keydown', onKey);
+        wide.addEventListener('change', onWide);
+        return () => {
+            document.documentElement.style.overflow = scrollY;
+            document.removeEventListener('keydown', onKey);
+            wide.removeEventListener('change', onWide);
+        };
+    }, [menuOpen]);
+
+    /** Every destination the bar shows on a wide screen, in the same order. */
+    const menuLinks: { to: string; label: string; active: boolean }[] = [
+        { to: '/', label: t('nav.findProviders'), active: pathname === '/' },
+        { to: '/hotels', label: t('nav.hotels'), active: pathname === '/hotels' },
+        ...(FORUMS_LISTED
+            ? [{ to: FORUM_PATH.patients, label: t('nav.askDoctor'), active: pathname.startsWith(FORUM_PATH.patients) }]
+            : []),
+        ...(FORUMS_LISTED && isClinician
+            ? [{ to: FORUM_PATH.society, label: t('nav.medSociety'), active: pathname.startsWith(FORUM_PATH.society) }]
+            : []),
+    ];
 
     return (
         <nav
@@ -172,7 +215,56 @@ export function Navbar() {
                 >
                     {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
                 </button>
+
+                <button
+                    ref={burgerRef}
+                    type="button"
+                    className="ms-nav-burger press"
+                    onClick={() => setMenuOpen((o) => !o)}
+                    aria-expanded={menuOpen}
+                    aria-controls="ms-mobile-menu"
+                    aria-label={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')}
+                    title={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')}
+                >
+                    {menuOpen ? <IconClose size={20} weight={1.9} /> : <IconMenu size={20} weight={1.9} />}
+                </button>
             </div>
+
+            {/* Portaled to <body>: the bar's backdrop-filter would otherwise
+                make it the containing block of anything position:fixed in it. */}
+            {menuOpen && createPortal(
+                <>
+                    <div className="ms-menu-scrim" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+                    <nav id="ms-mobile-menu" className="ms-menu" aria-label={t('nav.menu')}>
+                        {menuLinks.map((l) => (
+                            <Link
+                                key={l.to}
+                                to={l.to}
+                                className="ms-menu-link press"
+                                aria-current={l.active ? 'page' : undefined}
+                            >
+                                {l.label}
+                            </Link>
+                        ))}
+                        <Link
+                            to={session ? '/dashboard' : '/login'}
+                            className="ms-menu-link press"
+                            aria-current={pathname === '/dashboard' ? 'page' : undefined}
+                        >
+                            {session ? t('nav.myClinic') : t('nav.signIn')}
+                        </Link>
+                        {/* The one thing we ask a clinic to do, set apart from the browsing links. */}
+                        <Link
+                            to="/pricing"
+                            className="ms-menu-cta press"
+                            aria-current={pathname === '/pricing' ? 'page' : undefined}
+                        >
+                            {t('nav.listYourClinic')}
+                        </Link>
+                    </nav>
+                </>,
+                document.body,
+            )}
         </nav>
     );
 }
