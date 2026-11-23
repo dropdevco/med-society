@@ -8,7 +8,7 @@ import { InquiryModal } from '../components/sales/InquiryModal';
 import { CurrencyPicker } from '../components/account/CurrencyPicker';
 import { LogoMark } from '../components/brand/Logo';
 import {
-    IconArrowRight, IconMapPin, IconViews, IconStar,
+    IconArrowRight, IconViews, IconStar,
     IconClipboard, IconMapPlane, IconChart, IconCheck, IconPromoted,
     IconUS, IconMX, IconShield, IconLanguage,
 } from '../components/icons/Icons';
@@ -104,12 +104,10 @@ export function PricingPage() {
                     className="sales-hero-inner"
                 >
                     <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
-                        <span className="eyebrow" style={{ color: HERO_ACCENT }}>{t('sales.heroEyebrow')}</span>
-
                         <h1
                             className="display"
                             style={{
-                                fontSize: 'clamp(2.6rem, 5.4vw, 4.4rem)', margin: '1rem 0 1.35rem', lineHeight: 1.04,
+                                fontSize: 'clamp(2.6rem, 5.4vw, 4.4rem)', margin: '0 0 1.35rem', lineHeight: 1.04,
                                 color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.35)',
                             }}
                         >
@@ -458,36 +456,6 @@ function HeroCarousel() {
                 }}
             />
 
-            {/* Where this photo was taken, plus progress dots. */}
-            <div
-                style={{
-                    // Top-right: bottom-right is where the floating Feedback button sits.
-                    position: 'absolute', zIndex: 3, right: '1.5rem', top: '1.5rem',
-                    display: 'flex', alignItems: 'center', gap: '0.85rem',
-                    padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-pill)',
-                    background: 'rgba(8,12,18,0.45)', border: '1px solid rgba(255,255,255,0.18)',
-                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-                    color: '#fff', fontSize: '0.8rem', fontWeight: 700,
-                }}
-                className="hero-caption"
-            >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <IconMapPin size={14} /> {HERO_SLIDES[index].city}
-                </span>
-                <span style={{ display: 'flex', gap: 5 }}>
-                    {HERO_SLIDES.map((s, i) => (
-                        <span
-                            key={s.src}
-                            style={{
-                                width: i === index ? 16 : 6, height: 6, borderRadius: 3,
-                                background: i === index ? HERO_ACCENT : 'rgba(255,255,255,0.45)',
-                                transition: 'width 0.4s var(--ease-out), background 0.4s',
-                            }}
-                        />
-                    ))}
-                </span>
-            </div>
-
             <style>{`
                 .hero-slide {
                     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -502,7 +470,6 @@ function HeroCarousel() {
                     .hero-scrim {
                         background: linear-gradient(0deg, rgba(8,12,18,0.88) 0%, rgba(8,12,18,0.7) 55%, rgba(8,12,18,0.45) 100%) !important;
                     }
-                    .hero-caption { right: auto !important; left: 50%; transform: translateX(-50%); top: auto !important; bottom: 1.25rem; white-space: nowrap; }
                     .sales-hero-inner { padding: 4rem 1rem 5.5rem !important; }
                 }
             `}</style>
