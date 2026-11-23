@@ -114,6 +114,9 @@ export async function registerPasskey(): Promise<AuthResult> {
     if (!supabase) return { error: NOT_CONFIGURED };
     const { error } = await supabase.auth.registerPasskey();
     track('passkey_registered', { ok: !error });
+    // The message shown to people is generic; the cause (a cancelled prompt,
+    // a relying-party mismatch, passkeys switched off) is only in this.
+    if (error) console.warn('[passkey] register failed:', error.name, (error as { code?: string }).code, error.message, error);
     return { error: error?.message ?? null };
 }
 
