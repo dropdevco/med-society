@@ -1513,7 +1513,7 @@
   "flights": {
     "searchLabel": "Buscar vuelos",
     "from": "Desde",
-    "fromPlaceholder": "Ciudad o código",
+    "fromPlaceholder": "Tu ciudad",
     "fromHint": "Aeropuertos sugeridos",
     "to": "Hacia",
     "checkin": "Salida",

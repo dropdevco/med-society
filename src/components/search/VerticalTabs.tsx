@@ -15,20 +15,21 @@ const TABS: { id: Vertical; icon: typeof IconClinic; labelKey: string }[] = [
  * Flights and Cars above one box. A real tablist: arrow keys move between
  * tabs, and only the active tab is in the tab order.
  */
-export function VerticalTabs({ value, onChange, panelId }: { value: Vertical; onChange: (v: Vertical) => void; panelId: string }) {
+export function VerticalTabs({ value, onChange, panelId, showFlights = true }: { value: Vertical; onChange: (v: Vertical) => void; panelId: string; showFlights?: boolean }) {
     const { t } = useTranslation();
+    const tabs = showFlights ? TABS : TABS.filter((x) => x.id !== 'flights');
     const refs = useRef<(HTMLButtonElement | null)[]>([]);
     const onKey = (e: React.KeyboardEvent, i: number) => {
         const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
         if (!dir) return;
         e.preventDefault();
-        const next = (i + dir + TABS.length) % TABS.length;
-        onChange(TABS[next].id);
+        const next = (i + dir + tabs.length) % tabs.length;
+        onChange(tabs[next].id);
         refs.current[next]?.focus();
     };
     return (
         <div className="ms-vertical-tabs" role="tablist" aria-label={t('hotels.tabsLabel')}>
-            {TABS.map(({ id, icon: Icon, labelKey }, i) => (
+            {tabs.map(({ id, icon: Icon, labelKey }, i) => (
                 <button
                     key={id}
                     ref={(el) => { refs.current[i] = el; }}
