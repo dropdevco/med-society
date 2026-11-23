@@ -51,6 +51,8 @@ interface Strings {
     email: string;
     password: string;
     passwordHint: string;
+    googleContinue: string;
+    googleEmbedded: string;
     createAccount: string;
     signIn: string;
     haveAccount: string;
@@ -151,6 +153,8 @@ const es: Strings = {
     email: 'Correo electrónico',
     password: 'Contraseña',
     passwordHint: 'Mínimo 6 caracteres.',
+    googleContinue: 'Continuar con Google',
+    googleEmbedded: 'Para continuar con Google, abra esta página en el navegador de su teléfono (Safari o Chrome). También puede usar su correo abajo.',
     createAccount: 'Crear cuenta y continuar',
     signIn: 'Iniciar sesión y continuar',
     haveAccount: '¿Ya tiene cuenta?',
@@ -291,6 +295,8 @@ const en: Strings = {
     email: 'Email',
     password: 'Password',
     passwordHint: 'At least 6 characters.',
+    googleContinue: 'Continue with Google',
+    googleEmbedded: 'To continue with Google, open this page in your phone’s browser (Safari or Chrome). You can also use email below.',
     createAccount: 'Create account and continue',
     signIn: 'Sign in and continue',
     haveAccount: 'Already have an account?',

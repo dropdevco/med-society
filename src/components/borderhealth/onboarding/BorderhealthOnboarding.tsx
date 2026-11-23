@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { signIn, signOut, signUp } from '../../../lib/auth';
+import { GoogleButton } from '../../account/GoogleButton';
 import { useSession } from '../../../hooks/useSession';
 import type { Specialty } from '../../../types/provider';
 import type { BhLang, BhMatch, BhSubmission } from '../types';
@@ -268,6 +269,16 @@ export function BorderhealthOnboarding({ submission, onRestart, lang: langOverri
                     defaultEmail={submission.contact.email}
                     initialError={error}
                     onAuthed={() => execute(action)}
+                    // A test run never leaves a request behind, so no Google there.
+                    onGoogleStart={isTest ? undefined : () => {
+                        savePending({
+                            lang,
+                            submissionKey: submission.submissionKey,
+                            email: submission.contact.email,
+                            anyEmail: true,
+                            action,
+                        });
+                    }}
                     onNeedsConfirm={(email) => {
                         setError(null);
                         // A test run never leaves a request behind to finish for real.
@@ -348,7 +359,7 @@ export function BorderhealthResume({ lang: langProp }: { lang?: BhLang }) {
     const [attempt, setAttempt] = useState(0);
 
     const userId = user?.id ?? null;
-    const isRightAccount = !!pending && !!user && sameEmail(user.email, pending.email);
+    const isRightAccount = !!pending && !!user && (!!pending.anyEmail || sameEmail(user.email, pending.email));
     useEffect(() => {
         if (!pending || loading || !userId || !isRightAccount || outcome) return;
         let live = true;
@@ -371,7 +382,7 @@ export function BorderhealthResume({ lang: langProp }: { lang?: BhLang }) {
     } else if (!userId) {
         body = (
             <Panel title={s.resumeSignInTitle} subtitle={s.resumeSignInBody}>
-                <AuthForm s={s} defaultEmail={pending.email} startMode="signin" signInOnly onAuthed={() => {}} />
+                <AuthForm s={s} defaultEmail={pending.email} startMode="signin" signInOnly google={{}} onAuthed={() => {}} />
             </Panel>
         );
     } else if (!isRightAccount) {
@@ -600,13 +611,14 @@ function PublishForm({ s, form, setForm, error, onBack, onSubmit, onNotNow }: {
     );
 }
 
-function AccountStep({ s, action, defaultEmail, initialError, onAuthed, onNeedsConfirm, onBack, onNotNow }: {
+function AccountStep({ s, action, defaultEmail, initialError, onAuthed, onNeedsConfirm, onGoogleStart, onBack, onNotNow }: {
     s: S;
     action: OnboardingAction;
     defaultEmail: string;
     initialError: ErrorCode | null;
     onAuthed: () => void;
     onNeedsConfirm: (email: string) => void;
+    onGoogleStart?: () => void;
     onBack: () => void;
     onNotNow: () => void;
 }) {
@@ -624,6 +636,7 @@ function AccountStep({ s, action, defaultEmail, initialError, onAuthed, onNeedsC
                 initialError={initialError}
                 onAuthed={onAuthed}
                 onNeedsConfirm={onNeedsConfirm}
+                google={onGoogleStart ? { onStart: onGoogleStart } : undefined}
             />
             <div className="bho-footer">
                 <button type="button" className="bho-link" onClick={onBack}>{s.back}</button>
@@ -638,13 +651,15 @@ function AccountStep({ s, action, defaultEmail, initialError, onAuthed, onNeedsC
  * configured: after signUp, a session either exists (confirmation off →
  * onAuthed) or it does not (confirmation on → onNeedsConfirm).
  */
-function AuthForm({ s, defaultEmail, startMode, signInOnly = false, initialError = null, onAuthed, onNeedsConfirm }: {
+function AuthForm({ s, defaultEmail, startMode, signInOnly = false, initialError = null, google, onAuthed, onNeedsConfirm }: {
     s: S;
     defaultEmail: string;
     startMode: 'signup' | 'signin';
     /** Resume/confirm screens: the account already exists, so no sign-up. */
     signInOnly?: boolean;
     initialError?: ErrorCode | null;
+    /** Offer "Continue with Google". `onStart` runs just before leaving the page. */
+    google?: { onStart?: () => void };
     onAuthed: () => void;
     onNeedsConfirm?: (email: string) => void;
 }) {
@@ -685,6 +700,15 @@ function AuthForm({ s, defaultEmail, startMode, signInOnly = false, initialError
             <p className="bho-sub" style={{ marginBottom: 0 }}>
                 {mode === 'signup' ? s.accountSubtitleSignUp : s.accountSubtitleSignIn}
             </p>
+            {google && (
+                <GoogleButton
+                    redirectTo={resumeUrl()}
+                    label={s.googleContinue}
+                    embeddedHint={s.googleEmbedded}
+                    onStart={google.onStart}
+                    onError={() => setError('unknown')}
+                />
+            )}
             <Field label={s.email}>
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             </Field>
@@ -728,7 +752,7 @@ function ConfirmEmail({ s, email, onAuthed, onNotNow }: {
             icon={<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.2" /><path d="M3.8 6.6l8.2 6.2 8.2-6.2" /></svg>}
         >
             <p className="bho-hint">{s.confirmHint}</p>
-            <AuthForm s={s} defaultEmail={email} startMode="signin" signInOnly onAuthed={onAuthed} />
+            <AuthForm s={s} defaultEmail={email} startMode="signin" signInOnly google={{}} onAuthed={onAuthed} />
             <div className="bho-footer"><NotNow s={s} onClick={onNotNow} /></div>
         </Panel>
     );
