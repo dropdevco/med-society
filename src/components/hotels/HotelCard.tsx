@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Hotel } from '../../types/hotel';
-import { bookingHref, isAffiliateLink } from '../../utils/hotelLinks';
+import { bookingHref, isAffiliateLink, type Occupancy } from '../../utils/hotelLinks';
 import { formatCrossingDistance, nearestCrossing } from '../../utils/borderCrossings';
 import { isRegionId } from '../../utils/region';
 import { placePhotoProxyState, placePhotoUrl, subscribePlacePhotoProxy } from '../../utils/placePhoto';
@@ -20,6 +20,8 @@ interface Props {
     providerId?: string;
     /** Stay dates (YYYY-MM-DD), passed on to Booking.com. */
     checkin?: string;
+    /** Guests and rooms, passed on to Booking.com. */
+    guests?: Occupancy;
     checkout?: string;
     compact?: boolean;
 }
@@ -50,9 +52,9 @@ function useHotelPhoto(hotel: Hotel): { src: string; srcSet?: string } | null {
  * line, the straight-line distance to the border crossing, because that is
  * why a patient would pick them.
  */
-export function HotelCard({ hotel, surface, distanceKm, providerId, checkin, checkout, compact }: Props) {
+export function HotelCard({ hotel, surface, distanceKm, providerId, checkin, checkout, guests, compact }: Props) {
     const { t, i18n } = useTranslation();
-    const href = bookingHref(hotel, { lang: i18n.language, checkin, checkout });
+    const href = bookingHref(hotel, { lang: i18n.language, checkin, checkout, guests });
     const photo = useHotelPhoto(hotel);
     // US-side hotels say how far they are from the crossing; Mexican ones are photo and name only.
     const crossing = hotel.country === 'US' && isRegionId(hotel.region) ? nearestCrossing(hotel, hotel.region) : null;

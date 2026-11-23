@@ -3,7 +3,7 @@
  * No network, no credentials, made-up places only.
  *   npx tsx scripts/hotels-selftest.ts
  */
-import { addDays, buildBookingHref, earnsCommission, validStay } from '../src/utils/hotelLinks';
+import { addDays, buildBookingHref, earnsCommission, validOccupancy, validStay } from '../src/utils/hotelLinks';
 import { bookingSearchUrl, clusterCentres, describe, describeCrossing, isUnsuitableName, pick, priceBand, rejectReason, scoreNearCrossing, type Candidate } from './hotels/pick';
 import { BORDER_CROSSINGS, crossingsOf, formatCrossingDistance, fromCrossing, nearestCrossing } from '../src/utils/borderCrossings';
 
@@ -60,6 +60,18 @@ check('impossible dates → no stay', validStay('2026-02-30', '2026-03-02', TODA
 check('a stale stay is dropped from the link, the rest kept',
     !new URL(buildBookingHref(booking, { checkin: '2026-11-01', checkout: '2026-11-02', today: TODAY }, {})!).searchParams.has('checkin'));
 check('addDays crosses months and years', addDays('2026-12-31', 1) === '2027-01-01' && addDays('2026-02-28', 1) === '2026-03-01');
+
+console.log('guests');
+{
+    check('defaults are 2 adults, 0 children, 1 room', JSON.stringify(validOccupancy()) === '{"adults":2,"children":0,"rooms":1}');
+    check('URL strings parse', JSON.stringify(validOccupancy('3', '1', '2')) === '{"adults":3,"children":1,"rooms":2}');
+    check('junk falls back to defaults', JSON.stringify(validOccupancy('x', '-1', '1.5')) === '{"adults":2,"children":0,"rooms":1}');
+    check('limits clamp, and rooms never exceed adults', JSON.stringify(validOccupancy('99', '99', '99')) === '{"adults":12,"children":8,"rooms":6}' && validOccupancy('1', '0', '4').rooms === 1);
+    const u = new URL(buildBookingHref(booking, { guests: { adults: 3, children: 1, rooms: 2 } }, {})!);
+    check('the link carries group_adults, group_children and no_rooms', u.searchParams.get('group_adults') === '3' && u.searchParams.get('group_children') === '1' && u.searchParams.get('no_rooms') === '2', u.toString());
+    check('no guests given, none sent', !new URL(buildBookingHref(booking, {}, {})!).searchParams.has('group_adults'));
+    check("a hotel's own site never gets guests", buildBookingHref(ownSite, { guests: { adults: 3, children: 0, rooms: 1 } }, {}) === 'https://hotel-prueba.example/reservas');
+}
 
 console.log('finder rules');
 const base: Candidate = { placeId: 'p', name: 'Hotel Prueba', lat: 32.527, lng: -117.022, address: null, rating: 4.5, reviews: 500, priceLevel: null, businessStatus: 'OPERATIONAL', types: ['lodging'] };
