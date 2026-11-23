@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "badges:selftest": "tsx scripts/badges-selftest.ts",
     "hotels:selftest": "tsx scripts/hotels-selftest.ts",
+    "flights:selftest": "tsx scripts/flights-selftest.ts",
     "directory:selftest": "tsx scripts/directory-selftest.ts",
     "claims:selftest": "tsx scripts/claim-notify-selftest.ts",
     "badges:manual": "tsx --env-file-if-exists=.env.local scripts/sources/badges-manual.ts",

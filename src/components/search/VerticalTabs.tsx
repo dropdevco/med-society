@@ -1,12 +1,13 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconBed, IconClinic } from '../icons/Icons';
+import { IconBed, IconClinic, IconPlane } from '../icons/Icons';
 
-export type Vertical = 'care' | 'hotels';
+export type Vertical = 'care' | 'hotels' | 'flights';
 
 const TABS: { id: Vertical; icon: typeof IconClinic; labelKey: string }[] = [
     { id: 'care', icon: IconClinic, labelKey: 'hotels.tabCare' },
     { id: 'hotels', icon: IconBed, labelKey: 'hotels.tabHotels' },
+    { id: 'flights', icon: IconPlane, labelKey: 'hotels.tabFlights' },
 ];
 
 /**

@@ -8,6 +8,8 @@ interface Props {
     onChange: (next: Occupancy) => void;
     /** The slimmer button used in the /hotels header. */
     compact?: boolean;
+    /** Flights: just the adults stepper. */
+    adultsOnly?: boolean;
 }
 
 type Kind = keyof Occupancy;
@@ -16,7 +18,7 @@ type Kind = keyof Occupancy;
  * Adults, children and rooms in one popover with +/- steppers, like a booking
  * site's "Select occupancy". Rooms can never exceed adults (validOccupancy).
  */
-export function GuestsPicker({ value, onChange, compact }: Props) {
+export function GuestsPicker({ value, onChange, compact, adultsOnly }: Props) {
     const { t } = useTranslation();
     const id = useId();
     const root = useRef<HTMLDivElement>(null);
@@ -31,11 +33,11 @@ export function GuestsPicker({ value, onChange, compact }: Props) {
         return () => { document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', esc); };
     }, [open]);
 
-    const label = [
+    const label = (adultsOnly ? [t('hotels.adults', { count: value.adults })] : [
         t('hotels.adults', { count: value.adults }),
         t('hotels.children', { count: value.children }),
         t('hotels.rooms', { count: value.rooms }),
-    ].join(' · ');
+    ]).join(' · ');
 
     const step = (kind: Kind, delta: number) =>
         onChange(validOccupancy(
@@ -44,7 +46,7 @@ export function GuestsPicker({ value, onChange, compact }: Props) {
             kind === 'rooms' ? value.rooms + delta : value.rooms,
         ));
 
-    const rows: { kind: Kind; hint?: string }[] = [
+    const rows: { kind: Kind; hint?: string }[] = adultsOnly ? [{ kind: 'adults', hint: t('hotels.adultsHint') }] : [
         { kind: 'adults', hint: t('hotels.adultsHint') },
         { kind: 'children', hint: t('hotels.childrenHint') },
         { kind: 'rooms' },
@@ -52,13 +54,13 @@ export function GuestsPicker({ value, onChange, compact }: Props) {
 
     return (
         <div className={`ms-guests${compact ? ' is-compact' : ''}`} ref={root}>
-            {!compact && <span className="ms-where-label" id={`${id}-l`}>{t('hotels.capGuests')}</span>}
+            {!compact && <span className="ms-where-label" id={`${id}-l`}>{t(adultsOnly ? 'flights.travellers' : 'hotels.capGuests')}</span>}
             <button
                 type="button"
                 className="ms-guests-btn"
                 aria-haspopup="dialog"
                 aria-expanded={open}
-                aria-label={`${t('hotels.guestsLabel')}: ${label}`}
+                aria-label={`${t(adultsOnly ? 'flights.travellers' : 'hotels.guestsLabel')}: ${label}`}
                 onClick={() => setOpen((o) => !o)}
             >
                 <span>{label}</span>

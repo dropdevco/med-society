@@ -111,6 +111,7 @@ export type AppEvent =
     | 'home_tab_selected'
     | 'hotel_impression'
     | 'hotel_outbound_click'
+    | 'flight_search'
     | `bh_${string}`;
 
 export function track(event: AppEvent, props?: Record<string, unknown>): void {
