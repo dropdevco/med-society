@@ -21,7 +21,8 @@ interface FilterBarProps {
     facets: FacetCounts;
 }
 
-const ALL_SPECIALTIES = Object.keys(SpecialtyLabels) as Specialty[];
+// Orthodontist is folded into Dentist, so it is not offered as a tag of its own.
+const ALL_SPECIALTIES = (Object.keys(SpecialtyLabels) as Specialty[]).filter((s) => s !== 'orthodontist');
 
 /**
  * Showing all fifteen at once buries the rest of the rail. These six cover the
