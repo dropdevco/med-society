@@ -2858,3 +2858,21 @@ a.ms-hotel:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px;
   .ms-hotels-controls .ms-guests.is-compact { width: 100%; }
   .ms-hotels-controls .ms-guests.is-compact .ms-guests-btn { width: 100%; }
 }
+
+/* Flights tab: the hotels pill, with a typed From, a To list and one-way dates. */
+.ms-flight-search { flex-wrap: wrap; }
+.ms-flight-search input { border: 0; background: transparent; color: var(--white); font: inherit; font-size: 0.95rem; font-weight: 650; padding: 0; min-height: 1.6rem; width: 100%; }
+.ms-flight-search input::placeholder { color: var(--gray-400); font-weight: 500; }
+.ms-flight-search input:focus-visible, .ms-flight-search select:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 6px; }
+.ms-flight-search label + label { border-left: 1px solid var(--border); }
+.ms-flight-search select option { color: #111; }
+.ms-flight-search > label:first-child { flex: 1.5; }
+.ms-flight-search > label:nth-child(2) { flex: 1.6; }
+.ms-flight-search .ms-guests { flex: 0.9; }
+.ms-flight-search-wrap { max-width: 980px; margin: 0 auto; }
+.ms-flight-note { margin: 0.7rem 0.4rem 0; font-size: 0.82rem; color: var(--gray-400); display: grid; gap: 0.25rem; }
+.ms-flight-note b { color: var(--white); font-weight: 650; }
+.ms-flight-error { margin: 0.6rem 0.4rem 0; font-size: 0.84rem; color: var(--accent); font-weight: 650; }
+@media (max-width: 760px) {
+  .ms-flight-search label + label { border-left: 0; border-top: 1px solid var(--border); }
+}

@@ -9,6 +9,8 @@ interface Props {
     onChange: (next: { checkin: string; checkout: string }) => void;
     /** For the label ids, when two date pickers share a page. */
     idPrefix: string;
+    /** 'trip' = depart/return wording for flights; the dates may be one way (no return). */
+    kind?: 'stay' | 'trip';
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -34,8 +36,12 @@ function monthCells(first: string): (string | null)[] {
  * over. Past days are off. Two months side by side on a wide screen, one on a
  * phone (CSS). Escape or a click outside closes it.
  */
-export function StayDates({ checkin, checkout, onChange, idPrefix }: Props) {
-    const { t, i18n } = useTranslation();
+export function StayDates({ checkin, checkout, onChange, idPrefix, kind = 'stay' }: Props) {
+    const { t: tr, i18n } = useTranslation();
+    // Flights reuse this calendar with their own words (flights.*); hotels keep hotels.*.
+    const t = (key: string, opts?: Record<string, unknown>) =>
+        tr(kind === 'trip' && key !== 'hotels.prevMonth' && key !== 'hotels.nextMonth' && key !== 'hotels.addDate' && key !== 'hotels.clearDates'
+            ? key.replace('hotels.', 'flights.') : key, opts);
     const locale = i18n.language.startsWith('es') ? 'es-MX' : 'en-US';
     const id = useId();
     const today = todayIso();

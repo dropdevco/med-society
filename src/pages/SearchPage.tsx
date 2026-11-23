@@ -19,6 +19,7 @@ import { Discover } from '../components/discover/Discover';
 import { VerticalTabs, type Vertical } from '../components/search/VerticalTabs';
 import { HotelSearchBox } from '../components/hotels/HotelSearchBox';
 import { HotelRow } from '../components/hotels/HotelRow';
+import { FlightSearchBox } from '../components/flights/FlightSearchBox';
 import { LogoMark } from '../components/brand/Logo';
 import { IconSearch, IconMapPin, IconList, IconSliders } from '../components/icons/Icons';
 import { trackProviderClick, trackImpressions } from '../utils/analytics';
@@ -234,12 +235,12 @@ export function SearchPage() {
      * state: filter changes rewrite the URL without it, and that is fine.
      */
     const [vertical, setVertical] = useState<Vertical>(
-        () => (new URLSearchParams(location.search).get('tab') === 'hotels' ? 'hotels' : 'care'),
+        () => { const tab = new URLSearchParams(location.search).get('tab'); return tab === 'hotels' || tab === 'flights' ? tab : 'care'; },
     );
     const switchVertical = useCallback((v: Vertical) => {
         setVertical(v);
         const p = new URLSearchParams(window.location.search);
-        if (v === 'hotels') p.set('tab', 'hotels'); else p.delete('tab');
+        if (v === 'hotels' || v === 'flights') p.set('tab', v); else p.delete('tab');
         const qs = p.toString();
         window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
         track('home_tab_selected', { tab: v });
@@ -843,10 +844,11 @@ export function SearchPage() {
                                 )}
                             </div>
                             {vertical === 'hotels' && <HotelSearchBox region={filters.region} />}
+                            {vertical === 'flights' && <FlightSearchBox region={filters.region} />}
                         </div>
                     </section>
 
-                    {vertical === 'hotels' ? (
+                    {vertical === 'flights' ? null : vertical === 'hotels' ? (
                         // The Hotels tab is only hotels: no specialty rail, no doctor rows.
                         <div className="ms-discover">
                             <HotelRow region={filters.region} />

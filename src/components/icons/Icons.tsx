@@ -377,6 +377,15 @@ export function IconBed(p: IconProps) {
     );
 }
 
+/** Flights tab: a plane, nose up and to the right. */
+export function IconPlane(p: IconProps) {
+    return (
+        <Svg {...p}>
+            <path d="M3.5 13.2l6.4-1.7-3-6.4 1.9-.5 5.2 5.4 5-1.3c1-.3 2 .2 2.2 1.1.2.9-.4 1.8-1.4 2.1l-5 1.3-1.3 7.2-1.9.5-1-6.9-6.5 1.7z" />
+        </Svg>
+    );
+}
+
 /* ══ Specialties ══════════════════════════════════════════════ */
 
 /** Primary & family care: a parent and child under a shared heart, the whole family in one doctor's care. */

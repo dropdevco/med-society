@@ -22,7 +22,7 @@ MedSociety (medsociety.one): a bilingual (EN/ES) directory and lead marketplace 
 | `docs/groupings.md` | Listings, doctors, clinics, organizations, clusters, sources and badges: what each is and how they connect |
 | `docs/clinics.md` | Clinics: teams, adding doctors, invites, the clinic page |
 | `docs/hotels.md` | Hotels near the clinics: the Google Places finder, curation, where they show |
-| `docs/booking-affiliate.md` | Getting paid for hotel bookings: the Booking.com / CJ sign-up, step by step |
+| `docs/booking-affiliate.md` | Travel affiliate programmes: the Booking.com / CJ sign-up for hotels, step by step, and the flights plan |
 
 ## Hard rules
 
