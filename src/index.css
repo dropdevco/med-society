@@ -1660,12 +1660,6 @@ select option {
   opacity: 0.86;
 }
 
-/* Under ~560px the nav is logo + language + theme and nothing else fits; the
-   pricing page is still reachable from the footer and from every empty state. */
-@media (max-width: 560px) {
-  .ms-nav-cta { display: none; }
-}
-
 /* ─── Clinic portal ──────────────────────────────────── */
 /* Inputs are styled by element rather than by class so a Field can hold a
    text input, a textarea or a select without knowing which. --border-strong,
@@ -1758,8 +1752,76 @@ select option {
   .ms-nav-lang { margin-left: 0; }
 }
 
+/* Phone menu. Under 700px the bar keeps the logo, language and theme; the page
+   links, "Sign in" and the clinic CTA move into a menu behind this button. */
+.ms-nav-burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--white);
+}
+.ms-nav-burger:hover { border-color: var(--gold); }
 @media (max-width: 700px) {
-  .ms-nav-account { display: none; }
+  .ms-nav-links, .ms-nav-cta, .ms-nav-account { display: none !important; }
+  .ms-nav-burger { display: flex; }
+  .ms-nav-lang { margin-left: 0; }
+}
+
+/* The menu itself: a sheet under the bar, a scrim over the page. Both sit just
+   under the nav (z-index 100) so the bar and its close button stay usable. */
+.ms-menu-scrim {
+  position: fixed;
+  inset: 68px 0 0 0;
+  z-index: 98;
+  background: rgba(20, 22, 26, 0.45);
+  animation: ms-menu-fade 0.18s var(--ease-out);
+}
+.ms-menu {
+  position: fixed;
+  top: 68px;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.85rem 1rem;
+  max-height: calc(100dvh - 68px);
+  overflow-y: auto;
+  background: var(--navy-800);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  animation: ms-menu-drop 0.2s var(--ease-out);
+}
+.ms-menu-link, .ms-menu-cta {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 650;
+}
+.ms-menu-link { color: var(--gray-300); }
+.ms-menu-link:hover { color: var(--white); background: var(--surface); }
+.ms-menu-link[aria-current="page"] { background: var(--brand); color: var(--on-brand); }
+.ms-menu-cta {
+  justify-content: center;
+  margin-top: 0.5rem;
+  background: var(--brand);
+  color: var(--on-brand);
+  border: 1px solid var(--brand);
+}
+.ms-menu-cta:hover { opacity: 0.86; }
+@keyframes ms-menu-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ms-menu-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ms-menu, .ms-menu-scrim { animation: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1942,11 +2004,6 @@ a.ms-hotel:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px;
 @media (max-width: 900px) {
   .ms-hotels-body { grid-template-columns: 1fr; }
   .ms-hotels-map { position: static; height: 320px; order: -1; }
-}
-/* On a phone the nav has room for one link; hotels stay one tap away on every
-   Mexican provider page ("Stay nearby" → "All hotels in …"). */
-@media (max-width: 480px) {
-  .ms-nav-link-hotels { display: none !important; }
 }
 
 .inq-doctor { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; font-size: 0.84rem; }
