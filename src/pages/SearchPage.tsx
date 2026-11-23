@@ -237,6 +237,9 @@ export function SearchPage() {
     const [vertical, setVertical] = useState<Vertical>(
         () => { const tab = new URLSearchParams(location.search).get('tab'); return tab === 'hotels' || tab === 'flights' ? tab : 'care'; },
     );
+    // Flights is built but not announced: the tab appears only once someone opens ?tab=flights
+    // (or VITE_FLIGHTS_TAB=on), so it can be tested on the live site.
+    const [flightsVisible] = useState(() => vertical === 'flights' || import.meta.env.VITE_FLIGHTS_TAB === 'on');
     const switchVertical = useCallback((v: Vertical) => {
         setVertical(v);
         const p = new URLSearchParams(window.location.search);
@@ -827,7 +830,7 @@ export function SearchPage() {
                             results toolbar uses. The segmented box stays mounted
                             while hidden so a half-chosen WHERE survives a flip
                             to Smart and back. */}
-                        <VerticalTabs value={vertical} onChange={switchVertical} panelId="home-search-panel" />
+                        <VerticalTabs value={vertical} onChange={switchVertical} panelId="home-search-panel" showFlights={flightsVisible} />
                         <div id="home-search-panel" role="tabpanel" aria-labelledby={`vertical-tab-${vertical}`} className="ms-vertical-panel">
                             {/* The doctors' box stays mounted under the Hotels tab, like
                                 the regular box under Smart, so nothing typed is lost. */}

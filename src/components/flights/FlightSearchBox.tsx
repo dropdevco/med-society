@@ -1,14 +1,16 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RegionId } from '../../utils/region';
 import { DEFAULT_OCCUPANCY, type Occupancy } from '../../utils/hotelLinks';
 import {
-    FLIGHT_DESTINATIONS, ORIGIN_AIRPORTS, earnsFlightCommission, flightHref, parseAirport, suggestedTrip,
+    FLIGHT_DESTINATIONS, earnsFlightCommission, flightHref, parseAirport, suggestedTrip,
 } from '../../utils/flightLinks';
 import { track } from '../../lib/posthog';
 import { IconSearch } from '../icons/Icons';
 import { StayDates } from '../hotels/StayDates';
 import { GuestsPicker } from '../hotels/GuestsPicker';
+import { AirportPicker } from './AirportPicker';
+import { OriginInput } from './OriginInput';
 
 /**
  * The homepage's Flights tab. We never show fares or sell tickets: this opens
@@ -19,7 +21,6 @@ import { GuestsPicker } from '../hotels/GuestsPicker';
 export function FlightSearchBox({ region }: { region: RegionId }) {
     const { t, i18n } = useTranslation();
     const lang = i18n.language.startsWith('es') ? 'es' : 'en';
-    const listId = useId();
     const [from, setFrom] = useState('');
     const [to, setTo] = useState(() => FLIGHT_DESTINATIONS.find((d) => d.region === region && d.side === 'us')?.code ?? 'SAN');
     const [dates, setDates] = useState({ checkin: '', checkout: '' });
@@ -46,30 +47,8 @@ export function FlightSearchBox({ region }: { region: RegionId }) {
     return (
         <div className="ms-flight-search-wrap">
             <form className="ms-hotel-search ms-flight-search" role="search" aria-label={t('flights.searchLabel')} onSubmit={submit}>
-                <label>
-                    <span>{t('flights.from')}</span>
-                    <input
-                        type="text"
-                        value={from}
-                        list={listId}
-                        placeholder={t('flights.fromPlaceholder')}
-                        autoComplete="off"
-                        autoCapitalize="characters"
-                        aria-invalid={Boolean(error)}
-                        onChange={(e) => { setFrom(e.target.value); setError(''); }}
-                    />
-                    <datalist id={listId}>
-                        {ORIGIN_AIRPORTS.map(([code, city]) => <option key={code} value={`${city} (${code})`} />)}
-                    </datalist>
-                </label>
-                <label>
-                    <span>{t('flights.to')}</span>
-                    <select value={to} onChange={(e) => setTo(e.target.value)}>
-                        {FLIGHT_DESTINATIONS.map((d) => (
-                            <option key={d.code} value={d.code}>{d.city[lang]} ({d.code})</option>
-                        ))}
-                    </select>
-                </label>
+                <OriginInput value={from} onChange={(v) => { setFrom(v); setError(''); }} invalid={Boolean(error)} />
+                <AirportPicker value={to} onChange={setTo} />
                 <StayDates idPrefix="flight-search" kind="trip" checkin={dates.checkin} checkout={dates.checkout} onChange={setDates} />
                 <GuestsPicker value={pax} onChange={(g) => setPax({ ...pax, adults: g.adults })} adultsOnly />
                 <button type="submit" className="ms-hotel-search-btn press">
