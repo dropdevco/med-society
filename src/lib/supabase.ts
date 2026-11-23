@@ -33,7 +33,11 @@ if (import.meta.env.DEV && supabaseAnonKey) {
 
 export const supabase =
     supabaseUrl && supabaseAnonKey
-        ? createClient(supabaseUrl, supabaseAnonKey)
+        ? createClient(supabaseUrl, supabaseAnonKey, {
+            // Passkeys are experimental in supabase-js and must be opted into
+            // (https://supabase.com/docs/guides/auth/passkeys).
+            auth: { experimental: { passkey: true } },
+        })
         : null;
 
 // Dev-only connection test

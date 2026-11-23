@@ -327,6 +327,12 @@ export interface PendingOnboarding {
     submissionKey: string | null;
     /** The address the confirmation went to — prefilled on sign-in. */
     email: string;
+    /**
+     * Started with Google, which picks the address, so there is no typed one to
+     * hold the returning account to. The request still only runs in the browser
+     * that started it, and claims are reviewed by a person either way.
+     */
+    anyEmail?: boolean;
     action: OnboardingAction;
 }
 
@@ -406,7 +412,7 @@ export async function resumePendingOnboarding(): Promise<ResumeResult> {
     if (!supabase) return { state: 'done', pending, outcome: { kind: 'error', code: 'not_configured' } };
     const { data } = await supabase.auth.getSession();
     if (!data.session) return { state: 'signed_out', pending };
-    if (!sameEmail(data.session.user.email, pending.email)) {
+    if (!pending.anyEmail && !sameEmail(data.session.user.email, pending.email)) {
         return { state: 'wrong_account', pending, email: data.session.user.email ?? '' };
     }
     const outcome = await runOnce(pending.id, () => runAction(pending.action, pending.submissionKey));

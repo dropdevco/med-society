@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
-    "@supabase/supabase-js": "^2.99.2",
+    "@supabase/supabase-js": "^2.119.2",
     "@tanstack/react-virtual": "^3.13.23",
     "@vercel/functions": "^3.11.0",
     "i18next": "^26.0.4",

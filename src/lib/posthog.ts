@@ -95,6 +95,7 @@ export type AppEvent =
     | 'sign_in'
     | 'sign_up'
     | 'sign_out'
+    | 'passkey_registered'
     | 'claim_submitted'
     | 'pricing_cta_click'
     | 'checkout_started'

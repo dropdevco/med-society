@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { signIn, signUp } from '../lib/auth';
+import { safeNext, signIn, signInWithPasskey, signUp, supportsPasskeys } from '../lib/auth';
+import { GoogleButton } from '../components/account/GoogleButton';
 import { useSession } from '../hooks/useSession';
 import { FORUM_PATH } from '../lib/forumRoutes';
 import { IconArrowRight, IconCheck } from '../components/icons/Icons';
@@ -29,10 +30,28 @@ export function LoginPage() {
     const [email, setEmail] = useState((location.state as { email?: string } | null)?.email ?? '');
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(() =>
+        new URLSearchParams(window.location.hash.replace(/^#/, '')).get('error')
+            || new URLSearchParams(window.location.search).get('error')
+            ? t('account.googleDenied')
+            : null);
     const [checkInbox, setCheckInbox] = useState(false);
 
-    const next = params.get('next') || '/dashboard';
+    // Same-site path only: this is spliced into redirect URLs below.
+    const next = safeNext(params.get('next'));
+
+    // Google sends a failed or cancelled sign-in back here with the reason in
+    // the hash (implicit flow) or the query. Read once, then clear the URL so
+    // a refresh does not show it again.
+    const [returnedError] = useState(() => {
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        return hash.get('error') ?? params.get('error');
+    });
+    useEffect(() => {
+        if (returnedError && window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+    }, [returnedError]);
 
     // Already signed in: nothing to do here. Declared rather than called —
     // navigate() during render mutates the router mid-paint, which React warns
@@ -91,6 +110,36 @@ export function LoginPage() {
                     ? t('account.messageBody')
                     : mode === 'in' ? t('account.signInBody') : t('account.signUpBody')}
         >
+            {/* Back to /login (not straight to `next`) so a failed Google sign-in has
+                somewhere to report to; a successful one is forwarded by the
+                signed-in redirect above. */}
+            <GoogleButton
+                redirectTo={`${window.location.origin}/login?next=${encodeURIComponent(next)}`}
+                label={t('account.googleContinue')}
+                embeddedHint={t('account.googleEmbedded')}
+                onError={setError}
+            />
+            {mode === 'in' && supportsPasskeys() && (
+                <button
+                    type="button"
+                    disabled={busy}
+                    className="press"
+                    onClick={async () => {
+                        setBusy(true); setError(null);
+                        const r = await signInWithPasskey();
+                        setBusy(false);
+                        // Success: the session listener forwards to `next`.
+                        if (r.error) setError(t('account.passkeyFailed'));
+                    }}
+                    style={{ ...authButton, width: '100%', marginTop: '0.6rem', background: 'transparent', color: 'var(--text, inherit)', border: '1px solid var(--border-strong)', fontWeight: 600 }}
+                >
+                    {t('account.passkeySignIn')}
+                </button>
+            )}
+            <p style={{ margin: '1.1rem 0', textAlign: 'center', fontSize: '0.8rem', color: 'var(--gray-500)' }}>
+                {t('account.googleOr')}
+            </p>
+
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <Field label={t('account.email')}>
                     <input

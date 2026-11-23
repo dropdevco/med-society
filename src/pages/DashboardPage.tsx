@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Provider } from '../types/provider';
 import { useSession } from '../hooks/useSession';
 import { useMyClinic } from '../hooks/useMyClinic';
-import { signOut } from '../lib/auth';
+import { registerPasskey, signOut, supportsPasskeys } from '../lib/auth';
 import type { PlanKey } from '../lib/billing';
 import { supabase } from '../lib/supabase';
 import { useProviderStats, type ProviderStats } from '../hooks/useProviderStats';
@@ -369,8 +369,31 @@ function Overview({ clinic, galleryCount, onGo, stats, statsLoading, onSeeInsigh
 
 function SignOutRow() {
     const { t } = useTranslation();
+    const { user } = useSession();
+    const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
     return (
         <p style={{ marginTop: '2rem', textAlign: 'center' }}>
+            {/* Which account this is matters once Google exists: a Gmail and a work
+                address are two accounts, and only one of them owns the listing. */}
+            {user?.email && (
+                <span style={{ display: 'block', marginBottom: '0.4rem', color: 'var(--gray-500)', fontSize: '0.82rem' }}>
+                    {t('account.signedInAs', { email: user.email })}
+                </span>
+            )}
+            {supportsPasskeys() && (
+                <span style={{ display: 'block', marginBottom: '0.6rem' }}>
+                    <button
+                        onClick={async () => {
+                            const r = await registerPasskey();
+                            setPasskeyMsg(r.error ? t('account.passkeyAddFailed') : t('account.passkeyAdded'));
+                        }}
+                        style={{ background: 'none', color: 'var(--accent)', fontSize: '0.84rem', textDecoration: 'underline' }}
+                    >
+                        {t('account.passkeyAdd')}
+                    </button>
+                    {passkeyMsg && <span role="status" style={{ display: 'block', marginTop: '0.3rem', color: 'var(--gray-500)', fontSize: '0.8rem' }}>{passkeyMsg}</span>}
+                </span>
+            )}
             <button
                 onClick={() => { void signOut(); }}
                 style={{ background: 'none', color: 'var(--gray-500)', fontSize: '0.84rem', textDecoration: 'underline' }}
