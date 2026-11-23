@@ -34,10 +34,15 @@ export function Navbar() {
     // Phone menu. Under 700px the bar keeps only the logo, language and theme
     // (see .ms-nav-burger in index.css); every page link lives in this menu.
     const [menuOpen, setMenuOpen] = useState(false);
-    const burgerRef = useRef<HTMLButtonElement>(null);
-
     // Following a link, or going back, lands on a new page: close the menu.
-    useEffect(() => { setMenuOpen(false); }, [pathname]);
+    // Adjusted during render (React's pattern for state that follows a prop),
+    // so no frame paints the old menu over the new page.
+    const [menuPath, setMenuPath] = useState(pathname);
+    if (menuPath !== pathname) {
+        setMenuPath(pathname);
+        setMenuOpen(false);
+    }
+    const burgerRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         if (!menuOpen) return;
