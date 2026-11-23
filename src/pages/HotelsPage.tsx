@@ -139,25 +139,36 @@ export function HotelsPage() {
                         <a href="https://bwt.cbp.gov/" target="_blank" rel="noopener noreferrer">{t('hotels.crossingNoteLink')}</a>
                     </p>
                 )}
-                <div className="ms-hotels-regions" role="group" aria-label={t('hotels.regionLabel')}>
-                    {(Object.keys(REGIONS) as RegionId[]).map((r) => (
-                        <button key={r} type="button" className={r === region ? 'on' : ''} aria-pressed={r === region} onClick={() => switchRegion(r)}>
-                            {REGIONS[r].mx.city}
-                        </button>
-                    ))}
+                <div className="ms-hotels-controls">
+                    <div className="ms-hotels-ctl">
+                        <span className="ms-hotels-cap">{t('hotels.capCity')}</span>
+                        <div className="ms-hotels-regions" role="group" aria-label={t('hotels.regionLabel')}>
+                            {(Object.keys(REGIONS) as RegionId[]).map((r) => (
+                                <button key={r} type="button" className={r === region ? 'on' : ''} aria-pressed={r === region} onClick={() => switchRegion(r)}>
+                                    {REGIONS[r].mx.city}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="ms-hotels-ctl">
+                        <span className="ms-hotels-cap">{t('hotels.capSide')}</span>
+                        <div className="ms-hotels-seg" role="group" aria-label={t('hotels.sideLabel')}>
+                            <button type="button" className={side === 'mx' ? 'on' : ''} aria-pressed={side === 'mx'} onClick={() => switchSide('mx')}>
+                                {t('hotels.sideMx', { city: REGIONS[region].mx.city })}
+                            </button>
+                            <button type="button" className={side === 'us' ? 'on' : ''} aria-pressed={side === 'us'} onClick={() => switchSide('us')}>
+                                {t('hotels.sideUs', { city: REGIONS[region].us.city })}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="ms-hotels-ctl">
+                        <span className="ms-hotels-cap">{t('hotels.capDates')}</span>
+                        <div className="ms-hotels-datebar">
+                            <StayDates idPrefix="hotels-page" checkin={draftDates.checkin} checkout={draftDates.checkout} onChange={setDates} />
+                        </div>
+                    </div>
                 </div>
-                <div className="ms-hotels-regions" role="group" aria-label={t('hotels.sideLabel')}>
-                    <button type="button" className={side === 'mx' ? 'on' : ''} aria-pressed={side === 'mx'} onClick={() => switchSide('mx')}>
-                        {t('hotels.sideMx', { city: REGIONS[region].mx.city })}
-                    </button>
-                    <button type="button" className={side === 'us' ? 'on' : ''} aria-pressed={side === 'us'} onClick={() => switchSide('us')}>
-                        {t('hotels.sideUs', { city: REGIONS[region].us.city })}
-                    </button>
-                </div>
-                <div className="ms-hotels-datebar">
-                    <StayDates idPrefix="hotels-page" checkin={draftDates.checkin} checkout={draftDates.checkout} onChange={setDates} />
-                    <p>{stay ? t('hotels.datesSet') : t('hotels.datesHint')}</p>
-                </div>
+                <p className="ms-hotels-datehint">{stay ? t('hotels.datesSet') : t('hotels.datesHint')}</p>
                 {origin && (
                     <p className="ms-hotels-near">
                         {crossingFromOrigin
