@@ -385,7 +385,7 @@ function SignOutRow() {
                     <button
                         onClick={async () => {
                             const r = await registerPasskey();
-                            setPasskeyMsg(r.error ? t('account.passkeyAddFailed') : t('account.passkeyAdded'));
+                            setPasskeyMsg(r.error ? `${t('account.passkeyAddFailed')} (${r.error})` : t('account.passkeyAdded'));
                         }}
                         style={{ background: 'none', color: 'var(--accent)', fontSize: '0.84rem', textDecoration: 'underline' }}
                     >
