@@ -9,7 +9,8 @@ import { HotelCard } from '../components/hotels/HotelCard';
 import { HotelMap } from '../components/hotels/HotelMap';
 import { HotelSkeleton } from '../components/hotels/HotelSkeleton';
 import { StayDates } from '../components/hotels/StayDates';
-import { validStay } from '../utils/hotelLinks';
+import { validOccupancy, validStay, type Occupancy } from '../utils/hotelLinks';
+import { GuestsPicker } from '../components/hotels/GuestsPicker';
 import { HOTEL_AMENITIES, type Hotel, type HotelAmenity } from '../types/hotel';
 import { distanceKm } from '../utils/geo';
 import { isRegionId, readLastRegion, regionOf, REGIONS, writeLastRegion, type RegionId } from '../utils/region';
@@ -33,6 +34,13 @@ export function HotelsPage() {
     const listKey = `${region}:${side}`;
     // Stay dates live in the URL (?checkin=&checkout=), so the homepage search and a shared link keep them.
     const stay = validStay(params.get('checkin'), params.get('checkout'));
+    // Guests and rooms too (?adults=&children=&rooms=).
+    const guests = validOccupancy(params.get('adults'), params.get('children'), params.get('rooms'));
+    const setGuests = (g: Occupancy) => {
+        const p = new URLSearchParams(params);
+        p.set('adults', String(g.adults)); p.set('children', String(g.children)); p.set('rooms', String(g.rooms));
+        setParams(p, { replace: true });
+    };
     const [draftDates, setDraftDates] = useState({ checkin: stay?.checkin ?? '', checkout: stay?.checkout ?? '' });
     const setDates = (next: { checkin: string; checkout: string }) => {
         setDraftDates(next);
@@ -167,6 +175,10 @@ export function HotelsPage() {
                             <StayDates idPrefix="hotels-page" checkin={draftDates.checkin} checkout={draftDates.checkout} onChange={setDates} />
                         </div>
                     </div>
+                    <div className="ms-hotels-ctl">
+                        <span className="ms-hotels-cap">{t('hotels.capGuests')}</span>
+                        <GuestsPicker value={guests} onChange={setGuests} compact />
+                    </div>
                 </div>
                 <p className="ms-hotels-datehint">{stay ? t('hotels.datesSet') : t('hotels.datesHint')}</p>
                 {origin && (
@@ -211,7 +223,7 @@ export function HotelsPage() {
                     )}
                     {rows.map(({ hotel, km }) => (
                         <HotelCard key={hotel.id} hotel={hotel} surface="hotels_page" distanceKm={km}
-                            fromName={origin?.name} providerId={origin?.id} checkin={stay?.checkin} checkout={stay?.checkout} />
+                            fromName={origin?.name} providerId={origin?.id} checkin={stay?.checkin} checkout={stay?.checkout} guests={guests} />
                     ))}
                     {rows.length > 0 && <p className="ms-hotel-disclosure">{t('hotels.disclosure')}</p>}
                 </div>

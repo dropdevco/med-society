@@ -65,7 +65,25 @@ export function validStay(checkin?: string | null, checkout?: string | null, tod
     return { checkin: a, checkout: b };
 }
 
-export interface LinkOptions { lang?: string; checkin?: string; checkout?: string; today?: string }
+/** Who is staying: Booking.com's group_adults, group_children and no_rooms. */
+export interface Occupancy { adults: number; children: number; rooms: number }
+export const DEFAULT_OCCUPANCY: Occupancy = { adults: 2, children: 0, rooms: 1 };
+export const OCCUPANCY_LIMITS = { adults: [1, 12], children: [0, 8], rooms: [1, 6] } as const;
+
+const clampInt = (v: unknown, [lo, hi]: readonly [number, number], fallback: number): number => {
+    const n = typeof v === 'string' && /^\d{1,3}$/.test(v) ? Number(v) : typeof v === 'number' && Number.isInteger(v) ? v : NaN;
+    return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+};
+
+/** A usable occupancy from loose input (URL params, form state): whole numbers within limits, never more rooms than adults. */
+export function validOccupancy(adults?: unknown, children?: unknown, rooms?: unknown): Occupancy {
+    const a = clampInt(adults, OCCUPANCY_LIMITS.adults, DEFAULT_OCCUPANCY.adults);
+    const c = clampInt(children, OCCUPANCY_LIMITS.children, DEFAULT_OCCUPANCY.children);
+    const r = Math.min(clampInt(rooms, OCCUPANCY_LIMITS.rooms, DEFAULT_OCCUPANCY.rooms), a);
+    return { adults: a, children: c, rooms: r };
+}
+
+export interface LinkOptions { lang?: string; checkin?: string; checkout?: string; today?: string; guests?: Occupancy }
 
 /** The pure version of `bookingHref`, with the affiliate settings passed in (for the self-test). */
 export function buildBookingHref(
@@ -85,6 +103,12 @@ export function buildBookingHref(
     if (stay) {
         url.searchParams.set('checkin', stay.checkin);
         url.searchParams.set('checkout', stay.checkout);
+    }
+    if (opts.guests) {
+        const g = validOccupancy(opts.guests.adults, opts.guests.children, opts.guests.rooms);
+        url.searchParams.set('group_adults', String(g.adults));
+        url.searchParams.set('group_children', String(g.children));
+        url.searchParams.set('no_rooms', String(g.rooms));
     }
     // Tells our side (and Booking.com's reports) which page sent the visitor.
     url.searchParams.set('label', 'medsociety');
