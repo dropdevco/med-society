@@ -99,6 +99,7 @@ export type AppEvent =
     | 'pricing_cta_click'
     | 'checkout_started'
     | 'checkout_failed'
+    | 'plan_portal_opened'
     | 'forum_thread_created'
     | 'forum_reply_created'
     | 'forum_helpful_marked'
@@ -106,6 +107,9 @@ export type AppEvent =
     | 'feedback_opened'
     | 'feedback_submitted'
     | 'feedback_failed'
+    | 'home_tab_selected'
+    | 'hotel_impression'
+    | 'hotel_outbound_click'
     | `bh_${string}`;
 
 export function track(event: AppEvent, props?: Record<string, unknown>): void {

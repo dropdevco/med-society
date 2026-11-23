@@ -13,8 +13,12 @@ import en from '../src/i18n/locales/en.json';
 import es from '../src/i18n/locales/es.json';
 import type { Provider, ProviderBadge } from '../src/types/provider';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
-import { badgeLink, cardRow, currentBadges, GROUPS, groupOf, idOf, isWebLink, monogram } from '../src/utils/orgBadges';
+import { badgeLink, cardRow, currentBadges, GROUPS, groupOf, idOf, isWebLink, monogram, orgName } from '../src/utils/orgBadges';
+import { buildFacets } from '../src/utils/facets';
+import { countActiveFilters, defaultFilters, matchesFilters } from '../src/utils/filters';
 import { providerJsonLd } from '../src/utils/structuredData';
+import { compareRows, defaultCandidate } from '../src/components/admin/compare';
+import type { MatchCompare } from '../src/lib/adminApi';
 import { isDate, isWebLink as manualLink, levelFor, parseArgs, pick, removal, type Row } from './sources/badges-manual';
 
 let failures = 0;
@@ -32,7 +36,7 @@ const star = badge('starmedica', 'Star Médica', 'hospital', 'Star Médica Ciuda
 const conacem = badge('conacem', 'CONACEM', 'consejo', 'Pediatría', null, 'https://conacem.org.mx/quienes-somos', { valid_to: '2029-01-01', facts: { consejo: 'Consejo de Prueba', certificate: '9999' } });
 const coepris = badge('coepris-bc', 'COEPRIS Baja California', 'regulator', 'REPSSABI', 'https://bajahealthtourism.com/catalogo/casa-prueba', 'https://www.coeprisbc.gob.mx', { valid_to: '2028-09-03', facts: { register: '20260000001' } });
 const padron = badge('padron-salud-bc', 'Padrón Estatal de Salud', 'regulator', 'Padrón Estatal de Salud', 'https://bajahealthtourism.com/catalogo/casa-prueba', 'https://bajahealthtourism.com', { facts: { register: '20260000001' } });
-const cluster = badge('baja-health-cluster', 'Baja Health Cluster', 'association', 'Recovery centers', 'https://bajahealthcluster.mx/institucion/casa-prueba/', 'https://bajahealthcluster.mx');
+const cluster = badge('baja-health-cluster', 'Baja Health Cluster', 'cluster', 'Recovery centers', 'https://bajahealthcluster.mx/institucion/casa-prueba/', 'https://bajahealthcluster.mx');
 const all = [angeles, star, conacem, coepris, padron, cluster];
 
 // ── Each badge's group and link ──────────────────────────────────────────────
@@ -130,7 +134,7 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
 // ── Migrations ────────────────────────────────────────────────────────────
 {
     const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql'));
-    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql'];
+    const ours = ['0042_doctor_identity.sql', '0043_sources_and_badges.sql', '0044_facility_badges.sql', '0045_organization_logos.sql', '0046_facility_candidates_index.sql', '0050_organization_groups.sql', '0051_match_scores.sql', '0055_review_compare.sql'];
     for (const f of ours) {
         check(`${f}: exists and no other file has its number`, files.filter((x) => x.startsWith(f.slice(0, 4))).join() === f);
         check(`${f}: says how to undo it`, /rollback/i.test(read(`supabase/migrations/${f}`)));
@@ -145,10 +149,32 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     // A view can only gain columns at the end: badges must follow production's last columns (0040_providers_kind).
     const view = /create or replace view public\.provider_list[\s\S]*?from public\.providers p/.exec(read('supabase/migrations/0043_sources_and_badges.sql'))?.[0] ?? '';
     check('provider_list keeps service_names and kind, then adds badges last', /"googlePlaceId",\s*service_names,\s*kind,\s*badges\s*from/.test(view));
-    check('our migrations come after the newest on main', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0042'));
+    // 0042 to 0046, 0050 and 0051 are in production; 0055 is new and must come after every other migration (production already holds 0052 to 0054 from other work).
+    check('our unapplied migration (0055) comes after every other one', files.filter((f) => /^\d{4}/.test(f) && !ours.includes(f)).every((f) => f.slice(0, 4) < '0055'));
     for (const n of ['0005b_borderhealth_match_tighten', '0005c_borderhealth_match_speed', '0005d_borderhealth_match_materialize', '0005e_borderhealth_grants', '0005f_borderhealth_claim_fix', '0005g_borderhealth_hardening', '0015b_forum_trigger_grants', '0017b_forum_recipients_conflict', '0020b_clinic_teams', '0009b_grant_owner_update_socials']) {
         check(`production-only ${n} is in the repo and marked not to re-apply`, files.includes(`${n}.sql`) && read(`supabase/migrations/${n}.sql`).includes('Do not apply it again'));
     }
+}
+
+// ── Groups: "doctors at Hospital Ángeles" (org= filter) ──────────────────────
+{
+    const ctx = { index: new Map(), terms: [], centre: null, prior: 4 };
+    const at = (slug: string, name: string) => normalizeProvider({ id: `p-${slug}`, name: `Dr. ${slug}`, specialty: [], region: 'elpaso-juarez', badges: [{ org: slug, name, kind: 'hospital', label: '', logo: null, url: null, confirmed_at: null, valid_from: null, valid_to: null }] });
+    const none = normalizeProvider({ id: 'p-none', name: 'Dr. Nobody', specialty: [], region: 'elpaso-juarez', badges: [] });
+    const people = [at('starmedica', 'Star Médica'), at('hospital-angeles', 'Hospital Ángeles'), none];
+    const f = { ...defaultFilters, region: 'elpaso-juarez' as const, orgs: ['starmedica'] };
+    check('groups: org filter keeps only listings with that badge', people.filter((p) => matchesFilters(p, f, ctx)).map((p) => p.id).join() === 'p-starmedica');
+    check('groups: several orgs match any of them', people.filter((p) => matchesFilters(p, { ...f, orgs: ['starmedica', 'hospital-angeles'] }, ctx)).length === 2);
+    check('groups: no org chosen filters nothing', people.filter((p) => matchesFilters(p, { ...f, orgs: [] }, ctx)).length === 3);
+    check('groups: a chosen org counts as an active filter', countActiveFilters(f) === countActiveFilters({ ...f, orgs: [] }) + 1);
+    const facets = buildFacets(people, { ...f, orgs: [] }, ctx);
+    check('groups: the filter panel lists each organization with its count', facets.org.get('starmedica')?.count === 1 && facets.org.get('hospital-angeles')?.name === 'Hospital Ángeles');
+    check('groups: an expired badge does not put a listing in the group', normalizeProvider({ id: 'x', name: 'x', badges: [{ ...at('conacem', 'CONACEM').badges![0], valid_to: '2000-01-01' }] }).badges?.length === 0);
+    check('groups: chip names, known and unknown', orgName('starmedica') === 'Star Médica' && orgName('clinica-nueva-tijuana') === 'Clinica Nueva Tijuana');
+    check('groups: a cluster and a wellness center read as affiliations', groupOf({ ...cluster, kind: 'cluster' }) === 'affiliation' && groupOf({ ...cluster, kind: 'wellness_center' }) === 'affiliation');
+    const api = __test.organizationsOf([{ org: 'starmedica', name: 'Star Médica', kind: 'hospital', label: 'x', url: null, info_url: null, confirmed_at: null, valid_to: null }]);
+    check('groups: the API names each organization by slug, the value its filter takes', api[0]?.slug === 'starmedica');
+    check('groups: the filter label exists in both languages', !!(en as any).filters?.orgGroup && !!(es as any).filters?.orgGroup);
 }
 
 // ── Expired certifications, read again at display time ─────────────────────
@@ -193,6 +219,33 @@ check('logos ship with the site', !read('.gitignore').includes('public/logos/org
     const two = [row('conacem', 'confirmed', 'Pediatría'), row('conacem', 'confirmed', 'Neonatología')];
     let asks = false; try { pick(two, undefined); } catch (e) { asks = /Pediatría/.test(String(e)); }
     check('manual: two badges from one organization ask for --label', asks && pick(two, 'Neonatología').label === 'Neonatología');
+}
+
+// ── Admin side-by-side (src/components/admin/compare.ts) ─────────────────────
+{
+    const cand = (id: string, name: string, extra: Partial<MatchCompare['candidates'][number]> = {}): MatchCompare['candidates'][number] =>
+        ({ doctor_id: id, display_name: name, similarity: 0.9, linked: false, cedulas: [], listings: [], badges: [], ...extra });
+    const base: MatchCompare = {
+        status: 'probable', tier: 3, confidence: 0.9, doctor_id: null,
+        record: { name: 'Rosa Ejemplo Rio', label: 'Member doctor', specialties: ['Pediatría'], cedulas: ['8880001'], region: 'sandiego-tijuana', url: null, valid_to: null, facts: null },
+        candidates: [
+            cand('d1', 'Dra. Rosa Ejemplo Rio', { similarity: 1, cedulas: [{ cedula: '8880001', title: 'Médico Cirujano', kind: 'licenciatura' }], listings: [{ id: 'p1', name: 'Dra. Rosa', city: 'Tijuana', region: 'sandiego-tijuana', specialty: ['pediatrics'], kind: null }] }),
+            cand('d2', 'Dra. Rosa Ejemplo Rios', { similarity: 0.93, cedulas: [{ cedula: '8880002', title: null, kind: 'licenciatura' }], listings: [{ id: 'p2', name: 'Dra. Rosa R', city: 'Juárez', region: 'elpaso-juarez', specialty: null, kind: null }] }),
+        ],
+        ai: { score: 74, verdict: 'needs_human', reason: 'Two share the name.', candidate: 'd2', model: 'test', scored_at: '2026-11-17T00:00:00Z', run: 'r', evidence: {} },
+        link: null,
+    };
+    const state = (c: MatchCompare, id: string) => Object.fromEntries(compareRows(c, c.candidates.find((x) => x.doctor_id === id)!).map((r) => [r.label, r.state]));
+    const same = state(base, 'd1');
+    check('compare: same name, same cédula, same region read as same', same['Name'] === 'same' && same['Cédula'] === 'same' && same['Region'] === 'same', same);
+    const other = state(base, 'd2');
+    check('compare: another cédula and another region are flagged', other['Cédula'] === 'differs' && other['Region'] === 'differs' && other['Name'] === 'differs', other);
+    check('compare: specialties in two vocabularies are shown, never judged', same['Specialty'] === 'unknown');
+    const silent = state({ ...base, record: { ...base.record!, cedulas: [] } }, 'd2');
+    check('compare: no cédula on one side is unknown, not a conflict', silent['Cédula'] === 'unknown');
+    check('compare: opens on the AI pick when nothing is linked', defaultCandidate(base)?.doctor_id === 'd2');
+    check('compare: opens on the linked doctor before the AI pick', defaultCandidate({ ...base, candidates: [base.candidates[0], { ...base.candidates[1], linked: false }].map((x) => (x.doctor_id === 'd1' ? { ...x, linked: true } : x)) })?.doctor_id === 'd1');
+    check('compare: a rejected AI pick is not preferred', defaultCandidate({ ...base, ai: { ...base.ai!, verdict: 'reject' } })?.doctor_id === 'd1');
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');

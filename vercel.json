@@ -17,6 +17,10 @@
       "destination": "/api/agent?route=v1&path=:path*"
     },
     {
+      "source": "/api/directory/:region/:part",
+      "destination": "/api/agent?route=directory&region=:region&part=:part"
+    },
+    {
       "source": "/mcp",
       "destination": "/api/agent?route=mcp"
     },
@@ -67,6 +71,16 @@
     {
       "source": "/pricing",
       "destination": "/api/agent?route=page&kind=pricing",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
+      "source": "/hotels",
+      "destination": "/api/agent?route=page&kind=hotels",
       "missing": [
         {
           "type": "header",
@@ -167,6 +181,10 @@
     {
       "path": "/api/claim-notify?job=drain",
       "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/claim-notify?job=review",
+      "schedule": "0 16 * * *"
     },
     {
       "path": "/api/billing?job=sync",

@@ -56,6 +56,7 @@ function placePhotoDevMiddleware(mode: string): Plugin {
             const agentRoutes: [RegExp, (m: RegExpExecArray) => string][] = [
                 [/^\/api\/v1(?:\/([^?]*))?(?:\?|$)/, (m) => `route=v1&path=${m[1] ?? ''}`],
                 [/^\/(?:api\/)?mcp(?:\?|$)/, () => 'route=mcp'],
+                [/^\/api\/directory\/([a-z-]+)\/(\d+)(?:\?|$)/, (m) => `route=directory&region=${m[1]}&part=${m[2]}`],
                 [/^\/openapi\.json(?:\?|$)/, () => 'route=openapi'],
                 [/^\/llms\.txt(?:\?|$)/, () => 'route=llms'],
                 [/^\/llms-full\.txt(?:\?|$)/, () => 'route=llms-full'],
@@ -102,6 +103,12 @@ export default defineConfig(({ mode }) => ({
         'import.meta.env.VITE_APP_BUILD_ID': JSON.stringify(
             process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now()),
         ),
+    },
+    build: {
+        rollupOptions: {
+            // acerbac.html is the static entry for acerbac.medsociety.one (see middleware.ts).
+            input: { main: 'index.html', acerbac: 'acerbac.html' },
+        },
     },
     server: {
         host: true,

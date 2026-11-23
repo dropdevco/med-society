@@ -1,0 +1,77 @@
+# The weekly source run (docs/adr/0011). This file lives in the PRIVATE repository
+# dropdevco/med-society-ops as .github/workflows/sources-weekly.yml; the copy here is
+# the reviewed original. It checks out the public app repository at main and runs
+# every source with loading on. Logs and secrets stay in the private repository.
+#
+# Secrets (added by a person in med-society-ops → Settings → Secrets → Actions):
+#   VITE_SUPABASE_URL           the project URL
+#   SUPABASE_SERVICE_ROLE_KEY   the service-role key: never echo it
+#   OPENROUTER_API_KEY          optional: the AI scorer (docs/adr/0012, 0014). Without it the step is skipped
+#
+# The scorer step scores new queue items with the model chosen in ADR 0014 and links
+# those it approves at 80 or above (SCORER_AUTO_LINK_AT). Remove that line to go back
+# to shadow mode; undo a run with: npm run sources:score -- --undo=<run ID>.
+name: Weekly source run
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'   # Mondays 06:00 Mexico City (UTC-6, no daylight saving)
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'One source slug, or blank for all'
+        required: false
+        default: ''
+
+concurrency:
+  group: sources-weekly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dropdevco/med-society
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Star Médica and CONACEM need a real browser.
+      - run: npx playwright install --with-deps chromium
+
+      # No history on a fresh runner: each source judges against its last green run in the database.
+      - name: Run and load
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SOURCE: ${{ inputs.source }}
+        run: |
+          if [ -n "$SOURCE" ]; then
+            npx tsx scripts/sources/run.ts --source="$SOURCE" --commit
+          else
+            npx tsx scripts/sources/run.ts --all --commit
+          fi
+
+      # Runs even when a source was red: the queue from the green ones still needs scores.
+      - name: Score new queue items and link at 80+ (ADR 0014)
+        if: ${{ !cancelled() }}
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SCORER_MODEL: google/gemini-3.8-flash
+          SCORER_AUTO_LINK_AT: '80'
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then echo "no OPENROUTER_API_KEY secret: scoring skipped"; exit 0; fi
+          npx tsx scripts/sources/score-matches.ts --limit=300

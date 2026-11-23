@@ -53,8 +53,9 @@ browser.** Not in Postgres.
 
 If a region grows past ~50,000 rows, or a cold function takes more than ~2 s to build its copy, move the *candidate
 selection* into Postgres (stored folded columns plus a `pg_trgm` GIN index, returning ids only) and keep the scoring in
-TypeScript. `pg_trgm` and `unaccent` are already installed on production. That would need a migration; the next
-free number on production is **0052** (0050 and 0051 came from PR 22 and are applied). This plan needs no migration.
+TypeScript. `pg_trgm` and `unaccent` are already installed on production. That would need a migration; main
+already holds 0050–0058, so check production's `schema_migrations` and open PRs for the next free number at the
+time. This plan needs no migration.
 
 ## 3. One copy of the logic, or two
 

@@ -11,12 +11,14 @@
  * Exit code: 0 green, 2 red (the run is still written), 1 could not run.
  * With --all, the worst of the sources' codes.
  */
+import { appendFileSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { ADAPTERS } from './adapters';
 import { database } from './lib/db';
 import { BlockedError, politeGet } from './lib/http';
 import { judgeRun, mergeEntries, type TargetOutcome } from './lib/judge';
 import { loadRun } from './lib/load';
+import { restoreFromDatabase } from './lib/restore';
 import { robotsVerdict } from './lib/robots';
 import { diffIds, lastGoodRun, uuidv7, writeRun, type RunRecord } from './lib/snapshot';
 import type { ObservedEntry, SourceAdapter, SourceEntry } from './lib/types';
@@ -29,7 +31,7 @@ function arg(name: string): string | true | undefined {
     return undefined;
 }
 
-export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecord; file: string }> {
+export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecord; file: string; firstRun: boolean }> {
     const started = new Date();
     const id = uuidv7(started.getTime());
     const targets: TargetOutcome[] = [];
@@ -96,11 +98,27 @@ export async function runSource(adapter: SourceAdapter): Promise<{ run: RunRecor
         entries,
         ...(lookups ? { lookups } : {}),
     };
-    return { run, file: writeRun(run) };
+    return { run, file: writeRun(run), firstRun: !previous };
 }
 
 /** docs/adr/0002: a source that needs permission does not run until the letter is recorded. */
 export const mayRun = (a: SourceAdapter) => a.access === 'open' || !!a.permission;
+
+/**
+ * A watch source's flag: the records that are new since its last good run. The first
+ * run only sets the baseline, so it flags nothing.
+ */
+export function watchFlags(run: RunRecord, firstRun: boolean): string[] {
+    if (run.status !== 'green') return [];
+    if (firstRun) return [`first run: ${run.counts.entries} records kept as the baseline; later runs flag what is new`];
+    const byId = new Map(run.entries.map((e) => [e.externalId, e]));
+    return run.added.map((id) => {
+        const e = byId.get(id);
+        if (!e) return `new: ${id}`;
+        const where = e.extra?.municipality ? ` (${e.extra.municipality})` : '';
+        return `new ${e.extra?.kind ?? 'record'}: ${e.name}${where} ${e.url}`;
+    });
+}
 
 /** Run one source and print its summary. Returns the exit code for that source. */
 export async function runAndReport(adapter: SourceAdapter, commit = false): Promise<number> {
@@ -108,14 +126,28 @@ export async function runAndReport(adapter: SourceAdapter, commit = false): Prom
         console.error(`${adapter.slug} needs written permission recorded before it runs (docs/adr/0002).`);
         return 1;
     }
-    const { run, file } = await runSource(adapter);
+    const { run, file, firstRun } = await runSource(adapter);
     console.log(`${run.source}: ${run.status.toUpperCase()}  ${run.counts.entries} entries  +${run.counts.added} -${run.counts.removed}`);
     console.log(`  run ${run.id}  started ${run.startedAt}`);
     for (const t of run.targets) console.log(`  ${t.key.padEnd(14)} ${t.ok ? `${t.count} entries` : `FAILED ${t.error}`}`);
     for (const r of run.reasons) console.log(`  red: ${r}`);
     console.log(`  run written to ${file}`);
+    if (adapter.entity === 'watch') {
+        const flags = watchFlags(run, firstRun);
+        for (const f of flags) console.log(`  ${f}`);
+        // On GitHub Actions the flags also go on the run's summary page.
+        if (process.env.GITHUB_STEP_SUMMARY && flags.length) {
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ${adapter.name}\n\n${flags.map((f) => `- ${f}`).join('\n')}\n\n`);
+        }
+    }
     if (commit) await loadAndReport(run);
     return run.status === 'green' ? 0 : 2;
+}
+
+export async function restoreAndReport(sources: string[]) {
+    for (const r of await restoreFromDatabase(database(), sources)) {
+        console.log(`${r.source}: no run on disk, restored green run ${r.run} (${r.entries} entries) from the database`);
+    }
 }
 
 async function loadAndReport(run: RunRecord) {
@@ -129,6 +161,8 @@ async function main() {
         return;
     }
     const commit = !!arg('commit');
+    // Loading means the database is there: a machine without run files takes its history from it.
+    if (commit || arg('load')) await restoreAndReport(Object.keys(ADAPTERS));
     if (arg('load')) {
         const slug = arg('source');
         const list = typeof slug === 'string' ? [ADAPTERS[slug]] : Object.values(ADAPTERS);

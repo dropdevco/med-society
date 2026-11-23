@@ -35,6 +35,10 @@ export const RECOVERY_ALLOWLIST: Record<'tijuana-recovery' | 'juarez-recovery', 
     { placeId: 'ChIJd0UDMDc32YARGak0_nD7ljo', name: 'SALUS surgery recovery' },
     { placeId: 'ChIJnUjq6hxJ2YARDTahm_7h6BE', name: 'Bloom Recovery House' },
     { placeId: 'ChIJARwu4x1I2YARqhydtvV2MJk', name: 'Beauty Care Recovery House' },
+    // Added 2026-11-19 for the ACERBAC site: one of the five centers the association named.
+    // Same address (Virreyes 3350, Madero Sur) on Google, the COEPRIS register (20260009328) and
+    // the Baja Health Cluster directory; Google's name is "Baja Premium Assisted Living Care".
+    { placeId: 'ChIJPVkuCdVJ2YAR3SiOEsd22OY', name: 'Baja Premium Care' },
   ],
   'juarez-recovery': [
     { placeId: 'ChIJF7lv9Mtb54YRORA0v40B7ho', name: 'Casa Nefertiti - Recovery Home' },

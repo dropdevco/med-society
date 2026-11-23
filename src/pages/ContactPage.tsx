@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const FORM_ID = 'Y7U63Qe8XW7rQnihETT0';
 const FORM_SRC = `https://links.mylayerone.com/widget/form/${FORM_ID}`;
@@ -12,6 +13,7 @@ const FORM_HEIGHT = 864;
  */
 export function ContactPage() {
     const { t } = useTranslation();
+    useDocumentTitle(t('contact.pageTitle'));
 
     useEffect(() => {
         const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);

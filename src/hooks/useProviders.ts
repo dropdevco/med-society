@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { mockProviders } from '../data/providers';
 import { normalizeProvider } from '../utils/normalizeProvider';
 import { readProviderCache, writeProviderCache } from '../utils/providerCache';
+import { readAllByKeyset } from '../utils/keysetPages';
 import { DEFAULT_RADIUS_KM } from '../utils/geo';
 import { buildSearchIndex, tokenize } from '../utils/search';
 import { buildVocabulary, buildFacets } from '../utils/facets';
@@ -21,6 +22,7 @@ import {
 const SPECIALTY_KEYS = new Set(Object.keys(SpecialtyLabels));
 const SORT_MODES = new Set<SortMode>(['relevance', 'rating', 'reviews', 'distance', 'price']);
 const EMPTY: Provider[] = [];
+const EMPTY_INDEX: ReturnType<typeof buildSearchIndex> = new Map();
 
 // ── Provider fetch ──────────────────────────────────────────────────────────
 
@@ -29,7 +31,14 @@ type RawProviderRow = Record<string, unknown>;
 /** Distinguishes "no client configured" from a real fetch error, above. */
 class NoSupabaseClientError extends Error {}
 
-const PAGE_SIZE = 1000;
+/**
+ * Rows per request. PostgREST builds the JSON inside the statement, so a page's
+ * time counts against the anon role's 3 s limit: ~0.6 s for 1,000 rows when the
+ * database is idle, and several times that when its CPU is starved (17 Nov 2026:
+ * planning one trivial query swung from 1 ms to 58 ms). 500 keeps a page well
+ * under the limit; Tijuana takes ~20 requests, eight in flight.
+ */
+const PAGE_SIZE = 500;
 
 /**
  * The lean directory view (migration 0021): only what cards, the map, search
@@ -38,62 +47,92 @@ const PAGE_SIZE = 1000;
  */
 const LIST_VIEW = 'provider_list';
 
+/** Postgres "canceling statement due to statement timeout": the anon role stops reads at 3 s. */
+const STATEMENT_TIMEOUT = '57014';
+
 /**
- * One border region of the directory, paged from Supabase.
+ * One border region of the directory, paged from Supabase by id (keyset):
+ * each page starts after the last id the previous one returned, so every
+ * request reads only its own rows. Paging by offset made the last page of a
+ * region read ~9,000 rows to return 1,000, and nine such pages in parallel
+ * went past the anon role's 3 s limit together whenever the database was
+ * slow (statement timeouts every day before 18 Nov 2026).
  *
- * Page 0 asks for an exact count (`{ count: 'exact' }`), which lets every
- * remaining page be requested concurrently with `Promise.all` instead of one
- * after another. `.order('id')` is added to every page (page 0 included)
- * so the ranges stay stable across concurrent requests: without a stable
- * order Postgres is free to return a different row order per request, and
- * parallel `.range()` calls would then silently overlap or skip rows.
+ * Two streams run at once, one up from the lowest id and one down from the
+ * highest, and stop where they meet; rows both happen to read in the last
+ * round are kept once. That is about half the round trips of one stream.
+ * A page that times out is asked again once.
  *
- * Only the selected region is fetched. Loading every live provider used to
- * cost ~17 MB of `select=*` per visit; one region of the view is 3–6 MB.
- *
- * If Supabase ever declines to report a count (some proxies/mocks omit it),
- * this falls back to a sequential loop rather than guess a total.
+ * Only the selected region is fetched (3–6 MB of the lean view).
  */
-async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]> {
+async function loadRegionFromSupabase(region: RegionId): Promise<RawProviderRow[]> {
     if (!supabase) {
         throw new NoSupabaseClientError('Supabase client not initialized');
     }
     const client = supabase;
     // The view only exposes live rows, so there is no status filter here.
-    const page = (from: number, count?: 'exact') => client
-        .from(LIST_VIEW)
-        .select('*', count ? { count } : undefined)
-        .eq('region', region)
-        .order('id')
-        .range(from, from + PAGE_SIZE - 1);
-
-    const first = await page(0, 'exact');
-    if (first.error) throw first.error;
-
-    const data: RawProviderRow[] = [...(first.data ?? [])];
-    const count = first.count;
-    const firstLen = first.data?.length ?? 0;
-
-    if (count == null) {
-        // No count back from the server: page sequentially.
-        for (let from = PAGE_SIZE; firstLen === PAGE_SIZE; from += PAGE_SIZE) {
-            const next = await page(from);
-            if (next.error) throw next.error;
-            data.push(...(next.data ?? []));
-            if (!next.data || next.data.length < PAGE_SIZE) break;
+    const page = async (dir: 'up' | 'down', after: string | null, before: string | null): Promise<RawProviderRow[]> => {
+        for (let attempt = 0; ; attempt++) {
+            let q = client.from(LIST_VIEW).select('*').eq('region', region);
+            if (after) q = q.gt('id', after);
+            if (before) q = q.lt('id', before);
+            const res = await q.order('id', { ascending: dir === 'up' }).limit(PAGE_SIZE);
+            if (!res.error) return (res.data ?? []) as RawProviderRow[];
+            // Two retries, backing off: a slow spell on the database lasts a few
+            // seconds, and one page failing twice blanked the whole region
+            // ("0 providers") on 17 Nov 2026 while the same read took 0.6 s a
+            // minute later.
+            // A gateway error (502/504) in the same slow spell is worth the same retry.
+            const transient = res.error.code === STATEMENT_TIMEOUT || res.status >= 500;
+            if (!transient || attempt >= 2) throw res.error;
+            await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
         }
-    } else if (firstLen === PAGE_SIZE && count > PAGE_SIZE) {
-        const starts: number[] = [];
-        for (let from = PAGE_SIZE; from < count; from += PAGE_SIZE) starts.push(from);
+    };
 
-        const pages = await Promise.all(starts.map((from) => page(from)));
-        for (const next of pages) {
-            if (next.error) throw next.error;
-            data.push(...(next.data ?? []));
-        }
+    return readAllByKeyset(page, PAGE_SIZE);
+}
+
+/** Keep in step with DIRECTORY_PARTS in api/agent.ts. */
+const DIRECTORY_PARTS = 8;
+/** A part that has not answered by now is treated as down; the Supabase path takes over. */
+const DIRECTORY_TIMEOUT_MS = 15_000;
+
+/**
+ * The region from /api/directory: the same `provider_list` rows, split into
+ * fixed slices and served from Vercel's shared cache (see api/agent.ts,
+ * directoryRoute). One parallel burst of cached responses instead of nine
+ * database queries, and the database is no longer read once per visitor.
+ *
+ * All or nothing: a region with a missing slice would silently lose an
+ * eighth of its listings, so any failure throws and the caller falls back.
+ */
+async function loadRegionFromCache(region: RegionId): Promise<RawProviderRow[]> {
+    const parts = await Promise.all(
+        Array.from({ length: DIRECTORY_PARTS }, async (_, part) => {
+            const res = await fetch(`/api/directory/${region}/${part}`, {
+                headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(DIRECTORY_TIMEOUT_MS),
+            });
+            if (!res.ok) throw new Error(`directory part ${part}: HTTP ${res.status}`);
+            const body = await res.json() as { region?: string; parts?: number; rows?: unknown };
+            // A shape we do not expect (an SPA fallback page, a deploy whose part
+            // count differs) is a failure, never a partial directory.
+            if (body.region !== region || body.parts !== DIRECTORY_PARTS || !Array.isArray(body.rows)) {
+                throw new Error(`directory part ${part}: unexpected response`);
+            }
+            return body.rows as RawProviderRow[];
+        }),
+    );
+    return parts.flat();
+}
+
+async function loadRegionFromNetwork(region: RegionId): Promise<RawProviderRow[]> {
+    try {
+        return await loadRegionFromCache(region);
+    } catch (err) {
+        console.warn('[directory] cached load failed, reading Supabase directly:', err);
+        return loadRegionFromSupabase(region);
     }
-
-    return data;
 }
 
 /**
@@ -159,6 +198,7 @@ function parseFilters(params: URLSearchParams): ProviderFilters {
         minRating: num('rating', 0),
         insurances: params.getAll('ins'),
         languages: params.getAll('lang'),
+        orgs: params.getAll('org').filter((o) => /^[a-z0-9-]+$/.test(o)),
         verifiedOnly: params.get('verified') === '1',
         withPricing: params.get('priced') === '1',
         maxPriceMxn: params.has('max') ? num('max', 0) : null,
@@ -218,6 +258,7 @@ function serializeFilters(f: ProviderFilters): URLSearchParams {
     for (const s of f.specialty) p.append('spec', s);
     for (const i of f.insurances) p.append('ins', i);
     for (const l of f.languages) p.append('lang', l);
+    for (const o of f.orgs) p.append('org', o);
     if (f.country) p.set('country', f.country);
     if (f.minRating > 0) p.set('rating', String(f.minRating));
     if (f.verifiedOnly) p.set('verified', '1');
@@ -357,9 +398,29 @@ export function useProviders() {
         [t],
     );
 
+    /**
+     * The index is only read when there are search terms, and building it is
+     * the single most expensive step after a region lands (~180 ms for 8.5k
+     * rows in a dev build). So the first paint goes without it: it is built
+     * in the next idle moment, or at once if the page opened on a search.
+     */
+    const needsIndex = !filters.smart && tokenize(filters.search).length > 0;
+    const [idleFor, setIdleFor] = useState<readonly Provider[] | null>(null);
+    useEffect(() => {
+        if (allProviders.length === 0) return;
+        const done = () => setIdleFor(allProviders);
+        if (typeof requestIdleCallback === 'function') {
+            const id = requestIdleCallback(done, { timeout: 1500 });
+            return () => cancelIdleCallback(id);
+        }
+        const id = setTimeout(done, 200);
+        return () => clearTimeout(id);
+    }, [allProviders]);
+    const indexWanted = needsIndex || idleFor === allProviders;
+
     const searchIndex = useMemo(
-        () => buildSearchIndex(allProviders, labelOf),
-        [allProviders, labelOf],
+        () => (indexWanted ? buildSearchIndex(allProviders, labelOf) : EMPTY_INDEX),
+        [allProviders, labelOf, indexWanted],
     );
 
     const rawVocabulary = useMemo(

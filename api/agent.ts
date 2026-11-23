@@ -13,7 +13,7 @@
  *   /llms.txt          what the site is and how to use it, for LLMs
  *   /llms-full.txt     the same, with the full parameter and field reference
  *   /sitemap.xml       index of /sitemaps/pages.xml and /sitemaps/providers-N.xml
- *   /, /providers/:id, /pricing, /contact
+ *   /, /providers/:id, /pricing, /contact, /hotels
  *                      the SPA's own index.html with real <title>, description,
  *                      canonical, JSON-LD and a readable copy of the page inside
  *                      #root (React replaces it on mount, so people never see
@@ -378,6 +378,8 @@ interface Row {
 
 /** A confirmed organization badge: a hospital affiliation, a board certification or a health registration. */
 interface OrganizationBadge {
+    /** The organization's slug: the value the `organization` filter takes. */
+    slug: string;
     organization: string;
     kind: string;
     label: string;
@@ -394,6 +396,7 @@ const isWebLink = (url: unknown): url is string => typeof url === 'string' && /^
 function organizationsOf(raw: unknown, day = new Date().toISOString().slice(0, 10)): OrganizationBadge[] {
     if (!Array.isArray(raw)) return [];
     return raw.filter((b) => !!b && typeof b === 'object' && (typeof b.valid_to !== 'string' || b.valid_to >= day)).map((b: Record<string, unknown>) => ({
+        slug: String(b.org ?? ''),
         organization: String(b.name ?? ''),
         kind: String(b.kind ?? ''),
         label: String(b.label ?? ''),
@@ -585,7 +588,7 @@ function expandTerm(term: string): readonly string[] {
     return [term];
 }
 
-const FIELD_WEIGHTS = { name: 100, specialty: 45, service: 35, city: 20, address: 15, insurance: 10 } as const;
+const FIELD_WEIGHTS = { name: 100, specialty: 45, service: 35, city: 20, address: 15, org: 30, insurance: 10 } as const;
 type FieldKey = keyof typeof FIELD_WEIGHTS;
 const ALL_FIELDS = Object.keys(FIELD_WEIGHTS) as FieldKey[];
 const CONCEPT_FIELDS: FieldKey[] = ['specialty', 'service', 'insurance'];
@@ -601,6 +604,8 @@ interface SearchDoc {
     city: string;
     address: string;
     insurance: string;
+    org: string;
+    doctor: boolean;
     quality: number;
 }
 
@@ -635,6 +640,18 @@ function scoreDoc(doc: SearchDoc, terms: readonly string[]): number {
     return total * doc.quality;
 }
 
+// Same as src/utils/search.ts badgeMatches: the query names an organization this doctor holds a badge from.
+const GENERIC_ORG_WORDS = new Set([
+    'hospital', 'hospitales', 'clinica', 'clinicas', 'clinic', 'clinics', 'centro', 'center', 'centre',
+    'medico', 'medica', 'medical', 'colegio', 'consejo', 'asociacion', 'association', 'sociedad', 'society',
+    'grupo', 'group', 'mexicano', 'mexicana', 'nacional', 'general', 'salud', 'health',
+]);
+function badgeMatches(doc: SearchDoc, terms: readonly string[]): boolean {
+    if (!doc.doctor || !doc.org || !terms.length) return false;
+    if (terms.every((t) => GENERIC_ORG_WORDS.has(t))) return false;
+    return doc.org.split('|').some((name) => terms.every((t) => matchStrength(name, t) >= PREFIX));
+}
+
 function qualityOf(p: Row): number {
     const reviews = Math.log1p(Math.max(0, p.reviewCount || 0)) / Math.log1p(1000);
     const rating = Math.max(0, Math.min(2, (p.rating || 0) - 3)) / 2;
@@ -654,6 +671,8 @@ function buildDoc(p: Row): SearchDoc {
         city: fold(p.city),
         address: fold(p.address),
         insurance: fold(p.insurances.join('|')),
+        org: fold(p.organizations.map((o) => o.organization).join('|')),
+        doctor: !p.kind,
         quality: qualityOf(p),
     };
 }
@@ -671,25 +690,46 @@ interface Snapshot {
     postal: Map<string, { lat: number; lng: number }>;
 }
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 500;
 
-/** The whole lean directory of one region, paged exactly like src/hooks/useProviders.ts. */
+/**
+ * The whole lean directory of one region, paged by id like src/hooks/useProviders.ts:
+ * each page starts after the last id, so no request reads rows it skips (offset paging
+ * hit the anon role's 3 s statement timeout when the database was slow). Four id slices
+ * (by first hex digit) read at once, each in 500-row pages one after another, so a slow
+ * day stays well inside the function's time limit. A page that times out is asked again, twice.
+ */
+const SLICES: Array<[string | null, string | null]> = [
+    [null, '40000000-0000-0000-0000-000000000000'],
+    ['3fffffff-ffff-ffff-ffff-ffffffffffff', '80000000-0000-0000-0000-000000000000'],
+    ['7fffffff-ffff-ffff-ffff-ffffffffffff', 'c0000000-0000-0000-0000-000000000000'],
+    ['bfffffff-ffff-ffff-ffff-ffffffffffff', null],
+];
 async function loadRegion(region: RegionId): Promise<Snapshot> {
-    const page = (from: number, count: boolean) =>
-        sb(`provider_list?select=*&region=eq.${region}&order=id&limit=${PAGE_SIZE}&offset=${from}`, { count });
-    const first = await page(0, true);
-    const raw: unknown[] = [...(first.data as unknown[])];
-    if (first.total != null && first.total > PAGE_SIZE) {
-        const starts: number[] = [];
-        for (let from = PAGE_SIZE; from < first.total; from += PAGE_SIZE) starts.push(from);
-        for (const next of await Promise.all(starts.map((from) => page(from, false)))) raw.push(...(next.data as unknown[]));
-    } else if (first.total == null && raw.length === PAGE_SIZE) {
-        for (let from = PAGE_SIZE; ; from += PAGE_SIZE) {
-            const next = (await page(from, false)).data as unknown[];
-            raw.push(...next);
-            if (next.length < PAGE_SIZE) break;
+    const page = async (after: string | null, before: string | null): Promise<Array<{ id?: unknown }>> => {
+        const path = `provider_list?select=*&region=eq.${region}${after ? `&id=gt.${after}` : ''}${before ? `&id=lt.${before}` : ''}&order=id&limit=${PAGE_SIZE}`;
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return (await sb(path)).data as Array<{ id?: unknown }>;
+            } catch (err) {
+                // Two retries, backing off, as in useProviders.ts: a slow spell lasts seconds.
+                if (attempt >= 2 || !/\b500\b|57014|statement timeout/.test((err as Error).message)) throw err;
+                await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
+            }
         }
-    }
+    };
+    const slices = await Promise.all(SLICES.map(async ([from, before]) => {
+        const out: Array<{ id?: unknown }> = [];
+        for (let after = from; ;) {
+            const next = await page(after, before);
+            out.push(...next);
+            if (next.length < PAGE_SIZE) return out;
+            after = String(next[next.length - 1].id);
+        }
+    }));
+    // In id order, each row once.
+    const seen = new Set<string>();
+    const raw = slices.flat().filter((r) => { const id = String(r.id); if (seen.has(id)) return false; seen.add(id); return true; });
 
     const rows = raw.map(toRow).filter((r): r is Row => r !== null);
     const docs = new Map<string, SearchDoc>();
@@ -730,6 +770,98 @@ async function snapshot(region: RegionId): Promise<Snapshot> {
         if (entry.snap) return entry.snap;
         throw err;
     }
+}
+
+// ── Directory parts: the app's region list, served from Vercel's cache ───────
+//
+// GET /api/directory/:region/:part  (rewritten to ?route=directory&region=…&part=…)
+//
+// The app used to page a whole region straight out of Supabase on every first
+// visit: nine 1,000-row requests, ~4.6 s before a single card showed, and the
+// same database work repeated for every visitor. Here the same rows are served
+// with a shared-cache header, so Vercel's edge answers almost every request and
+// the database is read once per part per few minutes instead of per visitor.
+//
+// A region is split into DIRECTORY_PARTS fixed slices of the uuid keyspace, not
+// into pages. Each slice holds the same listings whenever it was cached, so
+// parts cached at different moments can never overlap or skip a row (offset
+// pages can, when a listing is added or removed between two fetches). Slicing
+// also keeps each response far under Vercel's 4.5 MB function limit: San Diego–
+// Tijuana is ~8 MB of JSON, ~1 MB per slice.
+//
+// The rows are exactly what the anon key already reads from `provider_list`
+// (no contact fields, migration 0032), in the same shape, so the app hands them
+// to normalizeProvider and its IndexedDB cache unchanged.
+//
+// Keep DIRECTORY_PARTS in step with src/hooks/useProviders.ts.
+
+const DIRECTORY_PARTS = 8;
+const DIRECTORY_PAGE = 500;
+/** Edge copies are fresh for 5 minutes, then served stale while one request refreshes them. */
+const CACHE_DIRECTORY = 'public, s-maxage=300, stale-while-revalidate=86400';
+
+/** [lower inclusive, upper exclusive) uuid bounds of one slice; null = open end. */
+function partBounds(part: number): [string | null, string | null] {
+    const at = (i: number) => (i <= 0 || i >= DIRECTORY_PARTS
+        ? null
+        : `${Math.round((i * 16) / DIRECTORY_PARTS).toString(16)}0000000-0000-0000-0000-000000000000`);
+    return [at(part), at(part + 1)];
+}
+
+/** A snapshot whose job has not confirmed it for this long is treated as stopped. */
+const SNAPSHOT_MAX_AGE_MS = 20 * 60_000;
+
+/**
+ * One part from directory_snapshot, or null when the table is missing (0057 not
+ * applied), the part has no row, or the refresh job has stopped: the caller then
+ * pages provider_list as before, so the directory never depends on the job.
+ */
+async function readDirectorySnapshot(region: RegionId, part: number, now = Date.now()): Promise<{ rows: unknown[]; checkedAt: string } | null> {
+    try {
+        const { data } = await sb(`directory_snapshot?select=rows,row_count,checked_at&region=eq.${region}&part=eq.${part}`);
+        const row = (data as { rows?: unknown; row_count?: number; checked_at?: string }[])[0];
+        if (!row || !Array.isArray(row.rows) || typeof row.checked_at !== 'string') return null;
+        if (row.rows.length !== row.row_count) return null;
+        const age = now - Date.parse(row.checked_at);
+        if (!(age < SNAPSHOT_MAX_AGE_MS)) return null;
+        return { rows: row.rows, checkedAt: row.checked_at };
+    } catch (err) {
+        console.warn('[agent] directory snapshot unavailable, paging provider_list:', err instanceof Error ? err.message : err);
+        return null;
+    }
+}
+
+async function directoryRoute(res: Res, params: URLSearchParams) {
+    const region = params.get('region');
+    const part = Number(params.get('part'));
+    if (!isRegionId(region)) throw new ApiError(400, 'invalid_parameter', 'region: not a known region.', { param: 'region', allowed: REGION_IDS });
+    if (!Number.isInteger(part) || part < 0 || part >= DIRECTORY_PARTS) {
+        throw new ApiError(400, 'invalid_parameter', `part: an integer from 0 to ${DIRECTORY_PARTS - 1}.`, { param: 'part' });
+    }
+
+    // The ready-made copy (migration 0057), rebuilt every 5 minutes by pg_cron:
+    // one stored row instead of up to three pages built on the spot.
+    const snapshot = await readDirectorySnapshot(region, part);
+    if (snapshot) {
+        return sendJson(res, 200, { region, part, parts: DIRECTORY_PARTS, generatedAt: snapshot.checkedAt, rows: snapshot.rows }, CACHE_DIRECTORY);
+    }
+
+    const [lo, hi] = partBounds(part);
+    const rows: Record<string, unknown>[] = [];
+    // Keyset paging (id > last), never OFFSET: each page is an index range scan.
+    // Pages are kept small because building the JSON, not finding the rows, is
+    // what costs: a 1,000-row page of this view takes 0.7–0.9 s on the current
+    // instance, too close to the anon role's 3 s statement timeout under load.
+    for (let last = lo, first = true; ; first = false) {
+        const range = [last && `id=${first ? 'gte' : 'gt'}.${last}`, hi && `id=lt.${hi}`].filter(Boolean).join('&');
+        const { data } = await sb(`provider_list?select=*&region=eq.${region}${range ? `&${range}` : ''}&order=id&limit=${DIRECTORY_PAGE}`);
+        const page = data as Record<string, unknown>[];
+        rows.push(...page);
+        if (page.length < DIRECTORY_PAGE) break;
+        last = String(page[page.length - 1].id);
+    }
+
+    return sendJson(res, 200, { region, part, parts: DIRECTORY_PARTS, generatedAt: new Date().toISOString(), rows }, CACHE_DIRECTORY);
 }
 
 const haversineKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
@@ -786,6 +918,11 @@ const SEARCH_PARAMS: readonly ParamDef[] = [
         name: 'insurance', type: 'string', list: true,
         description: 'Insurer names, matched case- and accent-insensitively as a substring of the insurers a provider lists (see /api/v1/insurances). A provider matches if it accepts any.',
         example: 'GNP',
+    },
+    {
+        name: 'organization', type: 'string', list: true,
+        description: 'Organization slugs: hospital-angeles, starmedica, conacem, coepris-bc, padron-salud-bc, baja-health-cluster. Only providers with a confirmed, unexpired badge from any of them ("doctors at Hospital Ángeles"). Each result lists its organizations under credentials.organizations, with their slugs.',
+        example: 'starmedica',
     },
     {
         name: 'language', type: 'string', list: true,
@@ -858,6 +995,7 @@ interface Query {
     country: 'US' | 'MX' | '';
     minRating: number;
     insurance: string[];
+    organization: string[];
     language: string[];
     licensedOnly: boolean;
     pricedOnly: boolean;
@@ -972,6 +1110,7 @@ function parseSearch(input: Input): Query {
         country: get<'US' | 'MX' | ''>('country', ''),
         minRating: get<number>('min_rating', 0),
         insurance: get<string[]>('insurance', []),
+        organization: [...new Set(get<string[]>('organization', []))],
         language: [...new Set(get<string[]>('language', []))],
         licensedOnly: get<boolean>('licensed_only', false),
         pricedOnly: get<boolean>('priced_only', false) || maxPrice !== undefined,
@@ -1033,6 +1172,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
     const insurance = q.insurance.map(fold);
     const kept: Row[] = [];
     const scores = new Map<string, number>();
+    const badged = new Set<string>();
     const distances = new Map<string, number>();
 
     for (const snap of snaps) {
@@ -1044,6 +1184,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
                 const held = p.insurances.map(fold);
                 if (!insurance.some((i) => held.some((h) => h.includes(i)))) continue;
             }
+            if (q.organization.length && !p.organizations.some((o) => q.organization.includes(o.slug))) continue;
             if (q.language.length) {
                 if (!p.languagesConfirmed || !q.language.some((l) => p.languages.includes(l))) continue;
             }
@@ -1062,6 +1203,7 @@ async function runSearch(q: Query): Promise<SearchResult> {
                 const score = doc ? scoreDoc(doc, q.terms) : 0;
                 if (score === 0) continue;
                 scores.set(p.id, score);
+                if (doc && badgeMatches(doc, q.terms)) badged.add(p.id);
             }
             kept.push(p);
         }
@@ -1093,6 +1235,11 @@ async function runSearch(q: Query): Promise<SearchResult> {
             if (ra !== rb) return ra - rb;
         }
         if (q.paidPlacement === 'first' && placement(a) !== placement(b)) return placement(b) - placement(a);
+        // Doctors holding a badge from the organization the query names (src/utils/filters.ts).
+        if (sort === 'relevance' && badged.size) {
+            const d = (badged.has(b.id) ? 1 : 0) - (badged.has(a.id) ? 1 : 0);
+            if (d !== 0) return d;
+        }
 
         switch (sort) {
             case 'relevance': {
@@ -1205,6 +1352,7 @@ function querySummary(q: Query) {
         country: q.country || null,
         min_rating: q.minRating || null,
         insurance: q.insurance,
+        organization: q.organization,
         language: q.language,
         licensed_only: q.licensedOnly,
         priced_only: q.pricedOnly,
@@ -1735,7 +1883,7 @@ function openApiSpec(): Record<string, unknown> {
                         price_from: { type: ['object', 'null'], properties: { amount_mxn: { type: 'number' }, approx_usd: { type: 'integer' }, note: { type: 'string' } } },
                         languages: { type: 'object', description: LANGUAGE_FIELD_NOTE, properties: { codes: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['stated_by_clinic', 'unknown'] } } },
                         insurances: { type: 'array', items: { type: 'string' } },
-                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations, board certifications and health registrations.', items: { type: 'object', properties: { organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
+                        credentials: { type: 'object', properties: { license_published: { type: 'boolean' }, organizations: { type: 'array', description: 'Confirmed hospital affiliations, board certifications and health registrations.', items: { type: 'object', properties: { slug: { type: 'string' }, organization: { type: 'string' }, kind: { type: 'string' }, label: { type: 'string' }, confirmed_at: { type: ['string', 'null'] }, valid_until: { type: ['string', 'null'] }, source_url: { type: ['string', 'null'], description: 'The page for this doctor at the source. Null when the source has no page per doctor.' }, organization_url: { type: ['string', 'null'], description: 'What the organization is.' } } } } } },
                         listing: { type: 'object', properties: { tier: { type: 'string', enum: ['basic', 'promoted', 'featured'] }, sponsored: { type: 'boolean' }, verified_badge: { type: 'boolean', description: 'A paid-plan badge, not a credential check.' } } },
                         photo_url: { type: ['string', 'null'] },
                         distance_km: { type: 'number', description: 'Present when a location was given.' },
@@ -1886,7 +2034,7 @@ interface PageDoc {
     ogImage: string;
     /** Page-specific robots directive; the site-wide default is index, follow. */
     robots?: string;
-    kind: 'home' | 'provider' | 'pricing' | 'contact' | 'notfound';
+    kind: 'home' | 'provider' | 'pricing' | 'contact' | 'hotels' | 'notfound';
     blocks: Block[];
     jsonld: Record<string, unknown>[];
     /** What `Accept: application/json` returns for this URL. */
@@ -2186,6 +2334,80 @@ function pricingPage(): PageDoc {
     };
 }
 
+/**
+ * /hotels?region=…: the curated hotels near the clinics (migration 0054,
+ * docs/hotels.md). Reads the published rows the anon key can see. The
+ * outbound links stay the hotel's own pages here: the affiliate id is added in
+ * the browser (src/utils/hotelLinks.ts), not for crawlers.
+ */
+const HOTEL_AMENITY_NAMES: Record<string, string> = {
+    clinic_shuttle: 'clinic shuttle', airport_shuttle: 'airport shuttle', border_shuttle: 'border shuttle',
+    accessible: 'accessible', kitchenette: 'kitchenette', quiet_recovery: 'quiet for recovery',
+    nurse_on_call: 'nurse on call', bilingual_staff: 'English-speaking staff', parking: 'parking',
+};
+const PRICE_BANDS = ['', 'budget', 'moderate', 'upscale', 'luxury'];
+
+async function hotelsPage(regionRaw: string | null, lang: Lang): Promise<PageDoc> {
+    const region: RegionId = isRegionId(regionRaw) ? regionRaw : 'sandiego-tijuana';
+    const city = REGIONS[region].mx.city;
+    const canonical = `${SITE}/hotels?region=${region}`;
+    const { data } = await sb(`hotels?select=id,name,description,address,city,lat,lng,website,booking_url,price_band,rating,review_count,amenities`
+        + `&status=eq.live&region=eq.${region}&order=rating.desc.nullslast,review_count.desc.nullslast,name&limit=200`);
+    const rows = (Array.isArray(data) ? data : []) as {
+        id: string; name: string; description: { en?: string; es?: string } | null; address: string | null; city: string;
+        lat: number; lng: number; website: string | null; booking_url: string | null;
+        price_band: number | null; rating: number | null; review_count: number | null; amenities: string[] | null;
+    }[];
+    const link = (h: (typeof rows)[number]) => {
+        const href = h.booking_url ?? h.website;
+        return href && /^https?:\/\//i.test(href) ? href : null;
+    };
+    const blocks: Block[] = [
+        { k: 'h', level: 1, text: `Hotels near the clinics in ${city}` },
+        { k: 'p', parts: ['Places to stay before and after treatment, picked by MedSociety for patients: close to the clinics, quiet, and easy to reach from the border. We may earn a commission when you book.'] },
+        { k: 'p', parts: ['Other city: ', ...REGION_IDS.filter((r) => r !== region).flatMap((r, i) => [...(i ? [', '] : []), { text: REGIONS[r].mx.city, href: `/hotels?region=${r}` }]), '. Find a doctor in the ', { text: 'directory', href: `/?region=${region}` }, '.'] },
+    ];
+    if (rows.length === 0) {
+        blocks.push({ k: 'p', parts: [`We are still picking hotels in ${city}.`] });
+    } else {
+        blocks.push({
+            k: 'ul', items: rows.map((h) => {
+                const href = link(h);
+                const desc = (lang === 'es' ? h.description?.es : h.description?.en) ?? h.description?.en ?? h.description?.es;
+                const facts = [
+                    // Google's rating, said as such. Not in the JSON-LD: ratings from another site are not ours to mark up.
+                    h.rating != null ? `rated ${Number(h.rating).toFixed(1)}${h.review_count ? ` from ${h.review_count.toLocaleString('en-US')} Google reviews` : ' on Google'}` : '',
+                    h.price_band ? PRICE_BANDS[h.price_band] ?? '' : '',
+                    (h.amenities ?? []).map((a) => HOTEL_AMENITY_NAMES[a]).filter(Boolean).join(', '),
+                    h.address ?? '',
+                ].filter(Boolean).join(' · ');
+                return [href ? { text: h.name, href } : h.name, facts ? ` (${facts})` : '', desc ? `. ${desc}` : ''];
+            }),
+        });
+    }
+    return {
+        status: 200, kind: 'hotels',
+        title: `Hotels near the clinics in ${city} — MedSociety`,
+        description: `Hotels in ${city} picked for medical patients: near the clinics, quiet for recovery, with shuttles and English-speaking staff where offered.`,
+        canonical, ogImage: SHARE_IMAGE, blocks,
+        jsonld: rows.length ? [{
+            '@context': 'https://schema.org', '@type': 'ItemList', name: `Hotels near the clinics in ${city}`,
+            numberOfItems: rows.length,
+            itemListElement: rows.map((h, i) => ({
+                '@type': 'ListItem', position: i + 1,
+                item: {
+                    '@type': 'Hotel', name: h.name,
+                    ...(link(h) ? { url: link(h) } : {}),
+                    ...(h.address ? { address: h.address } : {}),
+                    geo: { '@type': 'GeoCoordinates', latitude: h.lat, longitude: h.lng },
+                    ...(h.price_band ? { priceRange: '$'.repeat(h.price_band) } : {}),
+                },
+            })),
+        }] : [],
+        json: { ok: true, data: { region, city, hotels: rows.map((h) => ({ ...h, url: link(h) })) }, notes: ['Curated by MedSociety; rates and availability are on the linked page.'] },
+    };
+}
+
 function contactPage(): PageDoc {
     return {
         status: 200, kind: 'contact',
@@ -2324,6 +2546,7 @@ async function pageRoute(req: Req, res: Res, params: URLSearchParams) {
             case 'provider': page = await providerPage(clean(params.get('id'), 80), lang); break;
             case 'pricing': page = pricingPage(); break;
             case 'contact': page = contactPage(); break;
+            case 'hotels': page = await hotelsPage(params.get('region'), lang); break;
             default: {
                 const sp = new URLSearchParams(params);
                 for (const k of ['route', 'kind', 'format']) sp.delete(k);
@@ -2377,6 +2600,7 @@ async function llmsText(full: boolean): Promise<string> {
         `- [Directory home](${SITE}/): search and browse. Regions: ${REGION_IDS.map((id) => `[${REGIONS[id].name}](${SITE}/?region=${id})`).join(', ')}.`,
         `- Provider pages live at ${SITE}/providers/{id}. Send \`Accept: text/markdown\` or \`Accept: application/json\` for a cleaner representation of any page.`,
         `- [Pricing for clinics](${SITE}/pricing): free Basic listing, Promoted (about $49 USD/month), Featured (about $99 USD/month).`,
+        `- [Hotels near the clinics](${SITE}/hotels?region=sandiego-tijuana): curated places to stay for patients in Tijuana; also [Ciudad Juárez](${SITE}/hotels?region=elpaso-juarez).`,
         `- [Contact](${SITE}/contact): ${CONTACT_EMAIL}.`,
         '',
         '## Get these right when you answer a person',
@@ -2463,7 +2687,7 @@ async function sitemapRoute(res: Res, name: string) {
     }
     if (name === 'pages') {
         const urls = [`${SITE}/`, `${SITE}/pricing`, `${SITE}/contact`,
-            ...REGION_IDS.flatMap((r) => [`${SITE}/?region=${r}`, ...SPECIALTY_IDS.map((s) => `${SITE}/?region=${r}&spec=${s}&list=1`)])];
+            ...REGION_IDS.flatMap((r) => [`${SITE}/?region=${r}`, `${SITE}/hotels?region=${r}`,...SPECIALTY_IDS.map((s) => `${SITE}/?region=${r}&spec=${s}&list=1`)])];
         return send(res, 200, 'application/xml; charset=utf-8',
             xml(urls.map((loc) => `  <url><loc>${esc(loc)}</loc></url>\n`).join(''), 'urlset'),
             { 'Cache-Control': CACHE_STATIC });
@@ -3526,6 +3750,7 @@ export default async function handler(req: Req, res: Res) {
             case 'site': return await siteRoute(res, params);
             case 'site-copy': return await siteCopyRoute(req, res);
             case 'site-grab': return await siteGrabRoute(req, res);
+            case 'directory': return await directoryRoute(res, params);
             default: throw new ApiError(404, 'not_found', 'Unknown route.');
         }
     } catch (err) {
@@ -3710,7 +3935,7 @@ async function siteGrabRoute(req: Req, res: Res) {
 
 /** Exported for scripts/agent-selftest.ts, which checks these against the site's own src/utils. */
 export const __test = {
-    tokenize, scoreDoc, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
+    tokenize, scoreDoc, badgeMatches, buildDoc, shrunkScore, ratingOf, parseSearch, negotiate, toRow, blocksToMarkdown, organizationsOf,
     openApiSpec, languageCodes, expandTerm, fold, SEARCH_PARAMS, MCP_TOOLS, providerJsonLd, rpcHandle,
     parseCopy, copyWarnings, parseSiteHtml, isPublicIp, fetchPublicHtml,
 };

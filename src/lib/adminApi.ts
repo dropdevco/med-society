@@ -124,16 +124,25 @@ export interface MatchCandidate {
     doctor_id: string; display_name: string; similarity: number;
     regions: string[]; listings: string[]; specialties: string[];
 }
+/** The AI scorer's latest view of a queued item (docs/adr/0012). Evidence for the reviewer, never a decision. */
+export interface AiScore {
+    score: number; verdict: 'approve' | 'reject' | 'needs_human'; reason: string;
+    /** The doctor or listing it judged most likely, or the proposed one when it found none. */
+    candidate: string; model: string; scored_at: string; run: string;
+}
 export interface MatchItem {
     source_slug: string; external_id: string; tier: number; confidence: number | null; candidates: MatchCandidate[];
     name: string; label: string; specialties: string[]; cedulas: string[]; region: string | null; url: string | null;
     valid_to: string | null; facts: { consejo?: string; certificate?: string } | null;
+    /** Absent before migration 0051, null when the item has not been scored. */
+    ai_score?: AiScore | null;
 }
 export interface MatchQueue { total: number; exact: number; items: MatchItem[] }
 export interface FacilityCandidate { provider_id: string; name: string; similarity: number; region: string | null }
 export interface FacilityItem {
     source_slug: string; external_id: string; provider_id: string | null; confidence: number | null; candidates: FacilityCandidate[];
     name: string; label: string; region: string | null; url: string | null; valid_to: string | null; facts: { register?: string } | null;
+    ai_score?: AiScore | null;
 }
 export interface FacilityQueue { total: number; items: FacilityItem[] }
 export interface SourceOverview {
@@ -148,6 +157,32 @@ export const fetchMatchQueue = (source: string | null, limit: number, offset: nu
 export const decideMatch = (source: string, external: string, decision: 'confirm' | 'reject', doctor?: string) =>
     rpc<void>('admin_match_decide', { p_source: source, p_external: external, p_decision: decision, p_doctor: doctor ?? null });
 export const confirmExactMatches = (source: string) => rpc<number>('admin_match_confirm_exact', { p_source: source });
+/** One record beside each candidate doctor (migration 0055). */
+export interface CompareCandidate {
+    doctor_id: string; display_name: string; similarity: number | null; linked: boolean;
+    cedulas: { cedula: string; title: string | null; kind: string | null }[];
+    listings: { id: string; name: string; city: string | null; region: string | null; specialty: string[] | null; kind: string | null }[];
+    badges: { organization: string; label: string | null; source: string }[];
+}
+export interface MatchCompare {
+    status: string; tier: number; confidence: number | null; doctor_id: string | null;
+    record: { name: string; label: string | null; specialties: string[] | null; cedulas: string[] | null; region: string | null;
+        url: string | null; valid_to: string | null; facts: Record<string, string> | null } | null;
+    candidates: CompareCandidate[];
+    ai: (AiScore & { evidence: unknown }) | null;
+    link: { doctor_id: string; score: number; run: string; linked_at: string } | null;
+}
+export const fetchMatchCompare = (source: string, external: string) =>
+    rpc<MatchCompare | null>('admin_match_compare', { p_source: source, p_external: external });
+/** A record the AI scored near the auto-link bar, or a cédula conflict (migration 0055). */
+export interface NearBarItem {
+    source_slug: string; external_id: string; score: number; verdict: AiScore['verdict']; reason: string; scored_at: string; run: string;
+    status: 'probable' | 'confirmed'; tier: number; name: string; label: string | null; region: string | null; candidate: string | null; linked: boolean;
+}
+export const fetchNearBar = (sinceDays = 14) =>
+    rpc<NearBarItem[]>('review_near_bar', { p_since: new Date(Date.now() - sinceDays * 86_400_000).toISOString(), p_limit: NEAR_BAR_LIMIT });
+/** The function's own ceiling; a list this long is cut, and the panel says so. */
+export const NEAR_BAR_LIMIT = 500;
 export const fetchFacilityQueue = () => rpc<FacilityQueue>('admin_facility_queue', { p_limit: 200, p_offset: 0 });
 export const decideFacility = (source: string, external: string, decision: 'confirm' | 'reject', provider?: string) =>
     rpc<void>('admin_facility_decide', { p_source: source, p_external: external, p_decision: decision, p_provider: provider ?? null });

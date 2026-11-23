@@ -3,6 +3,7 @@
     "askDoctor": "Ask a Doctor",
     "medSociety": "Med Society",
     "findProviders": "Find doctors & clinics",
+    "hotels": "Hotels",
     "forProviders": "For Providers",
     "toggleTheme": "Toggle theme",
     "switchToSpanish": "Cambiar a Español",
@@ -38,6 +39,9 @@
     "elPasoHint": "Texas, United States",
     "anyCover": "Any insurance",
     "coverCount": "{{count}} insurers",
+    "coverPopular": "Most accepted",
+    "coverUs": "US insurers",
+    "coverAll": "All insurers, A–Z",
     "zipLabel": "ZIP",
     "zipApply": "Go",
     "submit": "Search",
@@ -72,6 +76,7 @@
     "insuranceSearch": "Find an insurer",
     "noInsurers": "No insurers match",
     "languageGroup": "Language",
+    "orgGroup": "Hospitals and organizations",
     "availabilityGroup": "Availability",
     "verified": "Verified credentials",
     "priceGroup": "Price",
@@ -270,7 +275,8 @@
     "footer": "© {{year}} MedSociety · Medical care across the US–Mexico border"
   },
   "contact": {
-    "title": "Contact us"
+    "title": "Contact us",
+    "pageTitle": "Contact — MedSociety"
   },
   "footer": {
     "copyright": "© {{year}} MedSociety · Medical care across the US–Mexico border",
@@ -384,7 +390,9 @@
         "body": "Where you show up in search, maps and AI assistants, how you compare with the clinics near you, and what to fix first. Included quarterly with Featured."
       }
     },
-    "basicF5": "A monthly email with how many people viewed your profile"
+    "basicF5": "A monthly email with how many people viewed your profile",
+    "pageTitle": "Plans and pricing for clinics — MedSociety",
+    "pageDescription": "List your clinic free on MedSociety, or get promoted or featured to reach patients across the US–Mexico border. No setup fee, no contract."
   },
   "account": {
     "kindTitle": "This listing is",
@@ -753,12 +761,18 @@
     "subscribe": "Subscribe",
     "subscribeBusy": "Opening secure payment…",
     "subscribeFor": "{{plan}} for {{clinic}}",
-    "securePay": "You pay on our secure payment page. Keep the email {{email}} so your plan switches on automatically.",
+    "securePay": "You pay on Stripe's secure payment page. Your plan switches on automatically; we send the receipt to {{email}}.",
     "paidWaiting": "Payment received. We are switching your plan on, which usually takes under a minute.",
     "paidDone": "Your {{plan}} plan is active. Thank you!",
     "paidSlow": "Your payment has not shown up yet. It can take a few minutes. If your plan is not active within the hour, write to hello@medsociety.one and we will fix it right away.",
     "cancelHelp": "To cancel or change your plan, contact us. It takes effect at the end of the month you have paid for.",
     "checkoutFailed": "Could not open the payment page. Please try again.",
+    "managePlan": "Manage plan",
+    "manageBusy": "Opening your billing page…",
+    "manageHelp": "Switch between plans, update your card, see your invoices or cancel, all on Stripe's secure billing page. Upgrades are charged for the days that remain; a downgrade or a cancellation takes effect at the end of the month you have paid for.",
+    "portalFailed": "Could not open your billing page. Please try again.",
+    "alreadySubscribed": "This listing already has a paid plan. Use Manage plan to change it.",
+    "ownerOnlyBilling": "Only the listing's owner can buy or change its plan.",
     "plan": {
       "listing": "Listing in the directory and on the map",
       "manage": "Edit your own profile, photos and hours",
@@ -887,10 +901,7 @@
   },
   "reviews": {
     "patient": "Patient",
-    "translated": "Translated",
-    "sourceDoctoralia": "From Doctoralia",
-    "sourceDoctoraliaOf": "From Doctoralia · latest {{shown}} of {{total}}",
-    "sourceGoogle": "From Google · 4 stars and up"
+    "translated": "Translated"
   },
   "inquiry": {
     "doctorLabel": "Doctor (optional)",
@@ -1389,5 +1400,61 @@
     "showAll": "Show all {{count}}",
     "showFewer": "Show fewer",
     "practisesAt": "Practises at"
+  },
+  "hotels": {
+    "stayNearby": "Stay nearby",
+    "seeAll": "All hotels in {{city}}",
+    "distanceFrom": "{{distance}} from {{name}}",
+    "checkRates": "Check rates",
+    "disclosure": "Hotels picked by MedSociety for patients. We may earn a commission when you book.",
+    "amenitiesLabel": "Amenities",
+    "pageTitle": "Hotels near the clinics in {{city}}",
+    "pageSubtitle": "Places to stay before and after treatment, picked for patients: close to the clinics, quiet, and easy to reach from the border.",
+    "regionLabel": "City",
+    "filtersLabel": "Filter hotels",
+    "sortedNear": "Sorted by distance from {{name}}.",
+    "backToProvider": "Back to the profile",
+    "loading": "Loading hotels…",
+    "error": "Hotels could not be loaded. Please try again in a moment.",
+    "emptyRegion": "We are still picking hotels in {{city}}. Check back soon.",
+    "emptyFiltered": "No hotel matches these filters.",
+    "price": {
+      "1": "Budget",
+      "2": "Moderate",
+      "3": "Upscale",
+      "4": "Luxury"
+    },
+    "amenity": {
+      "clinic_shuttle": "Clinic shuttle",
+      "airport_shuttle": "Airport shuttle",
+      "border_shuttle": "Border shuttle",
+      "accessible": "Accessible",
+      "kitchenette": "Kitchenette",
+      "quiet_recovery": "Quiet for recovery",
+      "nurse_on_call": "Nurse on call",
+      "bilingual_staff": "English-speaking staff",
+      "parking": "Parking"
+    },
+    "googleReviews_one": "{{formatted}} Google review",
+    "googleReviews_other": "{{formatted}} Google reviews",
+    "checkin": "Check-in",
+    "checkout": "Check-out",
+    "datesSet": "Rates on Booking.com open for these dates.",
+    "datesHint": "Add your dates to see rates for your stay, or leave them empty and pick them on Booking.com.",
+    "searchLabel": "Search hotels",
+    "whereLabel": "Where",
+    "searchButton": "Search hotels",
+    "rowTitle": "Hotels near the clinics in {{city}}",
+    "rowSubtitle": "Stay close to your doctor, picked for patients.",
+    "tabsLabel": "What are you looking for?",
+    "tabCare": "Doctors & clinics",
+    "tabHotels": "Hotels"
+  },
+  "pageNotFound": {
+    "pageTitle": "Page not found — MedSociety",
+    "title": "We couldn’t find that page",
+    "body": "The link may be old or mistyped. You can search doctors and clinics, or look at hotels near the clinics.",
+    "directory": "Find doctors & clinics",
+    "hotels": "Hotels near the clinics"
   }
 }

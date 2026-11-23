@@ -11,6 +11,8 @@ const GROUP_OF: Record<ProviderBadge['kind'], BadgeGroup> = {
     hospital: 'affiliation',
     colegio: 'affiliation',
     association: 'affiliation',
+    cluster: 'affiliation',
+    wellness_center: 'affiliation',
     regulator: 'facility',
     accreditor: 'facility',
 };
@@ -54,6 +56,17 @@ export function currentBadges(raw: unknown, day = today()): ProviderBadge[] {
     if (!Array.isArray(raw)) return [];
     return raw.filter((b): b is ProviderBadge => !!b && typeof b === 'object' && (typeof b.valid_to !== 'string' || b.valid_to >= day));
 }
+
+/** Names for the `org=` filter chip, which shows before any listing has loaded. Unknown slugs fall back to the slug. */
+const ORG_NAMES: Record<string, string> = {
+    'hospital-angeles': 'Hospital Ángeles',
+    starmedica: 'Star Médica',
+    conacem: 'CONACEM',
+    'coepris-bc': 'COEPRIS Baja California',
+    'padron-salud-bc': 'Padrón Estatal de Salud',
+    'baja-health-cluster': 'Baja Health Cluster',
+};
+export const orgName = (slug: string) => ORG_NAMES[slug] ?? slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 export const AFFILIATIONS_ON_CARD = 2;
 

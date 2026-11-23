@@ -37,8 +37,9 @@ What exists today:
   clinician. Linking never lets a clinic edit a doctor's listing, and a doctor invited to own theirs still goes
   through claim review. See [docs/clinics.md](docs/clinics.md) and ADR 0013. **Database side of 0020b is in
   production; 0049 and the UI are on `feat/clinic-pages`, not applied or deployed.**
-- **Paid plans.** Promoted (US$49) and Featured (US$99) sold through GHL payment links, turned into a listing
-  tier by `api/billing.ts` and migration `0029`. Still in GHL **test mode**.
+- **Paid plans.** Promoted (US$49 / MX$899) and Featured (US$99 / MX$1,799) sold through Stripe Checkout and
+  managed in the Stripe customer portal, turned into a listing tier by `api/billing.ts` (migrations `0029`,
+  `0053`). GHL stays the CRM. Setup and go-live steps: `docs/stripe-billing.md`.
 - **Patient messages.** A signed-in patient sends one-way questions to a clinic (`api/inquiry.ts`). There is
   no conversation, inbox or reply yet. 0 messages sent in production so far.
 - **Forums.** "Ask a Doctor" (patients) and "Med Society" (clinicians only), deployed but unlisted.
@@ -59,7 +60,7 @@ trip planning.
 | Paid plans + PostHog analytics | In production (PRs #4, #5); payments in test mode |
 | Contact lockdown (migrations 0032, 0033) | In production, migrations applied (PRs #6, #7) |
 | Survey state dropdown | In production (`9cb3e81`) |
-| Doctor analytics (Insights, report e-mails) and the agent surface | Open **PR #8**, not deployed. Migration 0031 is already applied to production |
+| Doctor analytics (Insights, report e-mails) and the agent surface | In production (PR #8 merged 27 Oct). Migrations 0031 and 0048 (`0048_stats_collecting_since`) applied. **Collecting real events only since 17 Nov 2026**: until PR #27 the `/ingest` proxy dropped PostHog's slash-ending calls, so nothing from the live site reached PostHog. Nightly sync verified end to end on 17 Nov. See `docs/doctor-analytics.md` |
 | `/research` defaults to the Spanish provider survey | Open **PR #9** |
 | Feedback widget + admin tab | Committed on `feat/feedback-widget`; the files also sit uncommitted in this working tree. Migration 0030 is applied. Not deployed |
 | Feedback auto-fix (draft PRs) | Built on `claude/relaxed-raman-6cb1a4`, migration numbered `0033_feedback_autofix.sql`, **not applied**. It clashes with the existing `0033_providers_grant_hardening.sql`, so renumber it before merging. Off until `FEEDBACK_AUTOFIX=on`. See `docs/feedback-autofix.md` on that branch |
@@ -114,7 +115,7 @@ src/
   components/admin/          admin tabs (Billing, Feedback, Directory, Forms, Clinic lookup)
   components/feedback/       the Feedback widget
   hooks/useProviders.ts      loads one region, owns filters as URL params, search index and facets
-  lib/                       supabase, auth, billing (payment links), inquiries, forum, providerRead,
+  lib/                       supabase, auth, billing (Stripe checkout/portal), inquiries, forum, providerRead,
                              adminApi, posthog, clientErrors, webmcp
   utils/                     region, search, filters, facets, rating, images, searchTerms (analytics
                              dictionary), structuredData, profileCompleteness
@@ -128,7 +129,10 @@ docs/                        agent-integration, doctor-analytics, ghl-billing-wo
 ### Search and the region model
 
 `useProviders` loads **one region** from the lean view `provider_list` and keeps `?region=` in the URL.
-Picking a place in the other region switches immediately. Heavy Doctoralia fields live in `provider_details`
+Picking a place in the other region switches immediately. The rows arrive in 8 parts from `/api/directory/:region/:part`
+(Vercel's CDN cache, 5 minutes). On a cache miss the function reads `directory_snapshot`, a ready-made copy of each part
+that pg_cron rebuilds every 5 minutes (migration 0057), and pages `provider_list` only when that copy is missing or has
+not been confirmed for 20 minutes. Every deploy empties the CDN cache, so the miss path is the one first visitors see. Heavy Doctoralia fields live in `provider_details`
 (migration 0020), reviews come from `provider_reviews()` (0027, names abbreviated in SQL). Filters live in the
 URL (`parseFilters` / `serializeFilters`), which decides discover-versus-results mode and makes searches
 shareable; do not add a parallel filter state.
@@ -222,8 +226,8 @@ npx tsx scripts/images-selftest.ts
 - **Read leads:** `npx tsx --env-file=.env.local scripts/list-leads.ts [status]`.
 - **Survey numbers:** `npx tsx --env-file=.env.local scripts/form-stats.ts [daily|sources|audience|visitors|events]`,
   or the `form_*` views in the Supabase SQL editor.
-- **Billing:** the admin Billing tab shows plans, unmatched payments and test-mode rehearsal. Setup of the two
-  GHL workflows is in `docs/ghl-billing-workflows.md`.
+- **Billing:** the admin Billing tab shows plans and unmatched payments. Stripe setup, webhook and go-live order
+  are in `docs/stripe-billing.md`; the old GHL payment workflows in `docs/ghl-billing-workflows.md`.
 - **Probe a deploy safely:** POST `{}` to `/api/inquiry`; the new code answers 401, old code 400 `bad_name`.
   Never POST a valid body to production: it stores a real message and e-mails the team.
 
@@ -247,7 +251,7 @@ npx tsx scripts/images-selftest.ts
   placeholder view count from `profileViews()`.
 - **Postgres lowercases unquoted column names.** `normalizeProvider` re-maps `googleplaceid`, `reviewcount`,
   `imageurl`, `postalcode`, `pricefrommxn`. A new camelCase field needs a fallback there.
-- **Supabase caps a select at 1,000 rows;** `useProviders` pages with `.range()`.
+- **Supabase caps a select at 1,000 rows;** the direct fallback in `useProviders` pages by id (keyset), never by offset.
 - **Silent fallback to mock data** when Supabase is unreachable or empty (console warning only).
 - **Photos are filtered.** Use `portraitUrl()`; a shared Doctoralia "no photo" banner is rejected there. Legacy
   Doctoralia S3 paths have `_small` at 68 px, so `src/utils/images.ts` serves larger files only to 2x screens.

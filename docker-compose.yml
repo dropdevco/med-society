@@ -20,6 +20,10 @@ services:
   scheduler:
     <<: *sources
     entrypoint: ["node", "--import", "tsx", "scripts/sources/schedule.ts"]
+    environment:
+      # Load each green run into the database, so a weekly run renews, adds and lapses badges.
+      # Without it the timer only reads the sources. Needs SUPABASE_SERVICE_ROLE_KEY in the env file.
+      SOURCES_LOAD: "1"
     restart: unless-stopped
 
   # Read-only health page. Published on this machine's loopback only, never the network.

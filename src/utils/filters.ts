@@ -1,6 +1,6 @@
 import type { Provider, ProviderFilters, SortMode, Specialty } from '../types/provider';
 import type { SearchDoc } from './search';
-import { scoreDoc } from './search';
+import { badgeMatches, scoreDoc } from './search';
 import { distanceKm, DEFAULT_RADIUS_KM } from './geo';
 import { shrunkScore, isRated } from './rating';
 import { DEFAULT_REGION, type RegionId } from './region';
@@ -15,6 +15,7 @@ export const defaultFilters: ProviderFilters = {
     minRating: 0,
     insurances: [],
     languages: [],
+    orgs: [],
     verifiedOnly: false,
     withPricing: false,
     maxPriceMxn: null,
@@ -59,6 +60,7 @@ export function countActiveFilters(filters: ProviderFilters): number {
     n += filters.specialty.length;
     n += filters.insurances.length;
     n += filters.languages.length;
+    n += filters.orgs.length;
     if (filters.country) n++;
     if (filters.minRating > 0) n++;
     if (filters.postalCode) n++;
@@ -183,6 +185,11 @@ export function matchesFilters(
         if (!filters.languages.some((l) => held.includes(l))) return false;
     }
 
+    // Groups: a confirmed, unexpired badge from any chosen organization (expired ones are dropped on read).
+    if (!skipped('orgs') && filters.orgs.length) {
+        if (!(p.badges ?? []).some((b) => filters.orgs.includes(b.org))) return false;
+    }
+
     /**
      * Filters on the licence, not on the plan.
      *
@@ -228,6 +235,7 @@ export function applyFilters(
 ): Provider[] {
     const scores = new Map<string, number>();
     const distances = new Map<string, number>();
+    const badged = new Set<string>();
     const sort = effectiveSort(filters, ctx);
 
     const kept: Provider[] = [];
@@ -240,6 +248,7 @@ export function applyFilters(
             const score = doc ? scoreDoc(doc, ctx.terms) : 0;
             if (score === 0) continue;
             scores.set(p.id, score);
+            if (doc && badgeMatches(doc, ctx.terms)) badged.add(p.id);
         }
 
         if (ctx.centre) {
@@ -288,6 +297,14 @@ export function applyFilters(
         // Featured is "first position in your category", so it sits above Promoted.
         const placement = (p: Provider) => (p.tier === 'featured' ? 2 : p.promoted ? 1 : 0);
         if (placement(a) !== placement(b)) return placement(b) - placement(a);
+
+        // Then doctors holding a badge from the organization the query names:
+        // "Hospital Angeles" shows the doctors who practise there before the
+        // hospital's own listings, whose names would otherwise outscore them.
+        if (sort === 'relevance' && badged.size) {
+            const d = (badged.has(b.id) ? 1 : 0) - (badged.has(a.id) ? 1 : 0);
+            if (d !== 0) return d;
+        }
 
         switch (sort) {
             case 'relevance': {

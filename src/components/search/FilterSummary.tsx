@@ -1,3 +1,4 @@
+import { orgName } from '../../utils/orgBadges';
 import { useTranslation } from 'react-i18next';
 import type { ProviderFilters, SortMode, Specialty } from '../../types/provider';
 import { IconClose, IconMapPin, IconSliders, IconChevronDown } from '../icons/Icons';
@@ -171,6 +172,14 @@ export function FilterSummary({
                             key={i}
                             label={i}
                             onRemove={() => updateFilter('insurances', remove(filters.insurances, i))}
+                        />
+                    ))}
+
+                    {filters.orgs.map((o) => (
+                        <FilterChip
+                            key={`org:${o}`}
+                            label={orgName(o)}
+                            onRemove={() => updateFilter('orgs', remove(filters.orgs, o))}
                         />
                     ))}
 

@@ -6,14 +6,15 @@
 /** Same ids as src/utils/region.ts. A copy, because scripts/ runs without the app. */
 export type RegionId = 'elpaso-juarez' | 'sandiego-tijuana';
 
-export type OrganizationKind = 'hospital' | 'consejo' | 'colegio' | 'association' | 'regulator' | 'accreditor';
+export type OrganizationKind = 'hospital' | 'consejo' | 'colegio' | 'association' | 'cluster' | 'wellness_center' | 'regulator' | 'accreditor';
 
 /** One page the adapter reads per run. */
 export interface Target {
     key: string;
     label: string;
     url: string;
-    region: RegionId;
+    /** null: a worldwide list (GHA, JCI); each entry then carries its own region, or none. */
+    region: RegionId | null;
 }
 
 /** Where a listed doctor practises, as the source shows it. */
@@ -35,7 +36,12 @@ export interface SourceEntry {
     /** Cédula numbers when the source shows them: the match key (docs/adr/0004). */
     cedulas: string[];
     sites: EntrySite[];
-    region: RegionId;
+    /**
+     * Our region, or null for a record outside both (a JCI hospital in Bangkok). Such
+     * records are still stored, so the whole list is kept; they are just never matched
+     * to a listing.
+     */
+    region: RegionId | null;
     url: string;
     photoUrl: string | null;
     /** Source-specific facts kept as published (e.g. CONACEM's split name and validity dates). */
@@ -90,8 +96,12 @@ export interface SourceAdapter {
     slug: string;
     name: string;
     kind: OrganizationKind;
-    /** What a record describes. Default 'doctor'; a 'facility' badge sits on the listing (docs/adr/0008). */
-    entity?: 'doctor' | 'facility';
+    /**
+     * What a record describes. Default 'doctor'; a 'facility' badge sits on the listing
+     * (docs/adr/0008). 'watch': the records are only kept so new ones can be flagged;
+     * they are never matched and never become badges.
+     */
+    entity?: 'doctor' | 'facility' | 'watch';
     /** docs/adr/0002: only `open`, or `permission` with the letter recorded. */
     access: 'open' | 'permission';
     permission?: Permission;

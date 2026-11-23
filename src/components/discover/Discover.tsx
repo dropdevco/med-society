@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { Fragment, useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Provider, ProviderFilters } from '../../types/provider';
 import type { DiscoverRow } from '../../utils/discover';
@@ -11,6 +11,8 @@ interface DiscoverProps {
     onSelect: (p: Provider) => void;
     /** Applies the row's filters, which flips the page into results mode. */
     onSeeAll: (patch: Partial<ProviderFilters>) => void;
+    /** Shown after the first row (or first, when there are no rows): the hotels row. */
+    afterFirst?: React.ReactNode;
 }
 
 /**
@@ -22,7 +24,7 @@ interface DiscoverProps {
  * something: real providers, real photos, and each row is a search they can
  * step into with one click.
  */
-export function Discover({ rows, loading, onSelect, onSeeAll }: DiscoverProps) {
+export function Discover({ rows, loading, onSelect, onSeeAll, afterFirst }: DiscoverProps) {
     if (loading) {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2.75rem' }}>
@@ -50,8 +52,12 @@ export function Discover({ rows, loading, onSelect, onSeeAll }: DiscoverProps) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2.75rem' }}>
+            {rows.length === 0 && afterFirst}
             {rows.map((row, rowIndex) => (
-                <Row key={row.id} row={row} rowIndex={rowIndex} onSelect={onSelect} onSeeAll={onSeeAll} />
+                <Fragment key={row.id}>
+                    <Row row={row} rowIndex={rowIndex} onSelect={onSelect} onSeeAll={onSeeAll} />
+                    {rowIndex === 0 && afterFirst}
+                </Fragment>
             ))}
         </div>
     );

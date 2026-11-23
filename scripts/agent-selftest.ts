@@ -14,7 +14,8 @@
  *   npx tsx scripts/agent-selftest.ts
  */
 import handler, { __test } from '../api/agent';
-import { buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
+import { applyFilters, defaultFilters } from '../src/utils/filters';
+import { badgeMatches as siteBadgeMatches, buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
 import { ratingOf as siteRatingOf, shrunkScore as siteShrunk } from '../src/utils/rating';
 import { providerJsonLd as siteJsonLd } from '../src/utils/structuredData';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
@@ -66,6 +67,8 @@ const SHELL = '<!doctype html><html lang="en"><head><title>Old</title>\n<meta na
 
 let failList = false;
 let calls: string[] = [];
+/** What /rest/v1/directory_snapshot returns; null = the table does not exist. */
+let snapshot: { rows: unknown; row_count: number; checked_at: string }[] | null = null;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(`${init?.method ?? 'GET'} ${url}`);
@@ -75,6 +78,11 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         headers: { 'content-type': 'application/json', ...(total !== undefined ? { 'content-range': `0-0/${total}` } : {}) },
     });
     if (url.endsWith('/index.html')) return new Response(SHELL, { status: 200 });
+    if (url.includes('/rest/v1/directory_snapshot')) {
+        // null = migration 0057 not applied: PostgREST answers 404 for an unknown table.
+        if (snapshot === null) return new Response('{"code":"42P01"}', { status: 404 });
+        return json(snapshot);
+    }
     if (url.includes('/rest/v1/provider_list')) {
         const region = /region=eq\.([a-z-]+)/.exec(url)?.[1];
         const rows = region === 'elpaso-juarez' ? JUAREZ : region === 'sandiego-tijuana' ? LIST : [...LIST, ...JUAREZ];
@@ -82,7 +90,12 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
             const m = /offset=(\d+)/.exec(url);
             return json(rows.slice(Number(m?.[1] ?? 0)).map((r) => ({ id: r.id })), rows.length);
         }
-        return json(rows, rows.length);
+        // Honour the keyset bounds the way Postgres would, so a slice reads only its own rows.
+        const gt = /id=gt\.([0-9a-f-]+)/.exec(url)?.[1];
+        const lt = /id=lt\.([0-9a-f-]+)/.exec(url)?.[1];
+        const lim = Number(/limit=(\d+)/.exec(url)?.[1] ?? 1e9);
+        const kept = rows.filter((r) => (!gt || r.id > gt) && (!lt || r.id < lt)).sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, lim);
+        return json(kept, rows.length);
     }
     if (url.includes('/rest/v1/providers?')) {
         // The table grant hides contact columns from the anon key; a regression
@@ -93,6 +106,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const id = (JSON.parse(String(init?.body ?? '{}')) as { p_id?: string }).p_id;
         const other = LIST.find((r) => r.id === id);
         return json(id === FULL.id ? FULL : other ? { ...other, services: [], status: 'live' } : null);
+    }
+    if (url.includes('/rest/v1/hotels?')) {
+        // Made-up hotels. Only published rows of the asked region may be requested.
+        if (!url.includes('status=eq.live')) return new Response('drafts must never be read', { status: 400 });
+        const region = /region=eq\.([a-z-]+)/.exec(url)?.[1];
+        return json(region === 'sandiego-tijuana' ? [
+            { id: U(201), name: 'Hotel Prueba <b>x</b>', description: { en: 'Quiet rooms near Zona Río.', es: 'Cuartos tranquilos cerca de Zona Río.' }, address: 'Paseo de Prueba 1', city: 'Tijuana', lat: 32.527, lng: -117.022, website: null, booking_url: 'https://www.booking.com/hotel/mx/prueba.html', price_band: 2, rating: 4.5, review_count: 6373, amenities: ['clinic_shuttle', 'bilingual_staff'] },
+            { id: U(202), name: 'Hostal Sin Liga', description: {}, address: null, city: 'Tijuana', lat: 32.52, lng: -117.01, website: 'javascript:alert(1)', booking_url: null, price_band: null, rating: null, amenities: [] },
+        ] : []);
     }
     if (url.includes('/rpc/provider_reviews')) {
         return json([{ author_label: 'Leticia M.', rating: 5, published_at: '2026-08-01T00:00:00Z', body: 'Muy buena atención', body_es: 'Muy buena atención', body_en: 'Very good care', source_lang: 'es' }]);
@@ -152,6 +174,28 @@ for (const q of queries) {
     if (!parityOk) break;
 }
 check('tokenize / synonym expansion / scoring match src/utils/search.ts', parityOk, parityDetail);
+
+// Ranking: paid placement, then doctors holding a badge from the organization the query names, then the rest.
+{
+    const angeles = { org: 'hospital-angeles', name: 'Hospital Ángeles', kind: 'hospital', label: 'Tijuana', logo: null, url: null, confirmed_at: '2026-11-17', valid_from: null, valid_to: null };
+    const rows = [
+        { ...base, id: U(40), name: 'Hospital Ángeles Tijuana', kind: 'clinic', specialty: ['urgent_care'], rating: 4.9, reviewCount: 900 },
+        { ...base, id: U(41), name: 'Dra. Paz Ibarra', specialty: ['cardiology'], rating: 4, reviewCount: 3, badges: [angeles] },
+        { ...base, id: U(42), name: 'Dr. Paga Mucho', specialty: ['cardiology'], tier: 'featured', promoted: true, verified: true, address: 'Hospital Ángeles, Tijuana' },
+        { ...base, id: U(43), name: 'Clinica Angeles del Mar', kind: 'clinic', specialty: ['dentist'], badges: [angeles] },
+    ];
+    const ps = rows.map(asProvider);
+    const index = buildSearchIndex(ps, labelOf);
+    const docs = new Map(rows.map((r) => [r.id, __test.buildDoc(__test.toRow(r)!)]));
+    const site = (q: string) => applyFilters(ps, { ...defaultFilters, region: 'sandiego-tijuana' }, { index, terms: siteTokenize(q), centre: null, prior: 4.5 }).map((p) => p.id);
+    check('"hospital angeles": paying doctor, then the badged doctor, then the hospital and clinics',
+        JSON.stringify(site('hospital angeles')) === JSON.stringify([U(42), U(41), U(40), U(43)]), site('hospital angeles'));
+    check('a badge name alone makes a doctor findable ("angeles" finds Dra. Ibarra)', site('angeles').includes(U(41)));
+    check('a generic word alone ("hospital") does not lift badged doctors over the hospital', site('hospital')[1] === U(40), site('hospital'));
+    check('clinics never take the badge tier, even holding the badge', !siteBadgeMatches(index.get(U(43))!, ['angeles']));
+    const pairs = ['hospital angeles', 'angeles', 'hospital', 'angeles tijuana', 'cardio'].flatMap((q) => ps.map((p) => [siteBadgeMatches(index.get(p.id)!, siteTokenize(q)), __test.badgeMatches(docs.get(p.id)!, __test.tokenize(q)), siteScoreDoc(index.get(p.id)!, siteTokenize(q)), __test.scoreDoc(docs.get(p.id)!, __test.tokenize(q))]));
+    check('badge matching and badge-name scoring match src/utils/search.ts', pairs.every(([a, b, c, d]) => a === b && Math.abs((c as number) - (d as number)) < 1e-9));
+}
 
 const rated = providers.map((p) => [siteRatingOf(p), __test.ratingOf(p), siteShrunk(p, 4.7), __test.shrunkScore(p, 4.7)]);
 check('ratingOf / shrunkScore match src/utils/rating.ts', rated.every(([a, b, c, d]) => a === b && Math.abs((c as number) - (d as number)) < 1e-12));
@@ -224,6 +268,30 @@ check('priced_only + max_price_mxn', (await rest('providers&max_price_mxn=900').
 check('licensed_only', (await rest('providers&licensed_only=true').then((x) => x.json().pagination.total)) === 1);
 check('country=US', (await rest('providers&country=US').then((x) => x.json().data[0].id)) === U(6));
 check('paging: offset/next_offset', (await rest('providers&region=sandiego-tijuana&limit=2').then((x) => x.json().pagination.next_offset)) === 2);
+// Offset paging made the last page read ~9,000 rows; nine in parallel passed the 3 s anon limit (18 Nov 2026).
+check('directory loads by id (keyset), never by offset', calls.some((c) => c.includes('provider_list?select=*')) && calls.filter((c) => c.includes('provider_list?select=*')).every((c) => !c.includes('offset=') && /order=id&limit=500$/.test(c)));
+// /api/directory reads the ready-made copy (0057) and pages provider_list only without one.
+{
+    const part0 = LIST.filter((p) => p.id < '20000000').sort((a, b) => (a.id < b.id ? -1 : 1));
+    const fresh = new Date(Date.now() - 6 * 60_000).toISOString();
+    const dir = async () => { calls = []; const o = await get('route=directory&region=sandiego-tijuana&part=0'); return { o, b: o.json(), paged: calls.some((c) => c.includes('/rest/v1/provider_list')) }; };
+
+    let d = await dir();
+    check('directory without the snapshot table (0057 not applied) pages provider_list as before', d.o.status === 200 && d.paged && d.b.rows.length === part0.length, { paged: d.paged, n: d.b.rows?.length });
+
+    snapshot = [{ rows: part0, row_count: part0.length, checked_at: fresh }];
+    d = await dir();
+    check('directory serves a fresh snapshot in one read, with no provider_list paging', d.o.status === 200 && !d.paged && JSON.stringify(d.b.rows) === JSON.stringify(part0) && d.b.generatedAt === fresh && d.b.parts === 8, { paged: d.paged });
+    check('directory snapshot keeps the cache header', /s-maxage=300/.test(d.o.headers['cache-control'] ?? ''), d.o.headers);
+
+    snapshot = [{ rows: part0, row_count: part0.length, checked_at: new Date(Date.now() - 25 * 60_000).toISOString() }];
+    check('a snapshot the job stopped confirming (25 min) is ignored', (await dir()).paged);
+    snapshot = [{ rows: part0.slice(1), row_count: part0.length, checked_at: fresh }];
+    check('a snapshot whose rows disagree with its count is ignored', (await dir()).paged);
+    snapshot = [];
+    check('a part with no snapshot row is paged', (await dir()).paged);
+    snapshot = null;
+}
 const near = (await rest('providers&near_postal=22000&radius_km=3&sort=distance')).json();
 check('near_postal centres on providers holding that code and reports distance', near.pagination.total === 5 && typeof near.data[0].distance_km === 'number');
 check('unknown postal code is a clear 400', (await rest('providers&near_postal=99999')).status === 400);
@@ -323,6 +391,22 @@ r = await get('route=page&kind=home');
 check('plain home lists regions and browse links', r.body.includes('Browse San Diego – Tijuana by specialty') && r.body.includes('/openapi.json'));
 r = await get('route=page&kind=home&spec=bogus&list=1');
 check('a bad filter on the home page falls back to the home, with a note, never a 4xx', r.status === 200 && r.body.includes('not a known specialty'));
+r = await get('route=page&kind=hotels&region=sandiego-tijuana', { accept: 'text/html' });
+check('hotels HTML: title, canonical, Hotel JSON-LD, hotels listed', r.status === 200
+    && r.body.includes('<title>Hotels near the clinics in Tijuana — MedSociety</title>')
+    && r.body.includes('rel="canonical" href="https://www.medsociety.one/hotels?region=sandiego-tijuana"')
+    && r.body.includes('"@type":"Hotel"')
+    && r.body.includes('href="https://www.booking.com/hotel/mx/prueba.html"')
+    && r.body.includes('clinic shuttle'));
+check('hotels: hostile names are escaped and a javascript: link is dropped', !r.body.includes('<b>x</b>') && !r.body.includes('javascript:'));
+check('hotels: discloses the commission', /commission/i.test(r.body));
+check('hotels: Google rating is attributed, with the review count, and kept out of the JSON-LD', r.body.includes('rated 4.5 from 6,373 Google reviews') && !r.body.includes('aggregateRating'));
+check('hotels: asks the database for the review count, best rated first', calls.some((c) => c.includes('/rest/v1/hotels?') && c.includes('review_count') && c.includes('order=rating.desc.nullslast,review_count.desc.nullslast')));
+r = await get('route=page&kind=hotels&region=elpaso-juarez', { accept: 'application/json' });
+check('hotels: an empty region says so and returns no hotels', r.status === 200 && r.json().data.hotels.length === 0 && r.json().data.city === 'Ciudad Juárez');
+r = await get('route=page&kind=hotels&region=bogus', { accept: 'application/json' });
+check('hotels: an unknown region falls back to Tijuana, never a 4xx', r.status === 200 && r.json().data.region === 'sandiego-tijuana');
+check('pages sitemap lists the hotels pages', (await get('route=sitemap&name=pages')).body.includes('/hotels?region=elpaso-juarez'));
 failList = true;
 r = await get(`route=page&kind=provider&id=${U(7)}`, { accept: 'text/html' });
 check('database down: the plain app shell is served, so people are never locked out', r.status === 200 && r.body === SHELL, r.status);
