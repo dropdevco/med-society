@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { REGIONS, type RegionId } from '../../utils/region';
+import type { RegionId } from '../../utils/region';
 import { validStay } from '../../utils/hotelLinks';
 import { track } from '../../lib/posthog';
 import { IconSearch } from '../icons/Icons';
 import { StayDates } from './StayDates';
+import { WherePicker } from './WherePicker';
 
 /**
  * The homepage's Hotels tab: which city, which nights, then /hotels with both.
@@ -32,15 +33,7 @@ export function HotelSearchBox({ region }: { region: RegionId }) {
 
     return (
         <form className="ms-hotel-search" role="search" aria-label={t('hotels.searchLabel')} onSubmit={submit}>
-            <label className="ms-hotel-search-city" htmlFor="hotel-search-city">
-                <span>{t('hotels.whereLabel')}</span>
-                <select id="hotel-search-city" value={where} onChange={(e) => setWhere(e.target.value)}>
-                    {(Object.keys(REGIONS) as RegionId[]).flatMap((r) => [
-                        <option key={r} value={r}>{REGIONS[r].mx.city}</option>,
-                        <option key={`${r}:us`} value={`${r}:us`}>{t('hotels.whereUs', { city: REGIONS[r].us.city, mx: REGIONS[r].mx.city })}</option>,
-                    ])}
-                </select>
-            </label>
+            <WherePicker value={where} onChange={setWhere} />
             <StayDates idPrefix="hotel-search" checkin={dates.checkin} checkout={dates.checkout} onChange={setDates} />
             <button type="submit" className="ms-hotel-search-btn press">
                 <IconSearch size={16} weight={2} /> {t('hotels.searchButton')}
