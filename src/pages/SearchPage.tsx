@@ -846,6 +846,14 @@ export function SearchPage() {
                         </div>
                     </section>
 
+                    {vertical === 'hotels' ? (
+                        // The Hotels tab is only hotels: no specialty rail, no doctor rows.
+                        <div className="ms-discover">
+                            <HotelRow region={filters.region} />
+                            <HotelRow region={filters.region} side="us" />
+                        </div>
+                    ) : (
+                        <>
                     <div className="ms-cats-band">
                         <div className="ms-band-inner">
                             <CategoryRail
@@ -866,6 +874,8 @@ export function SearchPage() {
                             afterFirst={<><HotelRow region={filters.region} /><HotelRow region={filters.region} side="us" /></>}
                         />
                     </div>
+                        </>
+                    )}
                 </>
             )}
 
