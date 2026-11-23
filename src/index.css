@@ -2711,3 +2711,26 @@ a.ms-hotel:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px;
 .ms-stay-note { margin: -0.3rem 0 0; font-size: 0.84rem; color: var(--gray-400); }
 .ms-hotels-crossnote { margin: -0.4rem 0 1rem; font-size: 0.84rem; color: var(--gray-400); }
 .ms-hotels-crossnote a { color: inherit; text-decoration: underline; }
+.ms-where { position: relative; flex: 1.2; min-width: 0; padding: 0.35rem 0.8rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.ms-where-label { font-size: 0.7rem; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gray-400); }
+.ms-where-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-width: 0;
+  background: none; border: 0; padding: 0; margin: 0; color: var(--white); font: inherit; text-align: left; cursor: pointer;
+}
+.ms-where-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 6px; }
+.ms-where-value { display: flex; flex-direction: column; min-width: 0; }
+.ms-where-value b, .ms-where-opt b { font-weight: 700; font-size: 1rem; }
+.ms-where-value small, .ms-where-opt small { display: block; font-size: 0.74rem; color: var(--gray-400); font-weight: 500; }
+.ms-where-value small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-where-pop {
+  position: absolute; z-index: 30; top: calc(100% + 0.6rem); left: 0; min-width: min(22rem, 86vw);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 0.4rem;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+.ms-where-list, .ms-where-list ul { list-style: none; margin: 0; padding: 0; }
+.ms-where-group + .ms-where-group { margin-top: 0.3rem; border-top: 1px solid var(--border); padding-top: 0.3rem; }
+.ms-where-group-title { display: block; padding: 0.45rem 0.7rem 0.25rem; font-size: 0.68rem; font-weight: 750; letter-spacing: 0.05em; text-transform: uppercase; color: var(--gray-400); }
+.ms-where-opt { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.55rem 0.7rem; border-radius: 10px; cursor: pointer; color: var(--white); }
+.ms-where-opt.is-active { background: var(--navy-800); }
+.ms-where-opt.is-selected b { color: var(--brand); }
+.ms-where-opt svg { color: var(--brand); flex: none; }
