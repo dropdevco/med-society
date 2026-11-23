@@ -5,20 +5,24 @@ import type { RegionId } from '../utils/region';
 /**
  * Reads of public.hotels (migrations 0054 and 0056). Row-level security
  * decides what a caller sees: visitors get published hotels, admins get every
- * row. The column list needs 0056 applied (google_place_id, review_count).
+ * row. The column list needs 0056 applied (google_place_id, review_count); hotelsNear needs 0059.
  */
 
 const COLUMNS =
     'id, name, description, address, city, country, lat, lng, region, phone, website, booking_url, '
     + 'price_band, rating, review_count, google_place_id, amenities, photo_url, status, source, created_at, updated_at';
 
-/** Published hotels in a region, best rated first, the most reviewed first among equals. */
-export async function listHotels(region: RegionId): Promise<Hotel[]> {
+/** Which side of the border a hotel is on: Mexico (where the clinics are) or the US (for patients who cross for the day). */
+export type HotelCountry = 'MX' | 'US';
+
+/** Published hotels of one side of a region, best rated first, the most reviewed first among equals. */
+export async function listHotels(region: RegionId, country: HotelCountry = 'MX'): Promise<Hotel[]> {
     if (!supabase) return [];
     const { data, error } = await supabase
         .from('hotels')
         .select(COLUMNS)
         .eq('region', region)
+        .eq('country', country)
         .eq('status', 'live')
         .order('rating', { ascending: false, nullsFirst: false })
         .order('review_count', { ascending: false, nullsFirst: false })
@@ -27,10 +31,10 @@ export async function listHotels(region: RegionId): Promise<Hotel[]> {
     return (data as unknown as Hotel[] | null) ?? [];
 }
 
-/** The closest published hotels to a point, nearest first. */
-export async function hotelsNear(lat: number, lng: number, limit = 3, maxKm = 8): Promise<NearbyHotel[]> {
+/** The closest published hotels to a point, nearest first. Needs migration 0059 for the country filter. */
+export async function hotelsNear(lat: number, lng: number, limit = 3, maxKm = 8, country: HotelCountry = 'MX'): Promise<NearbyHotel[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase.rpc('hotels_near', { p_lat: lat, p_lng: lng, p_limit: limit, p_max_km: maxKm });
+    const { data, error } = await supabase.rpc('hotels_near', { p_lat: lat, p_lng: lng, p_limit: limit, p_max_km: maxKm, p_country: country });
     if (error) throw error;
     return ((data as { hotel: Hotel; distance_km: number }[] | null) ?? [])
         .map((r) => ({ ...r.hotel, distanceKm: r.distance_km }));

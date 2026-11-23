@@ -4,7 +4,8 @@
  *   npx tsx scripts/hotels-selftest.ts
  */
 import { addDays, buildBookingHref, earnsCommission, validStay } from '../src/utils/hotelLinks';
-import { bookingSearchUrl, clusterCentres, describe, isUnsuitableName, pick, priceBand, rejectReason, type Candidate } from './hotels/pick';
+import { bookingSearchUrl, clusterCentres, describe, describeCrossing, isUnsuitableName, pick, priceBand, rejectReason, scoreNearCrossing, type Candidate } from './hotels/pick';
+import { BORDER_CROSSINGS, crossingsOf, formatCrossingDistance, fromCrossing, nearestCrossing } from '../src/utils/borderCrossings';
 
 let failed = 0;
 function check(name: string, ok: boolean, detail?: unknown) {
@@ -95,6 +96,29 @@ check('large counts get a thousands separator', describe({ clinicsWithin1Km: 173
 check('description without a cluster nearby', describe({ clinicsWithin1Km: 0, nearestClinicKm: 2.34 }).en === 'The nearest listed doctor or clinic is 2.3 km away.');
 check('Booking.com search link for a hotel name with accents and &', bookingSearchUrl('Hotel Ticuán & Suites', 'Tijuana')
     === 'https://www.booking.com/searchresults.html?ss=Hotel%20Ticu%C3%A1n%20%26%20Suites%2C%20Tijuana');
+
+console.log('US side');
+{
+    const sd = crossingsOf('sandiego-tijuana');
+    const ep = crossingsOf('elpaso-juarez');
+    check('both regions have crossings', sd.length >= 2 && ep.length >= 2);
+    check('every crossing is in its region by longitude', BORDER_CROSSINGS.every((c) => (c.lng < -110) === (c.region === 'sandiego-tijuana')));
+    const near = { ...base, placeId: 'usnear', name: 'Cerca de la Garita', lat: 32.545, lng: -117.03, reviews: 300 };
+    const far = { ...base, placeId: 'usfar', name: 'Lejos', lat: 32.68, lng: -117.1, rating: 4.8, reviews: 6000 };
+    const out = pick([far, near], [], 2, (c) => scoreNearCrossing(c, sd));
+    check('a hotel 0.3 km from the crossing beats a better-rated one 17 km away', out[0].placeId === 'usnear' && out[0].crossing?.id === 'san-ysidro', out.map((o) => [o.placeId, o.crossingKm]));
+    check('nearestCrossing picks Zaragoza for east Juárez', nearestCrossing({ lat: 31.68, lng: -106.34 }, 'elpaso-juarez').crossing.id === 'ysleta-zaragoza');
+    check('nearestCrossing picks Paso del Norte for downtown El Paso', nearestCrossing({ lat: 31.757, lng: -106.485 }, 'elpaso-juarez').crossing.id === 'paso-del-norte');
+    const c = describeCrossing({ crossing: sd[0], crossingKm: 2.1 });
+    check('crossing description, English: miles and km, straight line', c.en === '1.3 mi (2.1 km) in a straight line from the San Ysidro crossing.', c.en);
+    check('crossing description, Spanish: km, straight line', c.es === 'A 2.1 km en línea recta de la garita de San Ysidro.', c.es);
+    const epd = describeCrossing({ crossing: ep[0], crossingKm: 1 });
+    check('Spanish "de el" contracts to "del" for a bridge', epd.es === 'A 1 km en línea recta del puente internacional Paso del Norte.', epd.es);
+    check('descriptions never promise waits, times or safety', ![c.en, c.es, epd.en, epd.es].some((t) => /wait|minute|minuto|\bsafe|segur|espera/i.test(t)));
+    check('fromCrossing reads in both languages', fromCrossing(sd[1], 'en') === 'from the Otay Mesa crossing' && fromCrossing(sd[1], 'es') === 'de la garita de Otay Mesa');
+    check('caption distance: miles in English, km in Spanish', formatCrossingDistance(2.1, 'en') === '1.3 mi' && formatCrossingDistance(2.1, 'es') === '2.1 km');
+    check('the city Google reports reaches the Booking.com search', bookingSearchUrl('Hotel Prueba', 'Chula Vista') === 'https://www.booking.com/searchresults.html?ss=Hotel%20Prueba%2C%20Chula%20Vista');
+}
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nall checks passed');
 process.exit(failed ? 1 : 0);

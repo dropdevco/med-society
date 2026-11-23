@@ -73,3 +73,19 @@ select 'anon reads place id and review count' as check,
 select 'hotels_near returns the new columns' as check,
   (select hotel->>'google_place_id' = 'ChIJ-test-cerca' from public.hotels_near(32.5272, -117.0222, 5, 8) where hotel->>'name' = 'Hotel Cerca') as ok;
 reset role;
+
+-- 0059: a hotel on the US side, 1.8 km from the Zona Río point (San Ysidro).
+insert into public.hotels (id, name, city, country, lat, lng, status) values
+  ('00000000-0000-4000-8000-0000000000d1', 'Hotel San Ysidro', 'San Ysidro', 'US', 32.5420, -117.0290, 'live');
+select 'US hotel is in the same region as Tijuana' as check,
+  (select region = 'sandiego-tijuana' from public.hotels where id = '00000000-0000-4000-8000-0000000000d1') as ok;
+set role anon;
+select 'hotels_near with MX leaves the US hotel out' as check,
+  (select count(*) > 0 and bool_and(hotel->>'country' = 'MX') from public.hotels_near(32.5272, -117.0222, 20, 8, 'MX')) as ok;
+select 'hotels_near with US returns only the US hotel' as check,
+  (select array_agg(hotel->>'name') = array['Hotel San Ysidro'] from public.hotels_near(32.5272, -117.0222, 20, 8, 'US')) as ok;
+select 'hotels_near without a country returns both sides' as check,
+  (select bool_or(hotel->>'country' = 'US') and bool_or(hotel->>'country' = 'MX') from public.hotels_near(32.5272, -117.0222, 20, 8)) as ok;
+select 'only one hotels_near exists' as check,
+  (select count(*) = 1 from pg_proc where proname = 'hotels_near') as ok;
+reset role;

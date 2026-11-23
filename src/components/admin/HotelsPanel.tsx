@@ -33,19 +33,19 @@ function parseCoords(text: string): { lat: number; lng: number } | null {
 }
 
 interface Draft {
-    name: string; city: string; address: string; coords: string;
+    name: string; city: string; country: 'MX' | 'US'; address: string; coords: string;
     phone: string; website: string; booking_url: string; photo_url: string;
     price_band: string; rating: string; descEn: string; descEs: string;
     amenities: HotelAmenity[]; status: HotelStatus;
 }
 
 const EMPTY: Draft = {
-    name: '', city: 'Tijuana', address: '', coords: '', phone: '', website: '', booking_url: '', photo_url: '',
+    name: '', city: 'Tijuana', country: 'MX', address: '', coords: '', phone: '', website: '', booking_url: '', photo_url: '',
     price_band: '', rating: '', descEn: '', descEs: '', amenities: [], status: 'pending',
 };
 
 const toDraft = (h: Hotel): Draft => ({
-    name: h.name, city: h.city, address: h.address ?? '', coords: `${h.lat}, ${h.lng}`,
+    name: h.name, city: h.city, country: h.country === 'US' ? 'US' : 'MX', address: h.address ?? '', coords: `${h.lat}, ${h.lng}`,
     phone: h.phone ?? '', website: h.website ?? '', booking_url: h.booking_url ?? '', photo_url: h.photo_url ?? '',
     price_band: h.price_band?.toString() ?? '', rating: h.rating?.toString() ?? '',
     descEn: h.description.en ?? '', descEs: h.description.es ?? '', amenities: h.amenities, status: h.status,
@@ -69,7 +69,7 @@ function toInput(d: Draft): HotelInput | string {
     if (d.descEn.trim()) description.en = d.descEn.trim();
     if (d.descEs.trim()) description.es = d.descEs.trim();
     return {
-        name: d.name.trim(), city: d.city.trim(), address: orNull(d.address), country: 'MX',
+        name: d.name.trim(), city: d.city.trim(), address: orNull(d.address), country: d.country,
         lat: at.lat, lng: at.lng, phone: orNull(d.phone), website: orNull(d.website),
         booking_url: orNull(d.booking_url), photo_url: orNull(d.photo_url),
         price_band: d.price_band ? Number(d.price_band) : null, rating,
@@ -164,6 +164,11 @@ function HotelForm({ initial, id, onCancel, onSaved }: { initial: Draft; id?: st
             <div className="adm-qgrid">
                 {field('Name', 'name', { required: true })}
                 {field('City', 'city', { required: true })}
+                <label className="adm-sel">Side of the border
+                    <select value={d.country} onChange={set('country')}>
+                        <option value="MX">Mexico (near the clinics)</option><option value="US">United States (cross for the day)</option>
+                    </select>
+                </label>
                 {field('Address', 'address')}
                 <label className="adm-sel">
                     Coordinates or Google Maps link

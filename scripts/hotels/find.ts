@@ -4,7 +4,7 @@
  *
  *   npx tsx scripts/hotels/find.ts                 # dry run: prints the picks, writes nothing
  *   npx tsx scripts/hotels/find.ts --commit        # upserts the picks as live hotels
- *   npx tsx scripts/hotels/find.ts --city=tijuana  # one city (tijuana | juarez)
+ *   npx tsx scripts/hotels/find.ts --city=tijuana  # one target (tijuana | juarez | sandiego | elpaso)
  *   npx tsx scripts/hotels/find.ts --per-city=12 --refetch
  *
  * How it chooses:
@@ -17,6 +17,11 @@
  *      than half from one price level, and keeps --per-city (default 12).
  *   5. One Place Details call per pick confirms the country is MX and adds
  *      phone and website.
+ *
+ * US side (sandiego, elpaso): for patients who cross for the day instead of
+ * sleeping in Mexico. The centres are the border crossings (src/utils/
+ * borderCrossings.ts), hotels are ranked by distance to the nearest crossing
+ * and described by it, and Place Details must say the country is US.
  *
  * Google's terms let us keep only the place ID indefinitely. Like providers,
  * the row also keeps name, address, coordinates and rating; photos are never
@@ -33,8 +38,10 @@ import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { isUsAddress, usSideOfBorder } from '../doctoralia/sweep-targets';
 import { uuidv7 } from '../sources/lib/snapshot';
+import { crossingsOf } from '../../src/utils/borderCrossings';
+import type { RegionId } from '../../src/utils/region';
 import {
-    bookingSearchUrl, clusterCentres, describe, pick, priceBand, rejectReason,
+    bookingSearchUrl, clusterCentres, describe, describeCrossing, pick, priceBand, rejectReason, scoreNearCrossing,
     type Candidate, type Point, type Scored,
 } from './pick';
 
@@ -44,16 +51,30 @@ const opt = (name: string) => argv.find((a) => a.startsWith(`--${name}=`))?.spli
 
 const commit = flag('commit');
 const refetch = flag('refetch');
-const perCity = Math.max(1, Math.min(30, Number(opt('per-city') ?? 12)));
+const perCityOpt = opt('per-city');
 const onlyCity = opt('city');
 
 const CITIES = {
-    tijuana: { region: 'sandiego-tijuana', city: 'Tijuana' },
-    juarez: { region: 'elpaso-juarez', city: 'Ciudad Juárez' },
-} as const;
+    tijuana: { region: 'sandiego-tijuana', city: 'Tijuana', country: 'MX' },
+    juarez: { region: 'elpaso-juarez', city: 'Ciudad Juárez', country: 'MX' },
+    sandiego: { region: 'sandiego-tijuana', city: 'San Diego', country: 'US' },
+    elpaso: { region: 'elpaso-juarez', city: 'El Paso', country: 'US' },
+} as const satisfies Record<string, { region: RegionId; city: string; country: 'MX' | 'US' }>;
 type CityId = keyof typeof CITIES;
 
 const SEARCH_RADIUS_M = 3000;
+/** Around a border crossing: hotels a short drive from the line, not all of San Diego. */
+const US_SEARCH_RADIUS_M = 6000;
+/**
+ * Google ranks by prominence and a search at the line itself fills up with
+ * Tijuana or Juárez hotels (the first run kept 16 of 160 results). So the US
+ * search is centred a few km into the US, away from the border; hotels are
+ * still ranked by distance to the crossing, not to this centre.
+ */
+const US_SEARCH_OFFSET: Record<RegionId, { dLat: number; dLng: number }> = {
+    'sandiego-tijuana': { dLat: 0.035, dLng: 0 },
+    'elpaso-juarez': { dLat: 0.03, dLng: 0.015 },
+}
 const COST_PER_1K = { textSearch: 32, details: 20 };
 const DATA_DIR = path.join('scripts', 'hotels', '.data');
 const CACHE_DIR = path.join(DATA_DIR, 'cache');
@@ -150,10 +171,10 @@ async function paged(endpoint: 'textsearch' | 'nearbysearch', params: string): P
  * radius; nearby search keeps strictly to it, so between them a centre's
  * well-known hotels and its smaller ones both show up.
  */
-async function searchAround(centre: Point): Promise<Candidate[]> {
-    const at = `location=${centre.lat},${centre.lng}&radius=${SEARCH_RADIUS_M}&language=es`;
+async function searchAround(centre: Point, us: boolean): Promise<Candidate[]> {
+    const at = `location=${centre.lat},${centre.lng}&radius=${us ? US_SEARCH_RADIUS_M : SEARCH_RADIUS_M}&language=${us ? 'en' : 'es'}`;
     const results = [
-        ...await paged('textsearch', `query=${encodeURIComponent('hotel')}&type=lodging&region=mx&${at}`),
+        ...await paged('textsearch', `query=${encodeURIComponent('hotel')}&type=lodging&region=${us ? 'us' : 'mx'}&${at}`),
         ...await paged('nearbysearch', `type=lodging&${at}`),
     ];
     return results.map((r): Candidate => ({
@@ -171,51 +192,66 @@ async function searchAround(centre: Point): Promise<Candidate[]> {
     })).filter((c) => c.placeId && Number.isFinite(c.lat) && Number.isFinite(c.lng));
 }
 
-async function details(placeId: string) {
+async function details(placeId: string, us: boolean) {
     const fields = 'name,formatted_address,international_phone_number,website,address_components,geometry,rating,user_ratings_total,price_level,business_status';
-    const json = await places(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&language=es&key=${GOOGLE_KEY}`, 'details');
+    const json = await places(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&language=${us ? 'en' : 'es'}&key=${GOOGLE_KEY}`, 'details');
     return json.status === 'OK' ? json.result : null;
 }
 
 interface Row {
-    google_place_id: string; name: string; city: string; country: 'MX'; address: string | null;
+    google_place_id: string; name: string; city: string; country: 'MX' | 'US'; address: string | null;
     lat: number; lng: number; phone: string | null; website: string | null; booking_url: string;
     price_band: number | null; rating: number | null; review_count: number;
     description: { en: string; es: string }; status: 'live'; source: 'google'; source_run_id: string;
 }
 
+/** Mexican-side address markers: with `region=us` Google can still return a Juárez or Tijuana place near the line. */
+const looksMexican = (addr: string | null) => Boolean(addr && /m[eé]xico|\bChih\.?\b|\bB\.?\s?C\.?\b|baja california|tijuana|ju[aá]rez/i.test(addr));
+
 async function runCity(id: CityId, runId: string) {
-    const { region, city } = CITIES[id];
-    const clinics = await liveClinics(region);
-    const centres = clusterCentres(clinics, 5);
-    console.log(`\n■ ${city}: ${clinics.length} live listings; centres ${centres.map((c) => `${c.lat},${c.lng} (${c.n})`).join(' · ')}`);
+    const { region, city: cityName, country } = CITIES[id];
+    const us = country === 'US';
+    const perCity = Math.max(1, Math.min(30, Number(perCityOpt ?? (us ? 8 : 12))));
+    const crossings = crossingsOf(region);
+    const clinics = us ? [] : await liveClinics(region);
+    const off = US_SEARCH_OFFSET[region];
+    const centres: Point[] = us ? crossings.map((c) => ({ lat: c.lat + off.dLat, lng: c.lng + off.dLng })) : clusterCentres(clinics, 5);
+    console.log(us
+        ? `\n■ ${cityName} (US side): search centres are a few km into the US from the ${crossings.length} border crossings`
+        : `\n■ ${cityName}: ${clinics.length} live listings; centres ${(centres as { lat: number; lng: number; n: number }[]).map((c) => `${c.lat},${c.lng} (${c.n})`).join(' · ')}`);
 
     const found: Candidate[] = [];
-    for (const c of centres) found.push(...await searchAround(c));
-    // Mexican side only: the Tijuana survey line, and a US-style address anywhere.
-    const mx = found.filter((c) => !(id === 'tijuana' && usSideOfBorder(c.lat, c.lng)) && !isUsAddress(c.address));
-    const unique = new Map(mx.map((c) => [c.placeId, c]));
+    for (const c of centres) found.push(...await searchAround(c, us));
+    // The side we want. Mexico: the Tijuana survey line and any US-style address. US: the survey line
+    // (San Diego) and any Mexican address; Place Details country below has the last word.
+    const wanted = found.filter((c) => us
+        ? !(id === 'sandiego' && !usSideOfBorder(c.lat, c.lng)) && !looksMexican(c.address)
+        : !(id === 'tijuana' && usSideOfBorder(c.lat, c.lng)) && !isUsAddress(c.address));
+    const unique = new Map(wanted.map((c) => [c.placeId, c]));
     const rejected = [...unique.values()].map((c) => [c, rejectReason(c)] as const).filter(([, r]) => r);
-    console.log(`  ${found.length} results, ${unique.size} unique on the Mexican side, ${rejected.length} rejected`);
+    console.log(`  ${found.length} results, ${unique.size} unique on the ${us ? 'US' : 'Mexican'} side, ${rejected.length} rejected`);
     const reasons = new Map<string, number>();
     for (const [, r] of rejected) reasons.set(r!, (reasons.get(r!) ?? 0) + 1);
     for (const [r, n] of reasons) console.log(`    - ${n} ${r}`);
 
-    // Pick a few extra, in case Place Details shows one is not in Mexico after all.
-    const shortlist = pick([...unique.values()], clinics, perCity + 4);
+    // Pick a few extra, in case Place Details shows one is on the other side after all.
+    const shortlist = pick([...unique.values()], clinics, perCity + 4, us ? (c) => scoreNearCrossing(c, crossings) : undefined);
     const rows: Row[] = [];
     const picked: Scored[] = [];
     for (const s of shortlist) {
         if (rows.length === perCity) break;
-        const d = await details(s.placeId);
-        const country = (d?.address_components ?? []).find((a) => a.types?.includes('country'))?.short_name;
-        if (!d || country !== 'MX') { console.log(`  ✗ ${s.name}: Place Details country ${country ?? 'unknown'}`); continue; }
+        const d = await details(s.placeId, us);
+        const comps = d?.address_components ?? [];
+        const got = comps.find((a) => a.types?.includes('country'))?.short_name;
+        if (!d || got !== country) { console.log(`  ✗ ${s.name}: Place Details country ${got ?? 'unknown'}`); continue; }
+        // US hotels sit in Chula Vista, National City, San Ysidro...: use the real city so Booking.com's search is right.
+        const city = us ? (comps.find((a) => a.types?.includes('locality'))?.short_name ?? cityName) : cityName;
         picked.push(s);
         rows.push({
             google_place_id: s.placeId,
             name: s.name.slice(0, 160),
             city,
-            country: 'MX',
+            country,
             address: d.formatted_address ?? s.address,
             lat: d.geometry?.location?.lat ?? s.lat,
             lng: d.geometry?.location?.lng ?? s.lng,
@@ -225,7 +261,7 @@ async function runCity(id: CityId, runId: string) {
             price_band: priceBand(typeof d.price_level === 'number' ? d.price_level : s.priceLevel),
             rating: Math.round((d.rating ?? s.rating ?? 0) * 10) / 10 || null,
             review_count: Number(d.user_ratings_total ?? s.reviews),
-            description: describe(s),
+            description: us && s.crossing ? describeCrossing({ crossing: s.crossing, crossingKm: s.crossingKm! }) : describe(s),
             status: 'live',
             source: 'google',
             source_run_id: runId,
@@ -235,8 +271,8 @@ async function runCity(id: CityId, runId: string) {
     console.log(`  picks (${rows.length}):`);
     rows.forEach((r, i) => {
         const s = picked[i];
-        console.log(`   ${String(i + 1).padStart(2)}. ${r.name} · ★${r.rating} (${r.review_count}) · ${r.price_band ? '$'.repeat(r.price_band) : '–'} · `
-            + `${s.clinicsWithin1Km} listings ≤1 km, nearest ${s.nearestClinicKm.toFixed(2)} km · ${r.address}`);
+        const where = us ? `${s.crossingKm!.toFixed(2)} km from ${s.crossing!.id}` : `${s.clinicsWithin1Km} listings ≤1 km, nearest ${s.nearestClinicKm.toFixed(2)} km`;
+        console.log(`   ${String(i + 1).padStart(2)}. ${r.name} (${r.city}) · ★${r.rating} (${r.review_count}) · ${r.price_band ? '$'.repeat(r.price_band) : '–'} · ${where} · ${r.address}`);
     });
     return rows;
 }
@@ -255,22 +291,22 @@ async function write(rows: Row[]) {
             inserted++;
             continue;
         }
-        // An admin's decisions win: a hidden hotel stays hidden, an edited description stays.
+        // An admin's decisions win: a hidden or draft hotel keeps its status, an edited description stays.
         const patch: Partial<Row> = { ...r };
-        if (e.status === 'hidden') { delete patch.status; kept++; }
+        if (e.status !== 'live') { delete patch.status; kept++; }
         if (e.source !== 'google') delete patch.description;
         const { error: upErr } = await supabase.from('hotels').update(patch).eq('id', e.id);
         if (upErr) throw new Error(`${r.name}: ${upErr.message}`);
         updated++;
     }
-    console.log(`\n✔ wrote ${rows.length}: ${inserted} new, ${updated} updated${kept ? ` (${kept} kept hidden)` : ''}`);
+    console.log(`\n✔ wrote ${rows.length}: ${inserted} new, ${updated} updated${kept ? ` (${kept} kept as they were: hidden or draft)` : ''}`);
 }
 
 async function main() {
     const runId = uuidv7();
     const startedAt = new Date().toISOString();
     const cities = (onlyCity ? [onlyCity] : Object.keys(CITIES)) as CityId[];
-    for (const c of cities) if (!(c in CITIES)) { console.error(`✖ unknown --city=${c} (tijuana | juarez)`); process.exit(1); }
+    for (const c of cities) if (!(c in CITIES)) { console.error(`✖ unknown --city=${c} (tijuana | juarez | sandiego | elpaso)`); process.exit(1); }
 
     console.log(`Hotel finder · run ${runId} · ${commit ? 'COMMIT (writes live hotels)' : 'dry run (writes nothing)'}`);
     const rows: Row[] = [];

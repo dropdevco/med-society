@@ -17,6 +17,7 @@ import handler, { __test } from '../api/agent';
 import { applyFilters, defaultFilters } from '../src/utils/filters';
 import { badgeMatches as siteBadgeMatches, buildSearchIndex, scoreDoc as siteScoreDoc, tokenize as siteTokenize, expandTerm as siteExpand } from '../src/utils/search';
 import { ratingOf as siteRatingOf, shrunkScore as siteShrunk } from '../src/utils/rating';
+import { BORDER_CROSSINGS as SITE_CROSSINGS } from '../src/utils/borderCrossings';
 import { providerJsonLd as siteJsonLd } from '../src/utils/structuredData';
 import { normalizeProvider } from '../src/utils/normalizeProvider';
 import type { Provider, Specialty } from '../src/types/provider';
@@ -111,6 +112,13 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         // Made-up hotels. Only published rows of the asked region may be requested.
         if (!url.includes('status=eq.live')) return new Response('drafts must never be read', { status: 400 });
         const region = /region=eq\.([a-z-]+)/.exec(url)?.[1];
+        const country = /country=eq\.([A-Z]{2})/.exec(url)?.[1];
+        if (!country) return new Response('hotels must be asked for by country', { status: 400 });
+        if (country === 'US') {
+            return json(region === 'sandiego-tijuana' ? [
+                { id: U(301), name: 'Hotel Frontera', description: { en: 'x' }, address: '1 Camino de la Plaza, San Ysidro, CA', city: 'San Ysidro', lat: 32.5440, lng: -117.0310, website: null, booking_url: 'https://www.booking.com/searchresults.html?ss=Hotel%20Frontera', price_band: 2, rating: 4.2, review_count: 900, amenities: [] },
+            ] : []);
+        }
         return json(region === 'sandiego-tijuana' ? [
             { id: U(201), name: 'Hotel Prueba <b>x</b>', description: { en: 'Quiet rooms near Zona Río.', es: 'Cuartos tranquilos cerca de Zona Río.' }, address: 'Paseo de Prueba 1', city: 'Tijuana', lat: 32.527, lng: -117.022, website: null, booking_url: 'https://www.booking.com/hotel/mx/prueba.html', price_band: 2, rating: 4.5, review_count: 6373, amenities: ['clinic_shuttle', 'bilingual_staff'] },
             { id: U(202), name: 'Hostal Sin Liga', description: {}, address: null, city: 'Tijuana', lat: 32.52, lng: -117.01, website: 'javascript:alert(1)', booking_url: null, price_band: null, rating: null, amenities: [] },
@@ -407,6 +415,21 @@ check('hotels: an empty region says so and returns no hotels', r.status === 200 
 r = await get('route=page&kind=hotels&region=bogus', { accept: 'application/json' });
 check('hotels: an unknown region falls back to Tijuana, never a 4xx', r.status === 200 && r.json().data.region === 'sandiego-tijuana');
 check('pages sitemap lists the hotels pages', (await get('route=sitemap&name=pages')).body.includes('/hotels?region=elpaso-juarez'));
+check('hotels: the Mexican page asks for country MX only', calls.some((c) => c.includes('/rest/v1/hotels?') && c.includes('country=eq.MX')) && !calls.some((c) => c.includes('/rest/v1/hotels?') && !c.includes('country=eq.')));
+r = await get('route=page&kind=hotels&region=sandiego-tijuana&side=us', { accept: 'text/html' });
+check('hotels US side: asks for country US, its own title and canonical', r.status === 200
+    && calls.some((c) => c.includes('/rest/v1/hotels?') && c.includes('country=eq.US'))
+    && r.body.includes('<title>Hotels in San Diego, near the border crossings — MedSociety</title>')
+    && /rel="canonical" href="https:\/\/www\.medsociety\.one\/hotels\?region=sandiego-tijuana&(amp;)?side=us"/.test(r.body), r.body.slice(0, 400));
+check('hotels US side: distance to the crossing, in a straight line, no waits or safety claims',
+    /mi \(\d+(\.\d)? km\) in a straight line from the San Ysidro crossing/.test(r.body) && !/wait time|\bsafe(ty)?\b/i.test(r.body.replace(/crossing times vary/i, '')));
+check('hotels US side: the Mexican hotel is not listed', !r.body.includes('Hotel Prueba'));
+r = await get('route=page&kind=hotels&region=sandiego-tijuana&side=bogus', { accept: 'application/json' });
+check('hotels: an unknown side falls back to Mexico', r.status === 200 && r.json().data.side === 'mx');
+check('pages sitemap lists the US-side hotels pages', /\/hotels\?region=elpaso-juarez&(amp;)?side=us/.test((await get('route=sitemap&name=pages')).body));
+check('border crossings: api/agent.ts and src/utils/borderCrossings.ts hold the same list',
+    JSON.stringify(__test.BORDER_CROSSINGS.map(({ id, region, lat, lng }) => ({ id, region, lat, lng })))
+    === JSON.stringify(SITE_CROSSINGS.map(({ id, region, lat, lng }) => ({ id, region, lat, lng }))));
 failList = true;
 r = await get(`route=page&kind=provider&id=${U(7)}`, { accept: 'text/html' });
 check('database down: the plain app shell is served, so people are never locked out', r.status === 200 && r.body === SHELL, r.status);

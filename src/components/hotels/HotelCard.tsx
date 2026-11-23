@@ -2,6 +2,8 @@ import { useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Hotel } from '../../types/hotel';
 import { bookingHref, isAffiliateLink } from '../../utils/hotelLinks';
+import { formatCrossingDistance, nearestCrossing } from '../../utils/borderCrossings';
+import { isRegionId } from '../../utils/region';
 import { placePhotoProxyState, placePhotoUrl, subscribePlacePhotoProxy } from '../../utils/placePhoto';
 import { track } from '../../lib/posthog';
 import { hueOf } from '../../utils/images';
@@ -43,14 +45,21 @@ function useHotelPhoto(hotel: Hotel): { src: string; srcSet?: string } | null {
 }
 
 /**
- * One hotel as a photo tile: the picture, the name over it, nothing else. The
- * whole tile is the link out ("Check rates" on Booking.com), so the rating,
- * price and distance live on the Hotels page, not on the tile.
+ * One hotel as a photo tile: the picture and the name over it. The whole tile
+ * is the link out ("Check rates" on Booking.com). Only US-side hotels add one
+ * line, the straight-line distance to the border crossing, because that is
+ * why a patient would pick them.
  */
 export function HotelCard({ hotel, surface, distanceKm, providerId, checkin, checkout, compact }: Props) {
     const { t, i18n } = useTranslation();
     const href = bookingHref(hotel, { lang: i18n.language, checkin, checkout });
     const photo = useHotelPhoto(hotel);
+    // US-side hotels say how far they are from the crossing; Mexican ones are photo and name only.
+    const crossing = hotel.country === 'US' && isRegionId(hotel.region) ? nearestCrossing(hotel, hotel.region) : null;
+    const lang2 = i18n.language.startsWith('es') ? 'es' : 'en';
+    const caption = crossing
+        ? t('hotels.toCrossing', { distance: formatCrossingDistance(crossing.km, lang2), name: crossing.crossing.name[lang2] })
+        : null;
     const [photoFailed, setPhotoFailed] = useState(false);
 
     const onOut = () => track('hotel_outbound_click', {
@@ -58,6 +67,8 @@ export function HotelCard({ hotel, surface, distanceKm, providerId, checkin, che
         hotel_name: hotel.name,
         region: hotel.region,
         surface,
+        side: hotel.country === 'US' ? 'us' : 'mx',
+        ...(crossing ? { crossing_id: crossing.crossing.id, crossing_km: Math.round(crossing.km * 10) / 10 } : {}),
         affiliate: isAffiliateLink(href),
         dated: Boolean(checkin && checkout),
         ...(providerId ? { provider_id: providerId } : {}),
@@ -70,7 +81,10 @@ export function HotelCard({ hotel, surface, distanceKm, providerId, checkin, che
                 ? <img src={photo.src} srcSet={photo.srcSet} alt="" loading="lazy" decoding="async" onError={() => setPhotoFailed(true)} />
                 : <span className="ms-hotel-mono" aria-hidden="true">{hotel.name.slice(0, 1).toUpperCase()}</span>}
             <span className="ms-hotel-shade" aria-hidden="true" />
-            <h3 className="ms-hotel-name">{hotel.name}</h3>
+            <div className="ms-hotel-text">
+                <h3 className="ms-hotel-name">{hotel.name}</h3>
+                {caption && <p className="ms-hotel-cap">{caption}</p>}
+            </div>
         </>
     );
     const cls = `ms-hotel${compact ? ' ms-hotel--compact' : ''}`;

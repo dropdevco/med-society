@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { listHotels } from '../lib/hotelRead';
+import { formatCrossingDistance, nearestCrossing } from '../utils/borderCrossings';
 import { track } from '../lib/posthog';
 import { useProvider } from '../hooks/useProvider';
 import { HotelCard } from '../components/hotels/HotelCard';
@@ -14,9 +15,11 @@ import { distanceKm } from '../utils/geo';
 import { isRegionId, readLastRegion, regionOf, REGIONS, writeLastRegion, type RegionId } from '../utils/region';
 
 /**
- * /hotels?region=…[&near=<providerId>]: curated hotels in a region's Mexican
- * city, for patients travelling for treatment. Opened from a provider page it
- * sorts by distance from that provider.
+ * /hotels?region=…[&side=us][&near=<providerId>]: curated hotels in a region's
+ * Mexican city, for patients travelling for treatment, or (side=us) on the US
+ * side for those who would rather cross for the day. Opened from a provider
+ * page it sorts by distance from that provider (US side: from the crossing
+ * nearest to it).
  */
 export function HotelsPage() {
     const { t, i18n } = useTranslation();
@@ -25,7 +28,9 @@ export function HotelsPage() {
     const region: RegionId = isRegionId(fromUrl) ? fromUrl : readLastRegion();
     const nearId = params.get('near') ?? undefined;
     const { provider: near } = useProvider(nearId);
-    const city = REGIONS[region].mx.city;
+    const side: 'mx' | 'us' = params.get('side') === 'us' ? 'us' : 'mx';
+    const city = REGIONS[region][side].city;
+    const listKey = `${region}:${side}`;
     // Stay dates live in the URL (?checkin=&checkout=), so the homepage search and a shared link keep them.
     const stay = validStay(params.get('checkin'), params.get('checkout'));
     const [draftDates, setDraftDates] = useState({ checkin: stay?.checkin ?? '', checkout: stay?.checkout ?? '' });
@@ -38,9 +43,9 @@ export function HotelsPage() {
     };
 
     // Keyed by region: until this region's list arrives, the page is loading (null).
-    const [loaded, setLoaded] = useState<{ region: RegionId; hotels: Hotel[]; failed: boolean } | null>(null);
-    const hotels = loaded?.region === region ? loaded.hotels : null;
-    const failed = loaded?.region === region && loaded.failed;
+    const [loaded, setLoaded] = useState<{ key: string; hotels: Hotel[]; failed: boolean } | null>(null);
+    const hotels = loaded?.key === listKey ? loaded.hotels : null;
+    const failed = loaded?.key === listKey && loaded.failed;
     const [price, setPrice] = useState<number | null>(null);
     const [amenity, setAmenity] = useState<HotelAmenity | null>(null);
 
@@ -48,17 +53,17 @@ export function HotelsPage() {
 
     useEffect(() => {
         let live = true;
-        listHotels(region)
-            .then((rows) => { if (live) setLoaded({ region, hotels: rows, failed: false }); })
-            .catch(() => { if (live) setLoaded({ region, hotels: [], failed: true }); });
+        listHotels(region, side === 'us' ? 'US' : 'MX')
+            .then((rows) => { if (live) setLoaded({ key: listKey, hotels: rows, failed: false }); })
+            .catch(() => { if (live) setLoaded({ key: listKey, hotels: [], failed: true }); });
         return () => { live = false; };
-    }, [region]);
+    }, [region, side, listKey]);
 
     useEffect(() => {
         const prev = document.title;
-        document.title = `${t('hotels.pageTitle', { city })} | MedSociety`;
+        document.title = `${t(side === 'us' ? 'hotels.pageTitleUs' : 'hotels.pageTitle', { city })} | MedSociety`;
         return () => { document.title = prev; };
-    }, [t, city, i18n.language]);
+    }, [t, city, side, i18n.language]);
 
     // The near-provider only counts when it is in this region.
     const origin = near && (near.region ?? regionOf(near.lng)) === region ? near : null;
@@ -68,9 +73,13 @@ export function HotelsPage() {
             .filter((h) => price === null || h.price_band === price)
             .filter((h) => amenity === null || h.amenities.includes(amenity))
             .map((h) => ({ hotel: h, km: origin ? distanceKm(origin.lat, origin.lng, h.lat, h.lng) : undefined }));
-        if (origin) list.sort((a, b) => (a.km ?? 0) - (b.km ?? 0));
+        // US side: closest to the crossing this provider is nearest to, since that is where the patient crosses.
+        if (origin && side === 'us') {
+            const c = nearestCrossing(origin, region).crossing;
+            list.sort((a, b) => distanceKm(c.lat, c.lng, a.hotel.lat, a.hotel.lng) - distanceKm(c.lat, c.lng, b.hotel.lat, b.hotel.lng));
+        } else if (origin) list.sort((a, b) => (a.km ?? 0) - (b.km ?? 0));
         return list;
-    }, [hotels, price, amenity, origin]);
+    }, [hotels, price, amenity, origin, side, region]);
 
     // Stable inputs for the map, so it only redraws when what it shows changes.
     const mapHotels = useMemo(() => rows.map((r) => r.hotel), [rows]);
@@ -87,14 +96,14 @@ export function HotelsPage() {
     const shownFor = useRef('');
     useEffect(() => {
         if (!hotels || hotels.length === 0) return;
-        const key = `${region}:${origin?.id ?? ''}`;
+        const key = `${listKey}:${origin?.id ?? ''}`;
         if (shownFor.current === key) return;
         shownFor.current = key;
         track('hotel_impression', {
-            surface: 'hotels_page', region, count: hotels.length,
+            surface: 'hotels_page', region, side, count: hotels.length,
             ...(origin ? { provider_id: origin.id } : {}),
         });
-    }, [hotels, region, origin]);
+    }, [hotels, region, side, listKey, origin]);
 
     // Only amenities some hotel here has are worth a filter chip.
     const amenitiesHere = HOTEL_AMENITIES.filter((a) => (hotels ?? []).some((h) => h.amenities.includes(a)));
@@ -109,11 +118,27 @@ export function HotelsPage() {
         setParams(next, { replace: true });
     };
 
+    const switchSide = (s: 'mx' | 'us') => {
+        const next = new URLSearchParams(params);
+        if (s === 'us') next.set('side', 'us'); else next.delete('side');
+        setPrice(null);
+        setAmenity(null);
+        setParams(next, { replace: true });
+    };
+    const crossingFromOrigin = origin && side === 'us' ? nearestCrossing(origin, region) : null;
+    const lang = i18n.language.startsWith('es') ? 'es' : 'en';
+
     return (
         <main id="main-content" className="ms-hotels-page">
             <header className="ms-hotels-hero">
-                <h1>{t('hotels.pageTitle', { city })}</h1>
-                <p>{t('hotels.pageSubtitle')}</p>
+                <h1>{t(side === 'us' ? 'hotels.pageTitleUs' : 'hotels.pageTitle', { city })}</h1>
+                <p>{t(side === 'us' ? 'hotels.pageSubtitleUs' : 'hotels.pageSubtitle')}</p>
+                {side === 'us' && (
+                    <p className="ms-hotels-crossnote">
+                        {t('hotels.crossingNote')}{' '}
+                        <a href="https://bwt.cbp.gov/" target="_blank" rel="noopener noreferrer">{t('hotels.crossingNoteLink')}</a>
+                    </p>
+                )}
                 <div className="ms-hotels-regions" role="group" aria-label={t('hotels.regionLabel')}>
                     {(Object.keys(REGIONS) as RegionId[]).map((r) => (
                         <button key={r} type="button" className={r === region ? 'on' : ''} aria-pressed={r === region} onClick={() => switchRegion(r)}>
@@ -121,13 +146,23 @@ export function HotelsPage() {
                         </button>
                     ))}
                 </div>
+                <div className="ms-hotels-regions" role="group" aria-label={t('hotels.sideLabel')}>
+                    <button type="button" className={side === 'mx' ? 'on' : ''} aria-pressed={side === 'mx'} onClick={() => switchSide('mx')}>
+                        {t('hotels.sideMx', { city: REGIONS[region].mx.city })}
+                    </button>
+                    <button type="button" className={side === 'us' ? 'on' : ''} aria-pressed={side === 'us'} onClick={() => switchSide('us')}>
+                        {t('hotels.sideUs', { city: REGIONS[region].us.city })}
+                    </button>
+                </div>
                 <div className="ms-hotels-datebar">
                     <StayDates idPrefix="hotels-page" checkin={draftDates.checkin} checkout={draftDates.checkout} onChange={setDates} />
                     <p>{stay ? t('hotels.datesSet') : t('hotels.datesHint')}</p>
                 </div>
                 {origin && (
                     <p className="ms-hotels-near">
-                        {t('hotels.sortedNear', { name: origin.name })}{' '}
+                        {crossingFromOrigin
+                            ? t('hotels.sortedNearCrossing', { crossing: crossingFromOrigin.crossing.label[lang], distance: formatCrossingDistance(crossingFromOrigin.km, lang), name: origin.name })
+                            : t('hotels.sortedNear', { name: origin.name })}{' '}
                         <Link to={`/providers/${origin.id}`}>{t('hotels.backToProvider')}</Link>
                     </p>
                 )}

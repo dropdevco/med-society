@@ -5,6 +5,8 @@
  * scripts/hotels-selftest.ts can check every rule with made-up places.
  */
 
+import { kmBetween, fromCrossing, type BorderCrossing } from '../../src/utils/borderCrossings';
+
 export interface Point { lat: number; lng: number }
 
 /** What the finder keeps from a Google Places text-search result. */
@@ -28,6 +30,9 @@ export interface Scored extends Candidate {
     /** Distance to the closest live listing, km. */
     nearestClinicKm: number;
     score: number;
+    /** US-side hotels only: the closest border crossing and the straight-line km to it. */
+    crossing?: BorderCrossing;
+    crossingKm?: number;
 }
 
 export const MIN_RATING = 4.0;
@@ -100,11 +105,14 @@ export function score(c: Candidate, clinics: Point[]): Scored {
  * The best `perCity`, deduplicated by place ID, with no more than half from
  * one Google price level, so the list is not all budget or all luxury.
  */
-export function pick(candidates: Candidate[], clinics: Point[], perCity = 12): Scored[] {
+export function pick(
+    candidates: Candidate[], clinics: Point[], perCity = 12,
+    scorer: (c: Candidate) => Scored = (c) => score(c, clinics),
+): Scored[] {
     const unique = new Map<string, Candidate>();
     for (const c of candidates) if (!unique.has(c.placeId)) unique.set(c.placeId, c);
     const ranked = [...unique.values()].filter((c) => rejectReason(c) === null)
-        .map((c) => score(c, clinics)).sort((a, b) => b.score - a.score);
+        .map(scorer).sort((a, b) => b.score - a.score);
     const cap = Math.ceil(perCity / 2);
     const perLevel = new Map<string, number>();
     const chosen: Scored[] = [];
@@ -121,6 +129,23 @@ export function pick(candidates: Candidate[], clinics: Point[], perCity = 12): S
         if (!chosen.includes(c)) chosen.push(c);
     }
     return chosen;
+}
+
+/**
+ * US side: the hotel is chosen for how easy the crossing is, not for the
+ * clinics (which are all in Mexico). Closeness to the nearest crossing first,
+ * then rating × log(reviews), so a 4.6-star hotel 15 km out still loses to a
+ * good one a few minutes from the line.
+ */
+export function scoreNearCrossing(c: Candidate, crossings: BorderCrossing[]): Scored {
+    let crossing = crossings[0];
+    let km = Infinity;
+    for (const x of crossings) {
+        const d = kmBetween(c, x);
+        if (d < km) { km = d; crossing = x; }
+    }
+    const quality = (c.rating ?? 0) * Math.log10(Math.max(c.reviews, 1));
+    return { ...c, clinicsWithin1Km: 0, nearestClinicKm: Infinity, crossing, crossingKm: km, score: quality - Math.min(km, 15) * 0.8 };
 }
 
 /** Google's 0–4 price level → our 1–4 band. 0 (free) and 1 (inexpensive) are both "$". */
@@ -153,4 +178,18 @@ export function describe(s: Pick<Scored, 'clinicsWithin1Km' | 'nearestClinicKm'>
 /** Booking.com's own search for this hotel, so "Check rates" works without a scraped hotel page URL. */
 export function bookingSearchUrl(name: string, city: string): string {
     return `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(`${name}, ${city}`)}`;
+}
+
+/**
+ * What a US-side hotel's row says: only the straight-line distance to the
+ * crossing, in miles and km for English readers. Nothing about waits or
+ * safety, which this data cannot know.
+ */
+export function describeCrossing(s: { crossing: BorderCrossing; crossingKm: number }): { en: string; es: string } {
+    const km = Math.round(s.crossingKm * 10) / 10;
+    const mi = Math.round(s.crossingKm * 0.621371 * 10) / 10;
+    return {
+        en: `${mi} mi (${km} km) in a straight line ${fromCrossing(s.crossing, 'en')}.`,
+        es: `A ${km.toLocaleString('es-MX')} km en línea recta ${fromCrossing(s.crossing, 'es')}.`,
+    };
 }

@@ -1927,14 +1927,17 @@ select option {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.25) 38%, rgba(0, 0, 0, 0) 62%);
 }
+.ms-hotel-text { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 1rem 1.1rem 1.1rem; }
+.ms-hotel-cap { margin: 0.3rem 0 0; font-size: 0.8rem; font-weight: 600; opacity: 0.9; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5); }
 .ms-hotel-name {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; margin: 0; padding: 1rem 1.1rem 1.1rem;
+  margin: 0;
   font-size: 1.15rem; font-weight: 750; line-height: 1.2; letter-spacing: -0.01em; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 a.ms-hotel:hover img, a.ms-hotel:hover .ms-hotel-mono { transform: scale(1.05); }
 a.ms-hotel:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
-.ms-hotel--compact .ms-hotel-name { font-size: 1.02rem; padding: 0.9rem 1rem 1rem; }
+.ms-hotel--compact .ms-hotel-text { padding: 0.9rem 1rem 1rem; }
+.ms-hotel--compact .ms-hotel-name { font-size: 1.02rem; }
 .ms-hotels-list .ms-hotel, .ms-stay-list .ms-hotel { aspect-ratio: 4 / 3; }
 .ms-hotel.is-skeleton { pointer-events: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .ms-hotel img, .ms-hotel-mono { transition: none; } }
@@ -2705,3 +2708,6 @@ a.ms-hotel:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px;
   .sb-known-value { grid-column: 2; grid-row: 2; }
   .sb-known li .acct-link { grid-column: 3; grid-row: 1 / span 2; }
 }
+.ms-stay-note { margin: -0.3rem 0 0; font-size: 0.84rem; color: var(--gray-400); }
+.ms-hotels-crossnote { margin: -0.4rem 0 1rem; font-size: 0.84rem; color: var(--gray-400); }
+.ms-hotels-crossnote a { color: inherit; text-decoration: underline; }
