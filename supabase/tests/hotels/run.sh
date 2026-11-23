@@ -12,7 +12,7 @@ for _ in $(seq 1 40); do docker exec ms-hotels-test pg_isready -U postgres -q &&
 sleep 2
 psql() { docker exec ms-hotels-test psql -U postgres -v ON_ERROR_STOP=1 -q -X "$@"; }
 psql -f /sql/stubs.sql
-psql -f /migrations/0054_hotels.sql && psql -f /migrations/0054_hotels.sql && psql -f /migrations/0056_hotels_google.sql && psql -f /migrations/0056_hotels_google.sql && echo "migrations applied (twice each, to prove they re-run)"
+psql -f /migrations/0054_hotels.sql && psql -f /migrations/0054_hotels.sql && psql -f /migrations/0056_hotels_google.sql && psql -f /migrations/0056_hotels_google.sql && psql -f /migrations/0059_hotels_us_side.sql && psql -f /migrations/0059_hotels_us_side.sql && echo "migrations applied (twice each, to prove they re-run)"
 out="$(psql -f /sql/exercise.sql 2>&1)" || { echo "$out"; echo "FAILED: a script stopped on an error"; exit 1; }
 echo "$out"
 if echo "$out" | grep -qE ' \| f$'; then echo "FAILED: a check returned false"; exit 1; fi
