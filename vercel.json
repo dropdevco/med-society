@@ -79,6 +79,16 @@
       ]
     },
     {
+      "source": "/getting-here",
+      "destination": "/api/agent?route=page&kind=getting-here",
+      "missing": [
+        {
+          "type": "header",
+          "key": "sec-fetch-dest"
+        }
+      ]
+    },
+    {
       "source": "/hotels",
       "destination": "/api/agent?route=page&kind=hotels",
       "missing": [

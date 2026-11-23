@@ -1508,7 +1508,8 @@
     "tabsLabel": "What are you looking for?",
     "tabCare": "Doctors & clinics",
     "tabHotels": "Hotels",
-    "tabFlights": "Flights"
+    "tabFlights": "Flights",
+    "gettingHere": "Getting here: airports, crossing and what to bring"
   },
   "flights": {
     "searchLabel": "Search flights",
