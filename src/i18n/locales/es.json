@@ -1467,6 +1467,8 @@
     "nights_other": "{{count}} noches",
     "pickCheckin": "Elige el día de llegada",
     "pickCheckout": "Ahora elige el día de salida",
+    "calTitle": "¿Cuándo vienes?",
+    "noDates": "Aún sin fechas",
     "clearDates": "Borrar fechas",
     "stayUs": "O hospédate en {{city}} y cruza",
     "seeAllUs": "Hoteles en {{city}}",

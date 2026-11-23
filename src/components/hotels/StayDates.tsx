@@ -77,7 +77,8 @@ export function StayDates({ checkin, checkout, onChange, idPrefix }: Props) {
     // 2026-11-01 is a Sunday: its first seven days are Sunday to Saturday.
     const weekdays = Array.from({ length: 7 }, (_, i) => fmt(`2026-11-0${i + 1}`, { weekday: 'narrow' }));
     const end = picking === 'out' && checkin && !checkout ? hover : checkout;
-    const inRange = (d: string) => Boolean(checkin && end && end > checkin && d > checkin && d < end);
+    const hasRange = Boolean(checkin && end && end > checkin);
+    const inRange = (d: string) => hasRange && d > checkin && d < end;
     const canGoBack = view > monthStart(today);
     const nights = checkin && checkout ? nightsBetween(checkin, checkout) : 0;
     const months = [view, addMonths(view, 1)];
@@ -105,6 +106,10 @@ export function StayDates({ checkin, checkout, onChange, idPrefix }: Props) {
             {field('out', checkout, t('hotels.checkout'))}
             {open && (
                 <div className="ms-cal" role="dialog" aria-label={t('hotels.chooseDates')} onMouseLeave={() => setHover('')}>
+                    <div className="ms-cal-top">
+                        <h3>{t('hotels.calTitle')}</h3>
+                        <p>{t(picking === 'out' && checkin ? 'hotels.pickCheckout' : 'hotels.pickCheckin')}</p>
+                    </div>
                     <button type="button" className="ms-cal-nav ms-cal-prev" aria-label={t('hotels.prevMonth')} disabled={!canGoBack}
                         onClick={() => setView(addMonths(view, -1))}><IconChevronLeft size={16} /></button>
                     <button type="button" className="ms-cal-nav ms-cal-next" aria-label={t('hotels.nextMonth')}
@@ -122,11 +127,11 @@ export function StayDates({ checkin, checkout, onChange, idPrefix }: Props) {
                                             disabled={d < today}
                                             aria-label={fmt(d, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                                             aria-pressed={d === checkin || d === checkout}
-                                            className={`ms-cal-day${d === checkin ? ' is-start' : ''}${d === checkout ? ' is-end' : ''}${inRange(d) ? ' is-range' : ''}${d === today ? ' is-today' : ''}`}
+                                            className={`ms-cal-day${d === checkin ? ' is-start' : ''}${d === end && hasRange ? ' is-end' : ''}${d === checkin && hasRange ? ' band-right' : ''}${d === end && hasRange ? ' band-left' : ''}${inRange(d) ? ' is-range' : ''}${d === today ? ' is-today' : ''}`}
                                             onMouseEnter={() => setHover(d)}
                                             onClick={() => pickDay(d)}
                                         >
-                                            {Number(d.slice(8))}
+                                            <span>{Number(d.slice(8))}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -134,7 +139,9 @@ export function StayDates({ checkin, checkout, onChange, idPrefix }: Props) {
                         ))}
                     </div>
                     <div className="ms-cal-foot">
-                        <span>{nights > 0 ? t('hotels.nights', { count: nights }) : t(picking === 'out' ? 'hotels.pickCheckout' : 'hotels.pickCheckin')}</span>
+                        <span className={`ms-cal-sum${nights > 0 ? ' is-set' : ''}`}>
+                            {nights > 0 ? `${t('hotels.nights', { count: nights })} · ${short(checkin)} → ${short(checkout)}` : t('hotels.noDates')}
+                        </span>
                         {(checkin || checkout) && (
                             <button type="button" className="ms-cal-clear" onClick={() => { onChange({ checkin: '', checkout: '' }); setPicking('in'); }}>
                                 {t('hotels.clearDates')}
