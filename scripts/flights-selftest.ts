@@ -58,7 +58,8 @@ console.log('getting-here guide (api/agent.ts keeps an English copy)');
 {
     const agent = readFileSync(new URL('../api/agent.ts', import.meta.url), 'utf8');
     const strings = [
-        ...GUIDE.bring.map((b) => b.text.en), GUIDE.cbx.en, GUIDE.disclaimer.en,
+        ...GUIDE.bring.map((b) => b.text.en), GUIDE.cbx.en, GUIDE.disclaimer.en, GUIDE.groundIntro.en,
+        ...(['sandiego-tijuana', 'elpaso-juarez'] as const).flatMap((r) => guideFor(r, 'en').ground.map((g) => g.text.en)),
         ...(['sandiego-tijuana', 'elpaso-juarez'] as const).flatMap((r) => guideFor(r, 'en').airports.map((a) => a.next.en)),
     ];
     const missing = strings.filter((x) => !agent.includes(x));

@@ -18,7 +18,7 @@ export function GettingHerePage() {
     const region: RegionId = isRegionId(fromUrl) ? fromUrl : readLastRegion();
     const city = REGIONS[region].mx.city;
     const usCity = REGIONS[region].us.city;
-    const { airports, crossings } = guideFor(region, lang);
+    const { airports, crossings, ground } = guideFor(region, lang);
 
     useEffect(() => { writeLastRegion(region); }, [region]);
     useEffect(() => {
@@ -63,6 +63,19 @@ export function GettingHerePage() {
                 <h2 id="g-cross">{GUIDE.crossTitle[lang]}</h2>
                 <p>{GUIDE.cross(crossings, city)[lang]}</p>
                 <p><a href={OFFICIAL_LINKS.cbpWaits} target="_blank" rel="noopener noreferrer">{GUIDE.waitsLink[lang]}</a></p>
+            </section>
+
+            <section className="ms-guide-sec" aria-labelledby="g-ground">
+                <h2 id="g-ground">{GUIDE.groundTitle[lang]}</h2>
+                <p>{GUIDE.groundIntro[lang]}</p>
+                <ul>
+                    {ground.map((g, i) => (
+                        <li key={i}>
+                            {g.text[lang]}
+                            {g.href && <> <a href={g.href} target="_blank" rel="noopener noreferrer">↗</a></>}
+                        </li>
+                    ))}
+                </ul>
             </section>
 
             <section className="ms-guide-sec" aria-labelledby="g-bring">

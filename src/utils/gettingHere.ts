@@ -36,6 +36,11 @@ export const GUIDE = {
             + ` Muchos pacientes se hospedan del lado de EE. UU. y cruzan el mismo día a ${city}.`,
     }),
     waitsLink: { en: 'Live border wait times (CBP)', es: 'Tiempos de espera en vivo (CBP)' } as L,
+    groundTitle: { en: 'Getting around on the ground', es: 'Cómo moverte por tierra' } as L,
+    groundIntro: {
+        en: 'Plain options, no fares or times: those change, so each link goes to the operator. We have no booking partners for these.',
+        es: 'Opciones sencillas, sin tarifas ni horarios: cambian, por eso cada enlace va al operador. No tenemos socios de reserva para esto.',
+    } as L,
     bringTitle: { en: 'What to bring', es: 'Qué llevar' } as L,
     bring: [
         { text: { en: 'Your passport. To return to the US by land, US citizens can also use a passport card, an enhanced driver’s license or a trusted traveler card; check which documents apply to you.', es: 'Tu pasaporte. Para regresar a EE. UU. por tierra, los ciudadanos estadounidenses también pueden usar tarjeta de pasaporte, licencia mejorada o tarjeta de viajero confiable; confirma qué documentos te aplican.' }, href: OFFICIAL_LINKS.cbpDocuments },
@@ -60,10 +65,28 @@ export const GUIDE = {
     } as L,
 } as const;
 
+const GROUND_COMMON: GuideItem[] = [
+    { text: { en: 'Rideshare apps usually cannot take you across the border: ride to the crossing, walk over, then request or arrange a new ride on the other side.', es: 'Las apps de transporte normalmente no te cruzan la frontera: viaja hasta la garita, cruza a pie y pide o coordina otro viaje del otro lado.' } },
+    { text: { en: 'Ask your clinic or hotel to arrange a car or pickup on the Mexican side. It is usually the simplest way to be met at the right place.', es: 'Pide a tu clínica u hotel que coordine un auto o la recogida del lado mexicano. Suele ser la forma más sencilla de que te esperen en el lugar correcto.' } },
+];
+
+const GROUND: Record<RegionId, GuideItem[]> = {
+    'sandiego-tijuana': [
+        { text: { en: 'San Diego airport to the border: car, taxi or rideshare, or by transit with MTS bus 992 to downtown and then the Blue Line trolley to San Ysidro.', es: 'Del aeropuerto de San Diego a la frontera: auto, taxi o transporte por app, o en transporte público con el autobús 992 de MTS al centro y luego el tranvía Blue Line a San Ysidro.' }, href: 'https://www.san.org/To-From/Public-Transportation' },
+        { text: { en: 'To fly out of Tijuana airport from the US side, see Cross Border Xpress below. At the Tijuana airport, rideshare pickup may be restricted, so ask your clinic or hotel to arrange the car.', es: 'Para volar desde el aeropuerto de Tijuana partiendo del lado de EE. UU., mira Cross Border Xpress más abajo. En el aeropuerto de Tijuana la recogida de transporte por app puede estar restringida; pide a tu clínica u hotel que coordine el auto.' } },
+        ...GROUND_COMMON,
+    ],
+    'elpaso-juarez': [
+        { text: { en: 'El Paso airport to the border: car, taxi or rideshare, or Sun Metro buses toward downtown, where the Paso del Norte bridge is. Check Sun Metro for routes.', es: 'Del aeropuerto de El Paso a la frontera: auto, taxi o transporte por app, o autobuses de Sun Metro hacia el centro, donde está el puente Paso del Norte. Revisa las rutas en Sun Metro.' }, href: 'https://sunmetro.net/' },
+        { text: { en: 'On foot over the bridges: pedestrian hours and any small fee are on the City of El Paso’s international bridges page.', es: 'A pie por los puentes: los horarios para peatones y cualquier cuota pequeña están en la página de puentes internacionales de la Ciudad de El Paso.' }, href: 'https://www.elpasotexas.gov/international-bridges' },
+        ...GROUND_COMMON,
+    ],
+};
+
 /** The two airports for a region (US side first) and the crossings that serve it, in the language asked. */
 export function guideFor(region: RegionId, lang: Lang) {
     const airports: FlightDestination[] = FLIGHT_DESTINATIONS.filter((d) => d.region === region)
         .sort((a, b) => (a.side === 'us' ? -1 : 1) - (b.side === 'us' ? -1 : 1));
     const crossings = BORDER_CROSSINGS.filter((c) => c.region === region).map((c) => c.name[lang]);
-    return { airports, crossings };
+    return { airports, crossings, ground: GROUND[region] };
 }
