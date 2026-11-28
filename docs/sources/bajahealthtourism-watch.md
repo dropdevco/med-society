@@ -12,7 +12,7 @@ Open: the site's public catalogue, read through the same JSON API its pages use 
 
 ## What it keeps, and what it never keeps
 
-**The API returns far more than the pages show**, including personal data: phone numbers, e-mails, tax IDs (RFC), identity and licence documents. The adapter keeps an allow-list and drops everything else before anything is written:
+**The API returns far more than the pages show**, including personal data: phone numbers, e-mails, licence and certificate numbers, links to uploaded certification documents, and the names, e-mails and roles of the staff who reviewed them. It also carries fields for a tax ID (`rfc`) and identity documents (`identity`, `identity2`, `doctor_documents`); on 22 Nov 2026 those were **empty on all 172 doctors**, so no tax ID or identity document was exposed then. The adapter keeps an allow-list and drops everything else before anything is written:
 
 | Kept | From |
 |---|---|
