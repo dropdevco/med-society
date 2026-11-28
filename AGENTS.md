@@ -44,6 +44,7 @@ npm run build                # tsc -b && vite build
 npm run lint                 # has known errors, see HANDOFF.md section 10
 npm run sources:selftest     # source pipeline checks, no network
 npm run badges:selftest      # organization badges: links, card layout, API, both languages
+npx tsx scripts/search-parity.ts --selftest   # search parity harness (docs/server-search-plan.md), no network
 bash supabase/tests/doctors-and-badges/run.sh  # doctor and badge migrations in a throwaway Postgres
 npm run sources -- --source=hospital-angeles   # one source, dry run
 docker compose up -d scheduler dashboard       # weekly timer + health page on http://localhost:5180
