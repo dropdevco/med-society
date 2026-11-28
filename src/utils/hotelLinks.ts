@@ -2,7 +2,7 @@ import type { Hotel } from '../types/hotel';
 
 /**
  * Where "Check rates" goes, and the one place commission is added. How to get
- * the affiliate link: docs/booking-affiliate.md.
+ * the affiliate link: docs/travel-booking.md.
  *
  * Two ways, both set in Vercel and both optional:
  *   VITE_HOTEL_AFFILIATE_LINK   a network deep link with `{url}` where the

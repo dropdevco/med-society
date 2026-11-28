@@ -1512,6 +1512,15 @@
     "gettingHere": "Getting here: airports, crossing and what to bring"
   },
   "flights": {
+    "fareFrom": "Recently seen from {{price}}",
+    "fareNote": "Found in earlier searches on Aviasales, not a live price. The price you can buy is shown there and may differ; bags may cost extra.",
+    "disclosureFares": "We open the airline search site in a new tab. We may earn a commission if you book there, at no cost to you. To show a recent fare we send your airports and dates, nothing about you, to our fare provider. We don’t store your trip.",
+    "infants_one": "{{count}} infant",
+    "infants_other": "{{count}} infants",
+    "infantsName": "Infants",
+    "adultsHint": "12 and over",
+    "childrenHint": "Ages 2 to 11",
+    "infantsHint": "Under 2, on a lap",
     "searchLabel": "Search flights",
     "from": "From",
     "fromPlaceholder": "Your city",

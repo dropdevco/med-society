@@ -56,6 +56,7 @@ export function OriginInput({ value, onChange, invalid }: { value: string; onCha
                 autoComplete="off"
                 onChange={(e) => { onChange(e.target.value); setActive(0); setOpen(true); }}
                 onFocus={() => setOpen(true)}
+                onBlur={() => setOpen(false)}
                 onKeyDown={onKeyDown}
             />
             {show && (

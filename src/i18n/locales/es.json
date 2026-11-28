@@ -1512,6 +1512,15 @@
     "gettingHere": "Cómo llegar: aeropuertos, cruce y qué llevar"
   },
   "flights": {
+    "fareFrom": "Visto hace poco desde {{price}}",
+    "fareNote": "Encontrado en búsquedas anteriores en Aviasales, no es un precio en vivo. El precio de compra se muestra ahí y puede cambiar; el equipaje puede costar aparte.",
+    "disclosureFares": "Abrimos el buscador de vuelos en otra pestaña. Podemos ganar una comisión si reservas ahí, sin costo para ti. Para mostrar una tarifa reciente enviamos tus aeropuertos y fechas, nada sobre ti, a nuestro proveedor. No guardamos tu viaje.",
+    "infants_one": "{{count}} bebé",
+    "infants_other": "{{count}} bebés",
+    "infantsName": "Bebés",
+    "adultsHint": "12 años o más",
+    "childrenHint": "De 2 a 11 años",
+    "infantsHint": "Menos de 2 años, en brazos",
     "searchLabel": "Buscar vuelos",
     "from": "Desde",
     "fromPlaceholder": "Tu ciudad",

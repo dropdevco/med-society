@@ -1,6 +1,6 @@
 /**
  * Flights: where "Search flights" goes, and the one place commission is added.
- * The plan and how to get the affiliate link are in docs/booking-affiliate.md.
+ * The plan and how to get the affiliate link are in docs/travel-booking.md.
  *
  * We never show fares or book anything: the search opens the partner's results
  * (Aviasales, through Travelpayouts) in a new tab. One optional setting, in Vercel:
@@ -25,7 +25,7 @@ function usableTemplate(t?: string): string | undefined {
     try { return new URL(t.replace('{url}', 'x')).protocol === 'https:' ? t : undefined; } catch { return undefined; }
 }
 
-/** Where a patient can fly in, and what comes next. Keep in step with docs/booking-affiliate.md. */
+/** Where a patient can fly in, and what comes next. Keep in step with docs/travel-booking.md. */
 export interface FlightDestination {
     code: string;
     region: 'sandiego-tijuana' | 'elpaso-juarez';
@@ -78,7 +78,22 @@ export interface FlightQuery {
     /** YYYY-MM-DD; empty for one way. */
     ret?: string;
     adults?: number;
+    /** Ages 2 to 11. */
+    children?: number;
+    /** Under 2, on an adult's lap. */
+    infants?: number;
     today?: string;
+}
+
+export interface Travellers { adults: number; children: number; infants: number }
+/** Seats (adults and children) one search can ask for. */
+export const FLIGHT_PAX_LIMIT = 9;
+
+/** Whole numbers within airline rules: 1+ adults, at most nine seats, never more infants than adults. */
+export function validTravellers(t: { adults?: number; children?: number; infants?: number }): Travellers {
+    const int = (v: number | undefined, lo: number, hi: number) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v as number)) : lo);
+    const adults = int(t.adults, 1, FLIGHT_PAX_LIMIT);
+    return { adults, children: int(t.children, 0, FLIGHT_PAX_LIMIT - adults), infants: int(t.infants, 0, adults) };
 }
 
 const MONTH_DAY = (iso: string) => `${iso.slice(8, 10)}${iso.slice(5, 7)}`;
@@ -92,7 +107,7 @@ const isRealDay = (d?: string) => {
  * What a search needs before it can go out: real airports, a departure that is
  * not in the past, and, if there is a return, one after it. Null when not usable.
  */
-export function validFlightQuery(q: FlightQuery): { from: string; to: string; depart: string; ret: string; adults: number } | null {
+export function validFlightQuery(q: FlightQuery): ({ from: string; to: string; depart: string; ret: string } & Travellers) | null {
     const from = /^[A-Za-z]{3}$/.test(q.from) ? q.from.toUpperCase() : '';
     const to = /^[A-Za-z]{3}$/.test(q.to) ? q.to.toUpperCase() : '';
     if (!from || !to || from === to) return null;
@@ -103,13 +118,16 @@ export function validFlightQuery(q: FlightQuery): { from: string; to: string; de
         if (!isRealDay(q.ret) || q.ret <= q.depart) return null;
         ret = q.ret;
     }
-    const adults = Number.isInteger(q.adults) ? Math.min(9, Math.max(1, q.adults as number)) : 1;
-    return { from, to, depart: q.depart, ret, adults };
+    return { from, to, depart: q.depart, ret, ...validTravellers(q) };
 }
 
-/** The partner's results page for this search: Aviasales' `ORIGIN DDMM DEST [DDMM] ADULTS` form. */
+/**
+ * The partner's results page for this search: Aviasales' `ORIGIN DDMM DEST [DDMM]
+ * ADULTS [CHILDREN [INFANTS]]` form, one digit each (checked on aviasales.com,
+ * 28 Nov 2026: ...211 shows 2 adults, 1 child, 1 infant).
+ */
 export function partnerSearchUrl(q: NonNullable<ReturnType<typeof validFlightQuery>>): string {
-    return `https://www.aviasales.com/search/${q.from}${MONTH_DAY(q.depart)}${q.to}${q.ret ? MONTH_DAY(q.ret) : ''}${q.adults}`;
+    return `https://www.aviasales.com/search/${q.from}${MONTH_DAY(q.depart)}${q.to}${q.ret ? MONTH_DAY(q.ret) : ''}${q.adults}${q.children || q.infants ? q.children : ''}${q.infants || ''}`;
 }
 
 /** The pure version of `flightHref`, with the affiliate settings passed in (for the self-test). */

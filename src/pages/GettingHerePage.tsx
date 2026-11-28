@@ -8,7 +8,7 @@ import { IconPlane } from '../components/icons/Icons';
 /**
  * /getting-here?region=…: which airport, how to cross, what to bring, for a
  * patient travelling to a region's clinics. Static, bilingual, no fares and no
- * tracking links: the plan is docs/booking-affiliate.md (F2).
+ * tracking links: the plan is docs/travel-booking.md (F2).
  */
 export function GettingHerePage() {
     const { i18n } = useTranslation();

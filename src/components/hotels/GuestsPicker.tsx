@@ -8,8 +8,6 @@ interface Props {
     onChange: (next: Occupancy) => void;
     /** The slimmer button used in the /hotels header. */
     compact?: boolean;
-    /** Flights: just the adults stepper. */
-    adultsOnly?: boolean;
 }
 
 type Kind = keyof Occupancy;
@@ -18,7 +16,7 @@ type Kind = keyof Occupancy;
  * Adults, children and rooms in one popover with +/- steppers, like a booking
  * site's "Select occupancy". Rooms can never exceed adults (validOccupancy).
  */
-export function GuestsPicker({ value, onChange, compact, adultsOnly }: Props) {
+export function GuestsPicker({ value, onChange, compact }: Props) {
     const { t } = useTranslation();
     const id = useId();
     const root = useRef<HTMLDivElement>(null);
@@ -33,11 +31,11 @@ export function GuestsPicker({ value, onChange, compact, adultsOnly }: Props) {
         return () => { document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', esc); };
     }, [open]);
 
-    const label = (adultsOnly ? [t('hotels.adults', { count: value.adults })] : [
+    const label = [
         t('hotels.adults', { count: value.adults }),
-        t('hotels.children', { count: value.children }),
+        value.children ? t('hotels.children', { count: value.children }) : '',
         t('hotels.rooms', { count: value.rooms }),
-    ]).join(' · ');
+    ].filter(Boolean).join(' · ');
 
     const step = (kind: Kind, delta: number) =>
         onChange(validOccupancy(
@@ -46,7 +44,7 @@ export function GuestsPicker({ value, onChange, compact, adultsOnly }: Props) {
             kind === 'rooms' ? value.rooms + delta : value.rooms,
         ));
 
-    const rows: { kind: Kind; hint?: string }[] = adultsOnly ? [{ kind: 'adults', hint: t('hotels.adultsHint') }] : [
+    const rows: { kind: Kind; hint?: string }[] = [
         { kind: 'adults', hint: t('hotels.adultsHint') },
         { kind: 'children', hint: t('hotels.childrenHint') },
         { kind: 'rooms' },
@@ -54,13 +52,13 @@ export function GuestsPicker({ value, onChange, compact, adultsOnly }: Props) {
 
     return (
         <div className={`ms-guests${compact ? ' is-compact' : ''}`} ref={root}>
-            {!compact && <span className="ms-where-label" id={`${id}-l`}>{t(adultsOnly ? 'flights.travellers' : 'hotels.capGuests')}</span>}
+            {!compact && <span className="ms-where-label" id={`${id}-l`}>{t('hotels.capGuests')}</span>}
             <button
                 type="button"
                 className="ms-guests-btn"
                 aria-haspopup="dialog"
                 aria-expanded={open}
-                aria-label={`${t(adultsOnly ? 'flights.travellers' : 'hotels.guestsLabel')}: ${label}`}
+                aria-label={`${t('hotels.guestsLabel')}: ${label}`}
                 onClick={() => setOpen((o) => !o)}
             >
                 <span>{label}</span>
