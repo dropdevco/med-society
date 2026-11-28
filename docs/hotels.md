@@ -1,6 +1,6 @@
 # Hotels
 
-The first piece of the medical-trip pipeline: patients who travel to Tijuana or Ciudad Juárez for treatment can find a place to stay near their doctor. Background research on how travel sites get hotel data is in [travel-booking-data.md](travel-booking-data.md). Getting paid for bookings is in [booking-affiliate.md](booking-affiliate.md).
+The first piece of the medical-trip pipeline: patients who travel to Tijuana or Ciudad Juárez for treatment can find a place to stay near their doctor. Background research on how travel sites get hotel data is in [travel-booking-data.md](travel-booking-data.md). Getting paid for bookings is in [travel-booking.md](travel-booking.md).
 
 ## How it works
 

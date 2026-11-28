@@ -38,3 +38,5 @@ Medical trips are planned for V3. When we get there, we shouldn't try to become 
 3. **Curated partners.** Hand-picked hotels near the clinics in Tijuana and Juárez, linked or contacted directly. This probably fits the "medical trip" story better than a full search engine.
 
 Current terms and requirements for each option still need checking when trips are scoped.
+
+Later research on booking from our own site (providers, costs, legal) is in [travel-booking.md](travel-booking.md#booking-the-whole-trip-from-our-site).
